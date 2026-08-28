@@ -1,0 +1,6 @@
+server/.env
+server/node_modules/
+logs/
+*.zip
+HANDOFF-CODEX.md
+.DS_Store

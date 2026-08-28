@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>数据报表 · 丽珠 AI 社团</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; }
+  body {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0a0a0d;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  ::selection { background: rgba(255,255,255,0.2); color: #fff; }
+  a { color: inherit; text-decoration: none; }
+
+  .film-grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 90; opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+  }
+
+  .page { max-width: 1120px; margin: 0 auto; padding: 48px 32px 80px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; }
+  .topbar .back {
+    font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 999px;
+    padding: 8px 18px; transition: all .25s ease;
+  }
+  .topbar .back:hover { color: #fff; border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+
+  .hero h1 {
+    font-family: 'Noto Serif SC', serif; font-weight: 900;
+    font-size: clamp(34px, 5vw, 54px); letter-spacing: 6px; line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .hero h1 .accent { background: linear-gradient(135deg, #5b8cff 0%, #2f5fe0 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .sub { font-size: 13px; color: rgba(255,255,255,0.45); letter-spacing: 3px; font-family: 'JetBrains Mono', monospace; margin-bottom: 8px; }
+  .hero .meta { font-size: 12px; color: rgba(255,255,255,0.3); letter-spacing: 1px; margin-bottom: 40px; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 48px; }
+  .kpi {
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.008) 100%);
+    padding: 22px 24px; position: relative; overflow: hidden;
+  }
+  .kpi::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, #5b8cff, #173f8f); opacity: .8;
+  }
+  .kpi .label { font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.4); margin-bottom: 10px; }
+  .kpi .num { font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 500; line-height: 1; }
+  .kpi .note { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 8px; letter-spacing: 1px; }
+
+  .section { margin-bottom: 52px; }
+  .section .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 20px; }
+  .section .sec-title { font-family: 'Noto Serif SC', serif; font-size: 21px; font-weight: 700; letter-spacing: 3px; }
+  .section .sec-en { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.3); }
+
+  .bars { display: flex; flex-direction: column; gap: 12px; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr 52px; align-items: center; gap: 14px; }
+  .bar-row .bar-label { font-size: 13px; color: rgba(255,255,255,0.75); text-align: right; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .bar-track { height: 10px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .bar-row .bar-fill {
+    height: 100%; border-radius: 999px; width: 0;
+    background: linear-gradient(90deg, #173f8f 0%, #5b8cff 100%);
+    transition: width 1s cubic-bezier(.2,.8,.2,1);
+  }
+  .bar-row .bar-num { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(255,255,255,0.6); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+
+  .table-wrap { border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; font-weight: 500; font-size: 11px; letter-spacing: 2px;
+    color: rgba(255,255,255,0.4); padding: 14px 18px;
+    background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.08);
+    white-space: nowrap;
+  }
+  tbody td { padding: 13px 18px; border-bottom: 1px solid rgba(255,255,255,0.04); color: rgba(255,255,255,0.8); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(255,255,255,0.025); }
+  td.mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: rgba(255,255,255,0.55); }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: 1px;
+    border: 1px solid rgba(91,140,255,0.4); color: #8fb0ff;
+    border-radius: 999px; padding: 2px 10px;
+  }
+  .tag.warn { border-color: rgba(255,180,90,0.4); color: #ffc07a; }
+
+  .actions { display: flex; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+  .btn {
+    font-size: 12px; letter-spacing: 2px; border-radius: 999px; padding: 10px 24px;
+    border: 1px solid rgba(91,140,255,0.45); color: #9dbaff; cursor: pointer;
+    background: transparent; transition: all .25s ease; font-family: inherit;
+  }
+  .btn:hover { background: rgba(91,140,255,0.12); border-color: #5b8cff; color: #fff; }
+  .btn.primary { background: linear-gradient(135deg, #2568d8 0%, #173f8f 100%); border: none; color: #fff; }
+  .btn.primary:hover { filter: brightness(1.15); }
+
+  .status-line {
+    margin-top: 28px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 1px; color: rgba(255,255,255,0.3);
+  }
+  .empty { color: rgba(255,255,255,0.35); font-size: 13px; padding: 28px 18px; text-align: center; letter-spacing: 2px; }
+
+  .footer {
+    margin-top: 70px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.07);
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px;
+    color: rgba(255,255,255,0.25); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="film-grain"></div>
+<div class="page">
+
+  <div class="topbar">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:4px;color:rgba(255,255,255,0.35);">LIVZON · AI CLUB</span>
+    <a class="back" href="/">← 返回官网首页</a>
+  </div>
+
+  <div class="hero">
+    <div class="sub">DATA REPORT / 基础报表</div>
+    <h1>社团数据<span class="accent">一览</span></h1>
+    <div class="meta" id="meta">正在加载数据 …</div>
+  </div>
+
+  <div class="kpi-row" id="kpis"></div>
+
+  <div class="section">
+    <div class="sec-head"><span class="sec-title">作品分布</span><span class="sec-en">WORKS DISTRIBUTION</span></div>
+    <div class="two-col">
+      <div><div style="font-size:12px;color:rgba(255,255,255,0.4);letter-spacing:2px;margin-bottom:14px;">按创作方向</div><div class="bars" id="bars-cat"></div></div>
+      <div><div style="font-size:12px;color:rgba(255,255,255,0.4);letter-spacing:2px;margin-bottom:14px;">按活动来源</div><div class="bars" id="bars-src"></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-head"><span class="sec-title">报名情况</span><span class="sec-en">REGISTRATIONS</span></div>
+    <div class="bars" id="bars-act" style="max-width:640px;"></div>
+    <div class="actions">
+      <button class="btn primary" onclick="location.href='/api/report/csv'">导出报名明细 CSV</button>
+      <button class="btn" onclick="load()">刷新数据</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-head"><span class="sec-title">最新报名</span><span class="sec-en">RECENT REGISTRATIONS</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>时间</th><th>姓名</th><th>部门</th><th>报名活动</th><th>愿意分享</th><th>分享方向</th></tr></thead>
+        <tbody id="reg-body"></tbody>
+      </table>
+    </div>
+    <div class="status-line" id="reg-status"></div>
+  </div>
+
+  <div class="footer">
+    <span>LIVZON AI CLUB · REPORT</span>
+    <span>DATA SOURCE /api/report · 60s AUTO REFRESH</span>
+  </div>
+</div>
+
+<script>
+var lastLoaded = 0;
+
+function el(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function maskContact(s) {
+  s = String(s || '');
+  if (s.length <= 4) return '****';
+  return s.slice(0, 2) + '****' + s.slice(-2);
+}
+
+function renderBars(container, entries, total) {
+  container.innerHTML = '';
+  if (!entries.length) {
+    container.appendChild(el('div', 'empty', '暂无数据'));
+    return;
+  }
+  var max = Math.max.apply(null, entries.map(function(x){ return x[1]; }));
+  entries.forEach(function(x) {
+    var row = el('div', 'bar-row');
+    row.appendChild(el('div', 'bar-label', x[0]));
+    var track = el('div', 'bar-track');
+    var fill = el('div', 'bar-fill');
+    track.appendChild(fill);
+    row.appendChild(track);
+    row.appendChild(el('div', 'bar-num', String(x[1])));
+    container.appendChild(row);
+    var pct = total ? (x[1] / (max || 1)) : 0;
+    (function(f, w) { setTimeout(function(){ f.style.width = (w * 100).toFixed(1) + '%'; }, 60); })(fill, pct);
+  });
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  function p(n){ return n < 10 ? '0'+n : ''+n; }
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function renderKpis(items) {
+  var box = document.getElementById('kpis');
+  box.innerHTML = '';
+  items.forEach(function(it) {
+    var k = el('div', 'kpi');
+    k.appendChild(el('div', 'label', it.label));
+    k.appendChild(el('div', 'num', String(it.value)));
+    if (it.note) k.appendChild(el('div', 'note', it.note));
+    box.appendChild(k);
+  });
+}
+
+function load() {
+  fetch('/api/report').then(function(r) { return r.json(); }).then(function(d) {
+    if (!d.ok) throw new Error(d.error || 'load failed');
+    lastLoaded = Date.now();
+    document.getElementById('meta').textContent =
+      '作品期数 ' + (d.works.session || '—') + ' · 报名渠道 ' + (d.registrations.mode === 'lark' ? '飞书多维表格' : (d.registrations.mode === 'mixed' ? '飞书 + 本地暂存' : '本地暂存')) + ' · 更新于 ' + fmtTime(d.generatedAt);
+
+    renderKpis([
+      { label: '作品总数', value: d.works.total, note: d.works.session || '' },
+      { label: '创作方向', value: Object.keys(d.works.byCategory).length, note: '个分类' },
+      { label: '报名总数', value: d.registrations.total, note: '其中 ' + d.registrations.willShare + ' 人愿意分享' },
+      { label: '待补作品链接', value: d.works.total - d.works.withLink, note: '已补 ' + d.works.withLink + ' / ' + d.works.total }
+    ]);
+
+    var catEntries = Object.keys(d.works.byCategory).map(function(k){ return [k, d.works.byCategory[k]]; });
+    catEntries.sort(function(a,b){ return b[1]-a[1]; });
+    renderBars(document.getElementById('bars-cat'), catEntries, d.works.total);
+
+    var srcEntries = Object.keys(d.works.bySource).map(function(k){ return [k, d.works.bySource[k]]; });
+    srcEntries.sort(function(a,b){ return b[1]-a[1]; });
+    renderBars(document.getElementById('bars-src'), srcEntries, d.works.total);
+
+    var actEntries = Object.keys(d.registrations.byActivity).map(function(k){ return [k, d.registrations.byActivity[k]; });
+    actEntries.sort(function(a,b){ return b[1]-a[1]; });
+    renderBars(document.getElementById('bars-act'), actEntries, d.registrations.total);
+
+    var tbody = document.getElementById('reg-body');
+    tbody.innerHTML = '';
+    var recs = d.registrations.recent || [];
+    if (!recs.length) {
+      var tr = el('tr');
+      var td = el('td', 'empty', '暂无报名记录');
+      td.colSpan = 6; td.style.textAlign = 'center';
+      tr.appendChild(td); tbody.appendChild(tr);
+    } else {
+      recs.forEach(function(r) {
+        var tr = el('tr');
+        tr.appendChild(el('td', 'mono', fmtTime(r.ts)));
+        tr.appendChild(el('td', null, r.name || '—'));
+        tr.appendChild(el('td', null, r.department || '—'));
+        tr.appendChild(el('td', null, r.activity || '—'));
+        var tdS = el('td');
+        var tag = el('span', 'tag' + (r.willShare ? '' : ' warn'), r.willShare ? '愿意' : '暂不');
+        tdS.appendChild(tag); tr.appendChild(tdS);
+        tr.appendChild(el('td', null, r.shareTopic || '—'));
+        tbody.appendChild(tr);
+      });
+    }
+    document.getElementById('reg-status').textContent =
+      '共 ' + (d.registrations.total) + ' 条 · 展示最近 ' + (recs.length) + ' 条（联系方式已脱敏，导出 CSV 可见完整数据）';
+  }).catch(function(e) {
+    document.getElementById('meta').textContent = '数据加载失败：' + (e.message || '网络错误') + '，请确认服务已启动后点击「刷新数据」';
+  });
+}
+
+load();
+setInterval(function(){ load(); }, 60000);
+</script>
+</body>
+</html>

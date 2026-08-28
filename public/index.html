@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="creative-medium" content="interactive-prototype" />
+<title>丽珠 AI 社团 · 暗夜作品巨幕</title>
+
+<script src="https://sf3-scmcdn-cn.feishucdn.com/obj/feishu-static/miaoda/coding-unpkg-sdk/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://sf3-scmcdn-cn.feishucdn.com/obj/feishu-static/miaoda/coding-unpkg-sdk/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  html, body { width: 100%; }
+  body {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0a0a0d;
+    color: #fff;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(255,255,255,0.2); color: #fff; }
+
+  .film-grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 90;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+  }
+
+  #app-loader {
+    position: fixed;
+    inset: 0;
+    background: #0a0a0d;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    color: rgba(255,255,255,0.5);
+    font-size: 11px;
+    letter-spacing: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    transition: opacity 0.4s ease;
+  }
+  #app-loader .loader-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    opacity: 0.6;
+    margin-bottom: 16px;
+    animation: loaderPulse 1.4s ease-in-out infinite;
+  }
+  #app-loader.hidden { opacity: 0; pointer-events: none; }
+  @keyframes loaderPulse {
+    0%, 100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.8); opacity: 0.8; }
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* ========= 报名 FAB（注入层） ========= */
+  #pingce-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 99999;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2568d8 0%, #173f8f 100%);
+    color: #fff;
+    font-size: 13px;
+    letter-spacing: 1px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(37, 104, 216, 0.45), 0 0 0 1px rgba(255,255,255,0.08) inset;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    user-select: none;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+  #pingce-fab:hover {
+    transform: scale(1.08);
+    box-shadow: 0 12px 32px rgba(37, 104, 216, 0.6), 0 0 0 1px rgba(255,255,255,0.16) inset;
+  }
+  #pingce-fab .pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(37, 104, 216, 0.4);
+    animation: pingceFabPulse 2.4s ease-out infinite;
+    pointer-events: none;
+  }
+  @keyframes pingceFabPulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+
+  /* ========= 报名 Modal ========= */
+  #pingce-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(5, 8, 14, 0.78);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  #pingce-modal.open { display: flex; }
+  #pingce-modal .pm-card {
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, rgba(20, 28, 48, 0.96) 0%, rgba(10, 14, 24, 0.98) 100%);
+    border: 1px solid rgba(120, 160, 220, 0.18);
+    border-radius: 16px;
+    padding: 32px;
+    color: #e8eef9;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+  }
+  #pingce-modal h2 {
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  #pingce-modal .pm-sub {
+    font-size: 12px;
+    color: rgba(180, 200, 230, 0.6);
+    letter-spacing: 1.5px;
+    margin-bottom: 24px;
+  }
+  #pingce-modal label {
+    display: block;
+    font-size: 12px;
+    color: rgba(180, 200, 230, 0.75);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    margin-top: 16px;
+  }
+  #pingce-modal label .req { color: #ff7a7a; margin-left: 4px; }
+  #pingce-modal input,
+  #pingce-modal select,
+  #pingce-modal textarea {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(120, 160, 220, 0.2);
+    border-radius: 8px;
+    color: #e8eef9;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #pingce-modal input:focus,
+  #pingce-modal select:focus,
+  #pingce-modal textarea:focus {
+    outline: none;
+    border-color: #4a90e2;
+    background: rgba(255, 255, 255, 0.06);
+  }
+  #pingce-modal textarea { min-height: 70px; resize: vertical; }
+  #pingce-modal .pm-row { display: flex; gap: 12px; }
+  #pingce-modal .pm-row > div { flex: 1; }
+  #pingce-modal .pm-check {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 16px; font-size: 13px; color: rgba(220, 230, 245, 0.85);
+  }
+  #pingce-modal .pm-check input { width: auto; }
+  #pingce-modal .pm-acts {
+    display: flex; gap: 12px; margin-top: 24px;
+  }
+  #pingce-modal .pm-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  #pingce-modal .pm-btn.primary {
+    background: linear-gradient(135deg, #2568d8 0%, #173f8f 100%);
+    color: #fff;
+  }
+  #pingce-modal .pm-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37, 104, 216, 0.4); }
+  #pingce-modal .pm-btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  #pingce-modal .pm-btn.ghost {
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(220, 230, 245, 0.7);
+    border: 1px solid rgba(120, 160, 220, 0.18);
+  }
+  #pingce-modal .pm-btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
+  #pingce-modal .pm-msg {
+    margin-top: 16px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: none;
+  }
+  #pingce-modal .pm-msg.show { display: block; }
+  #pingce-modal .pm-msg.ok { background: rgba(72, 180, 120, 0.15); border: 1px solid rgba(72, 180, 120, 0.3); color: #b0e8c4; }
+  #pingce-modal .pm-msg.err { background: rgba(220, 100, 100, 0.15); border: 1px solid rgba(220, 100, 100, 0.3); color: #ffb8b8; }
+  #pingce-modal .pm-close {
+    position: absolute; top: 16px; right: 20px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(220,230,245,0.7); font-size: 18px; line-height: 1; cursor: pointer;
+  }
+  #pingce-modal .pm-close:hover { background: rgba(255,255,255,0.12); }
+
+  @media (max-width: 600px) {
+    #pingce-fab { right: 16px; bottom: 16px; width: 54px; height: 54px; font-size: 12px; }
+    #pingce-modal .pm-card { padding: 24px 20px; }
+    #pingce-modal .pm-row { flex-direction: column; gap: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app-loader"><div class="loader-dot"></div>LOADING…</div>
+<div class="film-grain"></div>
+<div id="root"></div>
+
+<!-- 报名 FAB -->
+<div id="pingce-fab" title="立即报名" role="button" aria-label="立即报名">
+  <span class="pulse"></span>
+  报名
+</div>
+
+<!-- 报名 Modal -->
+<div id="pingce-modal" role="dialog" aria-modal="true" aria-labelledby="pingce-modal-title">
+  <div class="pm-card">
+    <button class="pm-close" type="button" id="pm-close" aria-label="关闭">×</button>
+    <h2 id="pingce-modal-title">加入 AI 社团</h2>
+    <div class="pm-sub">报名信息会同步到社团飞书多维表格</div>
+
+    <form id="pingce-register-form" novalidate>
+      <div class="pm-row">
+        <div>
+          <label>姓名<span class="req">*</span></label>
+          <input type="text" name="name" required maxlength="50" autocomplete="name" />
+        </div>
+        <div>
+          <label>部门</label>
+          <input type="text" name="department" maxlength="100" placeholder="如：研发中心" />
+        </div>
+      </div>
+
+      <label>联系方式<span class="req">*</span></label>
+      <input type="tel" name="contact" required maxlength="50" placeholder="手机号或飞书账号" autocomplete="tel" />
+
+      <label>报名活动<span class="req">*</span></label>
+      <select name="activity" required>
+        <option value="">请选择</option>
+        <option value="AI 训练营">AI 训练营</option>
+        <option value="技术沙龙">技术沙龙</option>
+        <option value="项目实战">项目实战</option>
+        <option value="内部分享">内部分享</option>
+      </select>
+
+      <div class="pm-check">
+        <input type="checkbox" name="willShare" id="pm-willShare" />
+        <label for="pm-willShare" style="margin:0;">我愿意做一次内部分享</label>
+      </div>
+
+      <div id="pm-shareTopic-wrap" style="display:none;">
+        <label>分享方向</label>
+        <input type="text" name="shareTopic" maxlength="200" placeholder="如：RAG 在临床检索中的实践" />
+      </div>
+
+      <label>备注</label>
+      <textarea name="remark" maxlength="500" placeholder="选填"></textarea>
+
+      <div class="pm-msg" id="pm-msg"></div>
+
+      <div class="pm-acts">
+        <button type="button" class="pm-btn ghost" id="pm-cancel">取消</button>
+        <button type="submit" class="pm-btn primary" id="pm-submit">提交报名</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  // ===== 报名 FAB / Modal 逻辑（vanilla）=====
+  (function () {
+    var fab = document.getElementById('pingce-fab');
+    var modal = document.getElementById('pingce-modal');
+    var closeBtn = document.getElementById('pm-close');
+    var cancelBtn = document.getElementById('pm-cancel');
+    var form = document.getElementById('pingce-register-form');
+    var msg = document.getElementById('pm-msg');
+    var submitBtn = document.getElementById('pm-submit');
+    var willShare = document.getElementById('pm-willShare');
+    var shareWrap = document.getElementById('pm-shareTopic-wrap');
+
+    function open() {
+      modal.classList.add('open');
+      msg.classList.remove('show', 'ok', 'err');
+      msg.textContent = '';
+      setTimeout(function(){ form.querySelector('[name=name]').focus(); }, 60);
+    }
+    function close() { modal.classList.remove('open'); }
+
+    fab.addEventListener('click', open);
+    closeBtn.addEventListener('click', close);
+    cancelBtn.addEventListener('click', close);
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) close();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('open')) close();
+    });
+
+    willShare.addEventListener('change', function () {
+      shareWrap.style.display = willShare.checked ? 'block' : 'none';
+    });
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      msg.classList.remove('show', 'ok', 'err');
+      msg.textContent = '';
+
+      var fd = new FormData(form);
+      var payload = {
+        name: (fd.get('name') || '').toString().trim(),
+        department: (fd.get('department') || '').toString().trim(),
+        contact: (fd.get('contact') || '').toString().trim(),
+        activity: (fd.get('activity') || '').toString(),
+        willShare: !!fd.get('willShare'),
+        shareTopic: (fd.get('shareTopic') || '').toString().trim(),
+        remark: (fd.get('remark') || '').toString().trim(),
+      };
+
+      if (!payload.name || !payload.contact || !payload.activity) {
+        showMsg('请填写姓名、联系方式、报名活动', 'err');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = '提交中…';
+
+      try {
+        var resp = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        var data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          showMsg('报名失败：' + (data.error || ('HTTP ' + resp.status)), 'err');
+        } else {
+          showMsg(data.message || '报名成功', 'ok');
+          form.reset();
+          shareWrap.style.display = 'none';
+          setTimeout(close, 1800);
+        }
+      } catch (err) {
+        showMsg('网络错误，请稍后重试', 'err');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '提交报名';
+      }
+    });
+
+    function showMsg(text, type) {
+      msg.textContent = text;
+      msg.classList.add('show', type);
+    }
+  })();
+</script>
+</body>
+</html>

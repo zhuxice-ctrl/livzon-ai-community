@@ -1,0 +1,151 @@
+# 丽珠 AI 社团官网 · 本地部署
+
+> 公司内部员工使用。Node.js + Express 轻量后端 + 静态前端 + 飞书多维表格存储报名数据。
+> 本机作为服务器，LAN 内访问，**不部署公网**。
+
+## 快速启动
+
+需要本机已安装 **Node.js 18+**。
+
+```bash
+# 第一次：安装依赖
+cd F:\pingce
+node start.mjs
+
+# 浏览器打开（控制台会打印）
+#   http://127.0.0.1:8787/
+#   http://<你电脑内网IP>:8787/   ← 告诉同网段同事
+
+# 停止服务
+node start.mjs --stop
+
+# 查看状态
+node start.mjs --status
+```
+
+## 项目结构
+
+```
+F:\pingce\
+├── start.mjs                # 启动脚本（Node 启动器）
+├── README.md                # 本文档
+├── server\
+│   ├── package.json
+│   ├── server.js            # Express 入口
+│   ├── lark-client.js       # 飞书多维表格 API 封装
+│   ├── .env.example         # 凭证模板
+│   └── .env                 # 实际凭证（首次启动自动生成）
+├── public\
+│   ├── index.html           # 主页（含报名 FAB）
+│   ├── app.js               # 主页 React 应用
+│   ├── data\
+│   │   ├── works.json       # 作品列表（每期编辑）
+│   │   ├── activities.json  # 活动列表
+│   │   └── schedule.json    # 进度里程碑
+│   └── images\              # 静态资源
+└── logs\                    # 运行日志
+```
+
+## API
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/api/health` | 健康检查 |
+| GET | `/api/info` | 服务元信息（IP、端口、飞书配置状态） |
+| GET | `/api/works` | 作品列表 |
+| GET | `/api/activities` | 活动列表 |
+| GET | `/api/schedule` | 进度 |
+| POST | `/api/register` | 报名提交 |
+
+### POST /api/register
+
+请求体：
+
+```json
+{
+  "name": "张三",
+  "department": "研发中心",
+  "contact": "13800000000",
+  "activity": "AI 训练营",
+  "willShare": true,
+  "shareTopic": "RAG 在临床检索中的实践",
+  "remark": "对 Agent 感兴趣"
+}
+```
+
+返回：
+
+```json
+{
+  "ok": true,
+  "mode": "lark",
+  "recordId": "rec...",
+  "message": "报名成功，我们已收到您的报名信息"
+}
+```
+
+`mode` 取值：
+- `lark`：成功写入飞书多维表格
+- `fallback`：飞书 API 失败，**已暂存到 logs/registration_fallback.jsonl**，管理员可批量导入
+- `failed`：完全失败（极少见）
+
+## 飞书多维表格配置
+
+报名表已通过 lark-cli 帮你建好：
+
+- **Base URL / app_token / table_id**：请在内部部署环境的凭证配置中填写，不随公开代码分发。
+- **字段**：姓名 / 部门 / 联系方式 / 报名活动（单选）/ 是否愿意分享（勾选）/ 分享方向 / 备注 / 报名时间（自动）/ 状态（单选：待审核/已通过/已驳回）
+
+### 让后端能写入表格（一次性设置）
+
+后端调飞书 OpenAPI 需要企业自建应用的凭证。**lark-cli 的凭证由 aily 平台托管，不能直接给 Node.js 后端复用**，需要单独创建一个飞书自建应用：
+
+1. **创建应用**：登录 https://open.feishu.cn/app → 企业自建应用 → 创建企业自建应用
+   - 应用名：`丽珠 AI 社团后端`（任意）
+2. **添加权限**：权限管理 → 搜索「多维表格」，勾选：
+   - `bitable:app`（读写 Bitable）
+   - `bitable:app:readonly`（读）
+3. **发布版本**：版本管理与发布 → 创建版本 → 提交发布（企业内部自审通过）
+4. **获取凭证**：基础信息 → 复制 `App ID` 和 `App Secret`
+5. **填到 .env**：编辑 `server/.env`：
+   ```
+   LARK_APP_ID=cli_xxxxxxxxxxxx
+   LARK_APP_SECRET=你的App Secret
+   ```
+6. **重启服务**：`node start.mjs --stop && node start.mjs`
+
+### 如果不想配飞书（纯本地模式）
+
+把 `.env` 里的 `LOCAL_FALLBACK=0` 改为 `LOCAL_FALLBACK=1`（**默认就是 1**）。
+所有报名会暂存到 `logs/registration_fallback.jsonl`（每行一条 JSON），管理员可定期：
+- 复制到飞书多维表格手动导入
+- 或用 lark-cli `base +record-batch-create --records @registrations.json` 批量补录
+
+## 局域网内其他员工访问
+
+服务默认监听 `0.0.0.0:8787`。同 WiFi / 同网段的同事可通过你的内网 IP 访问：
+
+```
+http://<你的内网IP>:8787/
+```
+
+如何查看你的内网 IP：
+- `Win + R` → `cmd` → `ipconfig` → 找「IPv4 地址」
+- 或在服务启动时看控制台输出
+
+防火墙可能拦截首次访问（Windows 防火墙弹窗），**允许访问**即可。
+
+不在同网段（含家里/4G）访问不到，这是「本机当服务器」的天然限制。
+
+## 每期更新作品
+
+1. 编辑 `public/data/works.json`，修改 `works` 数组（每件作品 id/title/author/category/desc）
+2. 改 `session` 字段（如「第 02 期」）和 `updatedAt` 日期
+3. 保存即生效（前端下次刷新即拉到新数据，无需重启服务）
+
+## 已知限制
+
+- **不公网访问**：仅 LAN。需要公网请加内网穿透或部署到云。
+- **并发量**：单 Node 进程，~百级并发没问题，**不适合数千并发**。
+- **HTTPS**：当前 HTTP 内网环境，敏感信息靠 LAN 隔离。
+- **报名后端凭证**：需要你单独创建飞书自建应用（5 分钟一次性操作），详见上文。
