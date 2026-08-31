@@ -157,6 +157,38 @@
     color: #fff;
   }
 
+  /* ========= 登录 / 个人中心入口 ========= */
+  #pingce-login-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 204px;
+    z-index: 99999;
+    padding: 9px 16px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #2568d8 0%, #173f8f 100%);
+    border: none;
+    color: #fff;
+    font-size: 12px;
+    letter-spacing: 2px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(37, 104, 216, 0.4);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    font-family: 'Noto Sans SC', sans-serif;
+    text-decoration: none;
+  }
+  #pingce-login-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(37, 104, 216, 0.55);
+  }
+  #pingce-login-fab.member {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: none;
+    color: rgba(255,255,255,0.85);
+  }
+  #pingce-login-fab.member:hover { background: rgba(255,255,255,0.14); color: #fff; }
+
   /* ========= 报名 Modal ========= */
   #pingce-modal {
     position: fixed;
@@ -300,6 +332,9 @@
 <!-- 管理后台入口 -->
 <a id="pingce-admin-fab" href="/admin.html" title="管理后台" role="link">管理后台</a>
 
+<!-- 登录 / 个人中心入口 -->
+<a id="pingce-login-fab" href="/api/auth/feishu" title="登录/个人中心" role="link">登录</a>
+
 <!-- 报名 Modal -->
 <div id="pingce-modal" role="dialog" aria-modal="true" aria-labelledby="pingce-modal-title">
   <div class="pm-card">
@@ -441,6 +476,21 @@
       msg.textContent = text;
       msg.classList.add('show', type);
     }
+  })();
+
+  // ===== 登录态：未登录显示「登录」，已登录显示「个人中心」+ 用户名 =====
+  (function () {
+    var fab = document.getElementById('pingce-login-fab');
+    if (!fab) return;
+    fetch('/api/auth/me').then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.authenticated) {
+        fab.href = '/my.html';
+        fab.className = 'member';
+        fab.textContent = '个人中心';
+        fab.title = '进入我的中心';
+      }
+      // 未登录保持默认「登录」，href 已指向 /api/auth/feishu
+    }).catch(function () {});
   })();
 </script>
 </body>

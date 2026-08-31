@@ -52,8 +52,11 @@ router.get('/logout', (req, res) => {
   });
 });
 
-// GET /api/auth/dev-login ——【仅本地开发】按 open_id 模拟登录，用于验收个人中心（上线前删除）
+// GET /api/auth/dev-login ——【仅本地开发】按 open_id 模拟登录，用于验收个人中心
+// 安全：仅当 ALLOW_DEV_LOGIN=1（或非 production）时可用；生产环境必须显式关闭
 router.get('/dev-login', async (req, res) => {
+  const allow = process.env.ALLOW_DEV_LOGIN === '1' || process.env.NODE_ENV !== 'production';
+  if (!allow) return res.status(403).json(err(ErrorCodes.PERMISSION, '开发登录已关闭'));
   const openId = req.query.openId || 'test-dev-openid';
   try {
     const r = await query(`SELECT id, name, role FROM users WHERE open_id=$1`, [openId]);
