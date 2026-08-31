@@ -1,0 +1,145 @@
+// server/routes/auth.js
+// 飞书 SSO 登录：授权跳转 → 回调换 token → 拉用户信息 → upsert users → 建 session
+const express = require('express');
+const crypto = require('crypto');
+const { query } = require('../db');
+const { ok, err, ErrorCodes } = require('../contract');
+
+const router = express.Router();
+
+const FEISHU_HOST = 'https://open.feishu.cn';
+
+const APP_ID = process.env.LARK_APP_ID;
+const APP_SECRET = process.env.LARK_APP_SECRET;
+const REDIRECT = process.env.LARK_LOGIN_REDIRECT_URI || 'http://127.0.0.1:8787/api/auth/callback';
+const SCOPE = process.env.LARK_LOGIN_SCOPE || 'authen:user.id:read';
+
+// GET /api/auth/feishu —— 登录入口：跳转到飞书授权
+router.get('/feishu', (req, res) => {
+  const state = crypto.randomBytes(16).toString('hex');
+  const url = `${FEISHU_HOST}/open-apis/authen/v1/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(SCOPE)}&state=${state}`;
+  res.redirect(url);
+});
+
+// GET /api/auth/callback —— 用户授权后回调
+router.get('/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code) {
+    return res.redirect('/#login-error=no-code');
+  }
+  try {
+    const token = await exchangeToken(code);
+    const accessToken = token.access_token;
+    const userInfo = await fetchUserInfo(accessToken);
+    const user = await upsertUser(userInfo, token);
+    // 建立 session（匿名函数里访问 req.session）
+    req.session.userId = user.id;
+    req.session.role = user.role;
+    req.session.name = user.name;
+    req.session.save(() => {
+      res.redirect('/my.html');
+    });
+  } catch (e) {
+    console.error('[auth.callback]', e.message);
+    res.redirect('/#login-error=' + encodeURIComponent(e.message));
+  }
+});
+
+// GET /api/auth/logout —— 退出登录
+router.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/');
+  });
+});
+
+// GET /api/auth/dev-login ——【仅本地开发】按 open_id 模拟登录，用于验收个人中心（上线前删除）
+router.get('/dev-login', async (req, res) => {
+  const openId = req.query.openId || 'test-dev-openid';
+  try {
+    const r = await query(`SELECT id, name, role FROM users WHERE open_id=$1`, [openId]);
+    if (!r.rows.length) return res.status(404).json(err(ErrorCodes.NOT_FOUND, '用户不存在'));
+    const u = r.rows[0];
+    req.session.userId = u.id;
+    req.session.role = u.role;
+    req.session.name = u.name;
+    req.session.save(() => res.json(ok({ userId: u.id, name: u.name, role: u.role })));
+  } catch (e) {
+    res.status(500).json(err(ErrorCodes.INTERNAL, e.message));
+  }
+});
+
+// GET /api/auth/me —— 当前登录身份（供前端判断）
+router.get('/me', (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json(ok(null, { authenticated: false }));
+  }
+  res.json(ok({
+    userId: req.session.userId,
+    name: req.session.name,
+    role: req.session.role,
+  }, { authenticated: true }));
+});
+
+// 用 code 换 user_access_token
+async function exchangeToken(code) {
+  const resp = await fetch(`${FEISHU_HOST}/open-apis/authen/v2/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'authorization_code',
+      client_id: APP_ID,
+      client_secret: APP_SECRET,
+      code,
+    }),
+  });
+  const data = await resp.json();
+  if (data.code !== 0) {
+    throw new Error(`换取 access_token 失败: ${data.code} ${data.msg}`);
+  }
+  return data.data || data;
+}
+
+// 拉取用户信息
+async function fetchUserInfo(accessToken) {
+  const resp = await fetch(`${FEISHU_HOST}/open-apis/authen/v1/user_info`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+  const data = await resp.json();
+  if (data.code !== 0) {
+    throw new Error(`获取用户信息失败: ${data.code} ${data.msg}`);
+  }
+  return data.data || data;
+}
+
+// upsert 用户到 users 表（open_id 唯一）
+async function upsertUser(info, token) {
+  const now = new Date();
+  const openId = info.open_id || info.openid || '';
+  const name = info.name || '';
+  const email = info.email || '';
+  const dept = (info.department_ids && info.department_ids[0]) || '';
+  const avatar = (info.avatar_url || info.avatar || '');
+  const unionId = info.union_id || '';
+
+  // 先查已存在
+  const exist = await query(`SELECT id, role FROM users WHERE open_id=$1`, [openId]);
+  let user;
+  if (exist.rows.length) {
+    const r = await query(
+      `UPDATE users SET name=$1, email=$2, department=$3, avatar=$4, union_id=$5, access_token=$6, token_expire=$7, last_login_at=$8
+       WHERE open_id=$9 RETURNING id, name, role, department`,
+      [name, email, dept, avatar, unionId, '', null, now, openId]
+    );
+    user = r.rows[0];
+  } else {
+    const r = await query(
+      `INSERT INTO users (open_id, name, email, department, avatar, union_id, role, last_login_at)
+       VALUES ($1,$2,$3,$4,$5,$6,'member',$7) RETURNING id, name, role, department`,
+      [openId, name, email, dept, avatar, unionId, now]
+    );
+    user = r.rows[0];
+  }
+  return user;
+}
+
+module.exports = router;

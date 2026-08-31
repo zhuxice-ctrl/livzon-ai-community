@@ -16,11 +16,14 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { LarkClient } = require('./lark-client');
+const session = require('express-session');
 const worksRouter = require('./routes/works');
 const adminRouter = require('./routes/admin');
 const registerRouter = require('./routes/register');
 const voteRouter = require('./routes/vote');
 const artifactRouter = require('./routes/artifact');
+const authRouter = require('./routes/auth');
+const myRouter = require('./routes/my');
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -28,6 +31,14 @@ const DATA_DIR = path.join(PUBLIC_DIR, 'data');
 
 const app = express();
 app.use(express.json({ limit: '64kb' }));
+
+// Session（登录态）
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'pingce-dev-secret-' + (process.env.LARK_APP_ID || ''),
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 }, // 7 天
+}));
 
 // CORS（允许同 LAN 内任意来源）
 app.use((req, res, next) => {
@@ -97,8 +108,8 @@ app.get('/api/works', async (req, res) => {
       `SELECT id, kind, title, author, category, description AS desc, cover, source, session, detail, status, published
        FROM works WHERE status='approved' AND published=true ORDER BY id`
     );
-    const session = r.rows.length ? r.rows[0].session : '第 01 期';
-    res.json({ session, updatedAt: new Date().toISOString().slice(0, 10), intro: '', works: r.rows });
+    const sessName = r.rows.length ? r.rows[0].session : '第 01 期';
+    res.json({ session: sessName, updatedAt: new Date().toISOString().slice(0, 10), intro: '', works: r.rows });
   } catch (e) {
     console.error('[works.get]', e);
     res.status(500).json({ ok: false, error: e.message });
@@ -107,6 +118,12 @@ app.get('/api/works', async (req, res) => {
 
 // 作品上传（真写库，走契约信封）
 app.use('/api/works', worksRouter);
+
+// 飞书 SSO 登录
+app.use('/api/auth', authRouter);
+
+// 个人中心（我的）
+app.use('/api/my', myRouter);
 
 // 管理后台（作品审核/发布）
 app.use('/api/admin', adminRouter);
@@ -119,8 +136,19 @@ app.use('/api/artifacts', artifactRouter);
 
 app.get('/api/activities', (req, res) => {
   const data = readData('activities.json');
-  if (!data) return res.status(404).json({ error: 'activities.json not found' });
-  res.json(data);
+  if (!data) return res.status(404).json({ ok: false, error: 'activities.json not found' });
+  res.json({ ok: true, data });
+});
+
+// GET /api/activities/:id —— 单个活动详情（供「查看回顾」）
+app.get('/api/activities/:id', (req, res) => {
+  const id = req.params.id;
+  const data = readData('activities.json');
+  if (!data) return res.status(404).json({ ok: false, error: 'activities.json not found' });
+  const all = [...(data.current || []), ...(data.upcoming || []), ...(data.past || [])];
+  const item = all.find(x => x.id === id);
+  if (!item) return res.status(404).json({ ok: false, error: '活动不存在' });
+  res.json({ ok: true, data: item });
 });
 
 app.get('/api/schedule', (req, res) => {

@@ -33,10 +33,11 @@ router.post('/', async (req, res) => {
   };
   delete casted.link;
 
+  const userId = (req.session && req.session.userId) || null;
   try {
     const r = await query(
-      `INSERT INTO works (kind, title, author, category, description, cover, source, detail, status, published, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',false,$9)
+      `INSERT INTO works (kind, title, author, category, description, cover, source, detail, status, published, created_by, user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',false,$9,$10)
        RETURNING ${LIST_FIELDS}`,
       [
         casted.kind,
@@ -48,6 +49,7 @@ router.post('/', async (req, res) => {
         casted.source || '',
         JSON.stringify(detail),
         casted.author,
+        userId,
       ]
     );
     res.status(201).json(ok(r.rows[0]));

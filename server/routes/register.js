@@ -32,14 +32,15 @@ router.post('/', async (req, res) => {
 
   const activity = casted.activity;
   const willShare = !!casted.willShare;
+  const userId = (req.session && req.session.userId) || null;
 
   try {
     const r = await query(
-      `INSERT INTO registrations (name, department, contact, activity, will_share, share_topic, remark)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, status, created_at`,
+      `INSERT INTO registrations (name, department, contact, activity, will_share, share_topic, remark, user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, status, created_at`,
       [
         casted.name, casted.department || '', casted.contact, activity,
-        willShare, casted.shareTopic || '', casted.remark || '',
+        willShare, casted.shareTopic || '', casted.remark || '', userId,
       ]
     );
     res.status(201).json(ok({

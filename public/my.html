@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>个人中心 · 丽珠 AI 创新平台</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<style>
+  .login-wrap { min-height: 60vh; display:flex; align-items:center; justify-content:center; }
+  .login-card { text-align:center; padding:56px 40px; max-width:440px; }
+  .login-card h2 { font-family:var(--font-serif); font-size:24px; font-weight:900; letter-spacing:2px; margin-bottom:10px; }
+  .login-card p { font-size:13px; color:var(--text-dim); line-height:1.9; margin-bottom:28px; }
+
+  .profile-grid { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; }
+  @media (max-width:900px){ .profile-grid{grid-template-columns:1fr;} }
+
+  .id-card { padding:28px; }
+  .avatar { width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.2);margin-bottom:16px; }
+  .avatar-fallback { width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#2568d8,#173f8f);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;margin-bottom:16px; }
+  .id-name { font-family:var(--font-serif); font-size:20px; font-weight:700; letter-spacing:1px; }
+  .id-role { font-size:11px; letter-spacing:2px; color:var(--text-dim); margin:6px 0 18px; }
+  .id-meta { font-size:12px; color:var(--text-dim); line-height:2; font-family:var(--font-mono); }
+  .id-meta b { color:#fff; font-weight:500; }
+
+  .kpi-row { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  @media (max-width:640px){ .kpi-row{grid-template-columns:1fr;} }
+  .kpi { border:1px solid var(--border); border-radius:var(--radius); background:var(--card-bg); padding:18px 20px; }
+  .kpi .n { font-family:var(--font-mono); font-size:26px; font-weight:600; }
+  .kpi .l { font-size:11px; color:var(--text-faint); letter-spacing:1px; margin-top:6px; }
+
+  .sec-head { display:flex; align-items:baseline; gap:14px; margin:36px 0 16px; }
+  .sec-head .t { font-family:var(--font-serif); font-size:18px; font-weight:700; letter-spacing:2px; }
+  .sec-head .e { font-family:var(--font-mono); font-size:10px; letter-spacing:3px; color:var(--text-faint); }
+  .status { font-size:11px; padding:3px 10px; border-radius:12px; letter-spacing:1px; }
+  .status.pending{ background:rgba(255,180,60,0.14); color:#ffc46b; }
+  .status.approved{ background:rgba(90,220,140,0.14); color:#85dcba; }
+  .status.rejected{ background:rgba(255,90,90,0.14); color:#ff8f8f; }
+  .btn.sm { padding:8px 16px; font-size:12px; margin-right:8px; }
+</style>
+</head>
+<body>
+<div class="film-grain"></div>
+<div class="page">
+  <div class="topbar">
+    <span class="brand">LIVZON AI CLUB · MY</span>
+    <a class="back" href="/">← 返回官网首页</a>
+  </div>
+
+  <!-- 未登录 -->
+  <div class="login-wrap" id="loginView" style="display:none;">
+    <div class="card login-card">
+      <h2>登录你的 AI 社团账户</h2>
+      <p>使用飞书账号登录，即可查看和管理你的报名信息、作品，以及接收活动推送。</p>
+      <a class="btn primary" href="/api/auth/feishu">用飞书登录</a>
+      <div style="margin-top:14px;font-size:11px;color:var(--text-faint);">登录后自动跳转回个人中心</div>
+    </div>
+  </div>
+
+  <!-- 登录后 -->
+  <div id="contentView" style="display:none;">
+    <div class="bar" style="display:flex;align-items:center;gap:14px;margin-bottom:24px;flex-wrap:wrap;">
+      <h1 style="font-family:var(--font-serif);font-size:26px;font-weight:900;letter-spacing:2px;">我的<span class="accent">中心</span></h1>
+      <span class="logout" style="margin-left:auto;color:var(--text-dim);cursor:pointer;font-size:12px;letter-spacing:2px;" onclick="logout()">退出登录</span>
+    </div>
+
+    <div class="profile-grid">
+      <div class="card id-card">
+        <div id="avatarSlot"></div>
+        <div class="id-name" id="idName">—</div>
+        <div class="id-role" id="idRole">成员</div>
+        <div class="id-meta" id="idMeta"></div>
+      </div>
+
+      <div>
+        <div class="kpi-row">
+          <div class="kpi"><div class="n" id="kpiReg">0</div><div class="l">我的报名</div></div>
+          <div class="kpi"><div class="n" id="kpiWorks">0</div><div class="l">我的作品</div></div>
+        </div>
+
+        <div class="sec-head"><span class="t">我的报名</span><span class="e">MY REGISTRATIONS</span></div>
+        <div class="card">
+          <table>
+            <thead><tr><th>活动</th><th>部门</th><th>分享</th><th>状态</th><th>时间</th></tr></thead>
+            <tbody id="regBody"><tr><td colspan="5" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="sec-head"><span class="t">我的作品</span><span class="e">MY WORKS</span></div>
+        <div class="card">
+          <table>
+            <thead><tr><th>标题</th><th>类型</th><th>状态</th><th>发布</th><th>时间</th></tr></thead>
+            <tbody id="workBody"><tr><td colspan="5" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>LIVZON AI CLUB · MY</span>
+    <span>FLYBOOK LOGIN · ACTIVITY PUSH</span>
+  </div>
+</div>
+
+<script>
+  var esc = function (s) { return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+
+  async function init() {
+    try {
+      var r = await fetch('/api/auth/me');
+      var j = await r.json();
+      if (!(j.authenticated)) { showLogin(); return; }
+      document.getElementById('loginView').style.display = 'none';
+      document.getElementById('contentView').style.display = 'block';
+      await loadProfile();
+      await loadReg();
+      await loadWorks();
+    } catch (e) { showLogin(); }
+  }
+
+  function showLogin() {
+    document.getElementById('loginView').style.display = 'flex';
+    document.getElementById('contentView').style.display = 'none';
+  }
+
+  async function loadProfile() {
+    var r = await fetch('/api/my/profile');
+    var j = await r.json();
+    if (!j.ok) return;
+    var u = j.data;
+    document.getElementById('idName').textContent = u.name || '飞书用户';
+    document.getElementById('idRole').textContent = u.role === 'admin' ? '管理员' : '成员';
+    var avatar = document.getElementById('avatarSlot');
+    avatar.innerHTML = u.avatar ? '<img class="avatar" src="'+esc(u.avatar)+'" alt="">' : '<div class="avatar-fallback">'+(u.name?esc(u.name[0]):'F')+'</div>';
+    document.getElementById('idMeta').innerHTML =
+      '<div><b>部门</b> ' + esc(u.department || '未标注') + '</div>' +
+      '<div><b>邮箱</b> ' + esc(u.email || '—') + '</div>' +
+      '<div><b>飞书账号</b> ' + esc(u.open_id ? u.open_id.slice(0,8)+'…' : '—') + '</div>' +
+      '<div><b>最近登录</b> ' + (u.last_login_at ? esc(String(u.last_login_at).slice(0,16)) : '—') + '</div>';
+  }
+
+  async function loadReg() {
+    var r = await fetch('/api/my/registrations');
+    var j = await r.json();
+    if (!j.ok) return;
+    var list = j.data.registrations || [];
+    document.getElementById('kpiReg').textContent = list.length;
+    var tb = document.getElementById('regBody');
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">暂无报名记录</td></tr>'; return; }
+    tb.innerHTML = list.map(function(x){
+      return '<tr>' +
+        '<td>'+esc(x.activity)+'</td>' +
+        '<td>'+esc(x.department || '—')+'</td>' +
+        '<td>'+ (x.will_share ? '愿分享' : '未勾选') +'</td>' +
+        '<td><span class="status '+x.status+'">'+statusLabel(x.status)+'</span></td>' +
+        '<td class="mono">'+esc(String(x.created_at).slice(0,16))+'</td></tr>';
+    }).join('');
+  }
+
+  async function loadWorks() {
+    var r = await fetch('/api/my/works');
+    var j = await r.json();
+    if (!j.ok) return;
+    var list = j.data.works || [];
+    document.getElementById('kpiWorks').textContent = list.length;
+    var tb = document.getElementById('workBody');
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">暂无作品</td></tr>'; return; }
+    tb.innerHTML = list.map(function(x){
+      return '<tr>' +
+        '<td>'+esc(x.title)+'</td>' +
+        '<td>'+esc(kindLabel(x.kind))+'</td>' +
+        '<td><span class="status '+x.status+'">'+statusLabel(x.status)+'</span></td>' +
+        '<td>'+ (x.published ? '已发布' : '未发布') +'</td>' +
+        '<td class="mono">'+esc(String(x.created_at).slice(0,16))+'</td></tr>';
+    }).join('');
+  }
+
+  function statusLabel(s){ return {pending:'待审核',approved:'已通过',rejected:'已驳回'}[s]||s; }
+  function kindLabel(k){ return {image:'AI 图像',video:'AI 视频','3d':'3D 生成',app:'小程序/产品',tool:'工具/插件',skill:'Skill',mcp:'MCP 工具',source:'源码包'}[k]||k; }
+  function logout(){ fetch('/api/auth/logout').then(function(){ location.href='/'; }); }
+
+  init();
+</script>
+</body>
+</html>
