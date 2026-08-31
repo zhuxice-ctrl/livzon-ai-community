@@ -2804,6 +2804,10 @@ var App = () => {
       window.location.href = "report.html";
       return;
     }
+    if (target === "join") {
+      window.location.href = "login.html";
+      return;
+    }
     setPage(target);
     setSelectedWork(null);
     window.scrollTo({ top: 0, behavior: "smooth" });

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>登录 · 丽珠 AI 创新平台</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<style>
+  body { display:flex; align-items:center; justify-content:center; }
+  .page { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 40px 20px; }
+  .wrap { width: 100%; max-width: 460px; }
+  .card-box { padding: 44px 40px 38px; text-align: center; position: relative; overflow: hidden; }
+  .card-box::before { content:''; position:absolute; left:0; right:0; top:0; height:3px; background: linear-gradient(90deg,#173f8f,#5b8cff); }
+  .brand { font-family: var(--font-mono); font-size: 11px; letter-spacing: 5px; color: var(--text-faint); margin-bottom: 26px; }
+  h1 { font-family: var(--font-serif); font-size: 30px; font-weight: 900; letter-spacing: 3px; margin-bottom: 10px; }
+  h1 .accent { background: linear-gradient(135deg,#5b8cff 0%,#2f5fe0 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { color: var(--text-dim); font-size: 13px; line-height: 1.9; max-width: 320px; margin: 0 auto 30px; }
+  .feishu-btn {
+    display: flex; width: 100%; align-items: center; justify-content: center; gap: 12px;
+    padding: 15px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg,#2568d8,#173f8f); color: #fff;
+    font-size: 15px; font-weight: 600; letter-spacing: 2px; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(37,104,216,0.4); transition: all .25s; font-family: inherit;
+  }
+  .feishu-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(37,104,216,0.55); }
+  .feishu-btn svg { width: 20px; height: 20px; }
+  .hint { font-size: 11px; color: var(--text-faint); letter-spacing: 1px; margin-top: 18px; line-height: 1.8; }
+  .divider { display:flex; align-items:center; gap:12px; margin: 22px 0; color: var(--text-faint); font-size:11px; letter-spacing:2px; }
+  .divider::before, .divider::after { content:''; flex:1; height:1px; background: var(--border); }
+  .dev {
+    display: block; width: 100%; padding: 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border-strong);
+    color: var(--text-dim); font-size: 12px; letter-spacing: 1px; cursor: pointer;
+    transition: all .2s; font-family: inherit;
+  }
+  .dev:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .back-home { position: absolute; top: 22px; left: 28px; color: var(--text-dim); font-size: 12px; letter-spacing: 2px; text-decoration: none; }
+  .back-home:hover { color: #fff; }
+  .logged-state { display: none; }
+  .logged-state .avatar { width:64px;height:64px;border-radius:50%;margin:0 auto 14px;object-fit:cover;border:2px solid rgba(255,255,255,0.15); }
+</style>
+</head>
+<body>
+<div class="film-grain"></div>
+<div class="page">
+  <div class="wrap">
+    <a class="back-home" href="/">← 返回官网</a>
+    <div class="card card-box">
+      <div class="brand">LIVZON · AI CLUB</div>
+      <h1>加入<span class="accent">社团</span></h1>
+
+      <!-- 未登录状态 -->
+      <div id="unauthState">
+        <p class="sub">使用公司飞书账号登录，即可报名活动、上传作品，并接收平台活动的飞书机器人推送。</p>
+        <a class="feishu-btn" href="/api/auth/feishu">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16v16H4z" stroke="white" stroke-width="2" opacity="0.25"/><path d="M8 8h8M8 12h8M8 16h5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+          用飞书账号登录
+        </a>
+        <div class="divider">本地开发</div>
+        <button class="dev" onclick="devLogin()">开发模拟登录（无需飞书）</button>
+        <p class="hint">生产环境部署前，删除「开发模拟登录」入口，并将 <code>ALLOW_DEV_LOGIN</code> 关闭</p>
+      </div>
+
+      <!-- 已登录状态 -->
+      <div class="logged-state" id="loggedState">
+        <img id="loggedAvatar" class="avatar" alt="" />
+        <p class="sub" id="loggedWelcome" style="color:rgba(255,255,255,0.85);font-size:15px;"></p>
+        <a class="feishu-btn" href="/my.html" style="max-width:320px;margin:0 auto;">进入个人中心</a>
+        <p class="hint"><a href="/api/auth/logout" style="color:var(--text-faint);text-decoration:underline;">退出当前账号</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function devLogin() {
+    fetch('/api/auth/dev-login?openId=test-dev-openid')
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j.ok) location.href = '/my.html'; else alert(j.error ? j.error.message : '不可用'); })
+      .catch(function () { alert('请求失败'); });
+  }
+  fetch('/api/auth/me').then(function(r){return r.json();}).then(function(j){
+    if (j && j.authenticated && j.data && j.data.userId) {
+      document.getElementById('unauthState').style.display = 'none';
+      var ls = document.getElementById('loggedState');
+      ls.style.display = 'block';
+      document.getElementById('loggedWelcome').textContent = '欢迎回来，' + (j.data.name || '同事');
+    }
+  });
+</script>
+</body>
+</html>
