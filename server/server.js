@@ -10,12 +10,17 @@
 // - GET  /api/report      数据报表（作品/报名聚合统计）
 // - GET  /api/report/csv  报名明细 CSV 导出
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { LarkClient } = require('./lark-client');
+const worksRouter = require('./routes/works');
+const adminRouter = require('./routes/admin');
+const registerRouter = require('./routes/register');
+const voteRouter = require('./routes/vote');
+const artifactRouter = require('./routes/artifact');
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -84,12 +89,33 @@ app.get('/api/info', (req, res) => {
   });
 });
 
-// 数据 API
-app.get('/api/works', (req, res) => {
-  const data = readData('works.json');
-  if (!data) return res.status(404).json({ error: 'works.json not found' });
-  res.json(data);
+// 数据 API —— works 从 PG 读，保持旧前端兼容的平铺结构 { session, works: [] }
+app.get('/api/works', async (req, res) => {
+  try {
+    const { query } = require('./db');
+    const r = await query(
+      `SELECT id, kind, title, author, category, description AS desc, cover, source, session, detail, status, published
+       FROM works WHERE status='approved' AND published=true ORDER BY id`
+    );
+    const session = r.rows.length ? r.rows[0].session : '第 01 期';
+    res.json({ session, updatedAt: new Date().toISOString().slice(0, 10), intro: '', works: r.rows });
+  } catch (e) {
+    console.error('[works.get]', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
+
+// 作品上传（真写库，走契约信封）
+app.use('/api/works', worksRouter);
+
+// 管理后台（作品审核/发布）
+app.use('/api/admin', adminRouter);
+
+// 投票
+app.use('/api/vote', voteRouter);
+
+// 作品资源/制品
+app.use('/api/artifacts', artifactRouter);
 
 app.get('/api/activities', (req, res) => {
   const data = readData('activities.json');
@@ -103,47 +129,32 @@ app.get('/api/schedule', (req, res) => {
   res.json(data);
 });
 
-// 报名
-app.post('/api/register', async (req, res) => {
-  const b = req.body || {};
-  // 基础校验
-  if (!b.name || !b.contact || !b.activity) {
-    return res.status(400).json({
-      ok: false,
-      error: '缺少必填字段：姓名、联系方式、报名活动',
-    });
-  }
-  if (!['AI 训练营', '技术沙龙', '项目实战', '内部分享'].includes(b.activity)) {
-    return res.status(400).json({ ok: false, error: '报名活动取值非法' });
-  }
-
-  const result = await lark.addRegistration({
-    name: String(b.name).trim().slice(0, 50),
-    department: String(b.department || '').trim().slice(0, 100),
-    contact: String(b.contact).trim().slice(0, 50),
-    activity: b.activity,
-    willShare: !!b.willShare,
-    shareTopic: String(b.shareTopic || '').trim().slice(0, 200),
-    remark: String(b.remark || '').trim().slice(0, 500),
-  });
-
-  if (!result.ok) {
-    return res.status(502).json({ ok: false, error: result.error || '写入失败' });
-  }
-
-  res.json({
-    ok: true,
-    mode: result.mode,
-    recordId: result.recordId,
-    message: result.mode === 'lark'
-      ? '报名成功，我们已收到您的报名信息'
-      : '报名已暂存，管理员稍后会同步到名单',
-  });
-});
+// 报名（POST /api/register → PG 第一落点，含降级）
+app.use('/api/register', registerRouter);
 
 // ========= 数据报表 API =========
-// 报名记录采集：飞书多维表格（若已配置且可读）+ 本地降级 JSONL 合并
+// 报名记录采集：优先从 PostgreSQL registrations 表读取；未配置/失败时降级到飞书+JSONL
 async function collectRegistrations() {
+  const { query } = require('./db');
+  try {
+    const r = await query(`SELECT name, department, contact, activity, will_share, share_topic, remark, status, created_at AS ts
+      FROM registrations ORDER BY created_at DESC`);
+    const records = r.rows.map(x => ({
+      name: x.name,
+      department: x.department,
+      contact: x.contact,
+      activity: x.activity,
+      willShare: !!x.will_share,
+      shareTopic: x.share_topic || '',
+      ts: x.ts,
+      origin: 'pg',
+      status: x.status,
+    }));
+    return { records, mode: 'pg' };
+  } catch (e) {
+    console.error('[collectRegistrations.pg]', e.message);
+  }
+  // ---- 降级：飞书 + JSONL ----
   const records = [];
   let mode = 'fallback';
   if (lark.isConfigured()) {
@@ -187,18 +198,23 @@ function maskContact(s) {
 
 app.get('/api/report', async (req, res) => {
   try {
-    const works = readData('works.json');
-    if (!works) return res.status(404).json({ ok: false, error: 'works.json not found' });
+    // 作品统计：从 PostgreSQL works 表（本地数据库）
+    const { query } = require('./db');
+    const w = await query(`SELECT category, source, session, detail
+      FROM works WHERE status='approved'`);
     const byCategory = {};
     const bySource = {};
     let withLink = 0;
-    for (const w of (works.works || [])) {
-      const cat = w.category || '未分类';
+    for (const r of w.rows) {
+      const cat = r.category || '未分类';
       byCategory[cat] = (byCategory[cat] || 0) + 1;
-      const src = (w.detail && w.detail.source) ? String(w.detail.source).split(' \u00b7 ')[0] : '未标注';
+      const src = r.source ? String(r.source).split(' \u00b7 ')[0] : '未标注';
       bySource[src] = (bySource[src] || 0) + 1;
-      if (w.detail && w.detail.link) withLink++;
+      if (r.detail && r.detail.link) withLink++;
     }
+    const worksTotal = w.rows.length;
+    const works = { total: worksTotal, session: w.rows[0] ? w.rows[0].session : '', withLink, byCategory, bySource };
+    // 以下 registrations 统计保留原逻辑（报名通道后续轮次切 PG，暂留 TODO）
     const { records, mode } = await collectRegistrations();
     const byActivity = {};
     let willShare = 0;
@@ -220,9 +236,9 @@ app.get('/api/report', async (req, res) => {
       ok: true,
       generatedAt: new Date().toISOString(),
       works: {
-        total: (works.works || []).length,
+        total: works.total,
         session: works.session || '',
-        withLink,
+        withLink: works.withLink,
         byCategory,
         bySource,
       },

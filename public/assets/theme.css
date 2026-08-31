@@ -1,0 +1,134 @@
+/* ============================================
+   theme.css — 丽珠 AI 创新平台 · 暗夜影院风共享样式
+   与 index.html / report.html 视觉语言一致
+   ============================================ */
+:root {
+  --bg: #0a0a0d;
+  --card-bg: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.008) 100%);
+  --border: rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.15);
+  --text: #fff;
+  --text-dim: rgba(255,255,255,0.45);
+  --text-faint: rgba(255,255,255,0.3);
+  --accent: #5b8cff;
+  --accent-deep: #173f8f;
+  --accent-mid: #2568d8;
+  --accent-text: #8fb0ff;
+  --radius: 14px;
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: 'Noto Serif SC', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+::selection { background: rgba(255,255,255,0.2); color: #fff; }
+a { color: inherit; text-decoration: none; }
+
+.film-grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 90; opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+.page { max-width: 1120px; margin: 0 auto; padding: 48px 32px 80px; }
+
+/* 顶栏 */
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; }
+.topbar .brand { font-family: var(--font-mono); font-size: 11px; letter-spacing: 4px; color: var(--text-faint); }
+.topbar .back {
+  font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,0.55);
+  border: 1px solid var(--border-strong); border-radius: 999px;
+  padding: 8px 18px; transition: all .25s ease;
+}
+.topbar .back:hover { color: #fff; border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+
+/* 大标题 */
+.hero h1 {
+  font-family: var(--font-serif); font-weight: 900; letter-spacing: 4px; line-height: 1.2;
+}
+.hero h1 .accent { background: linear-gradient(135deg, #5b8cff 0%, #2f5fe0 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero .sub { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); letter-spacing: 3px; }
+
+/* 卡片 / 面板 */
+.card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card-bg); overflow: hidden;
+}
+
+/* 输入控件 */
+.field { margin-bottom: 20px; }
+label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px; }
+label .req { color: #ff6b6b; }
+input, select, textarea {
+  width: 100%; padding: 12px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px; color: #fff; font-size: 14px;
+  font-family: inherit; transition: border-color 0.2s, background 0.2s;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(91,140,255,0.6); background: rgba(255,255,255,0.06); }
+input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.25); }
+textarea { resize: vertical; min-height: 88px; }
+select option { background: #1a1a1f; color: #fff; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+@media (max-width: 640px) { .row, .row3 { grid-template-columns: 1fr; } }
+.hint { font-size: 11px; color: var(--text-faint); margin-top: 6px; letter-spacing: .5px; }
+
+/* 按钮 */
+.btn {
+  font-size: 13px; letter-spacing: 2px; border-radius: 999px; padding: 12px 28px;
+  border: 1px solid rgba(91,140,255,0.45); color: #9dbaff; cursor: pointer;
+  background: transparent; transition: all .25s ease; font-family: inherit;
+}
+.btn:hover { background: rgba(91,140,255,0.12); border-color: #5b8cff; color: #fff; }
+.btn.primary { background: linear-gradient(135deg, #2568d8 0%, #173f8f 100%); border: none; color: #fff; }
+.btn.primary:hover { filter: brightness(1.15); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 标签 / 徽章 */
+.tag {
+  display: inline-block; font-size: 11px; letter-spacing: 1px;
+  border: 1px solid rgba(91,140,255,0.4); color: #8fb0ff;
+  border-radius: 999px; padding: 2px 10px;
+}
+.tag.warn { border-color: rgba(255,180,90,0.4); color: #ffc07a; }
+.tag.ok { border-color: rgba(90,220,140,0.4); color: #85dcba; }
+.tag.danger { border-color: rgba(255,107,107,0.4); color: #ff8f8f; }
+
+/* 状态提示 */
+.msg { margin-top: 18px; font-size: 13px; padding: 13px 16px; border-radius: 10px; display: none; letter-spacing: .5px; }
+.msg.ok { display: block; background: rgba(90,220,140,0.1); border: 1px solid rgba(90,220,140,0.3); color: #85dcba; }
+.msg.err { display: block; background: rgba(255,90,90,0.1); border: 1px solid rgba(255,90,90,0.3); color: #ff8f8f; }
+
+/* 表格 */
+.table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th {
+  text-align: left; font-weight: 500; font-size: 11px; letter-spacing: 2px;
+  color: var(--text-faint); padding: 14px 18px;
+  background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td { padding: 13px 18px; border-bottom: 1px solid rgba(255,255,255,0.04); color: rgba(255,255,255,0.8); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: rgba(255,255,255,0.025); }
+td.mono { font-family: var(--font-mono); font-size: 12px; color: rgba(255,255,255,0.55); }
+
+/* 空态 */
+.empty { color: rgba(255,255,255,0.35); font-size: 13px; padding: 40px 18px; text-align: center; letter-spacing: 2px; }
+
+/* 页脚 */
+.footer {
+  margin-top: 70px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.07);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 3px;
+  color: rgba(255,255,255,0.25); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}

@@ -248,7 +248,7 @@ function load() {
     srcEntries.sort(function(a,b){ return b[1]-a[1]; });
     renderBars(document.getElementById('bars-src'), srcEntries, d.works.total);
 
-    var actEntries = Object.keys(d.registrations.byActivity).map(function(k){ return [k, d.registrations.byActivity[k]; });
+    var actEntries = Object.keys(d.registrations.byActivity).map(function(k){ return [k, d.registrations.byActivity[k]]; });
     actEntries.sort(function(a,b){ return b[1]-a[1]; });
     renderBars(document.getElementById('bars-act'), actEntries, d.registrations.total);
 

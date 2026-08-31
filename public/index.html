@@ -105,6 +105,58 @@
     100% { transform: scale(1.6); opacity: 0; }
   }
 
+  /* ========= 作品上传 FAB（注入层） ========= */
+  #pingce-upload-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 100px;
+    z-index: 99999;
+    padding: 10px 16px;
+    border-radius: 24px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.85);
+    font-size: 12px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    backdrop-filter: blur(8px);
+    transition: transform 0.25s ease, background 0.25s ease;
+    font-family: 'Noto Sans SC', sans-serif;
+    text-decoration: none;
+  }
+  #pingce-upload-fab:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.14);
+    color: #fff;
+  }
+
+  #pingce-admin-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 152px;
+    z-index: 99999;
+    padding: 9px 16px;
+    border-radius: 24px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: transform 0.25s ease, background 0.25s ease, color 0.25s ease;
+    font-family: 'Noto Sans SC', sans-serif;
+    text-decoration: none;
+  }
+  #pingce-admin-fab:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+
   /* ========= 报名 Modal ========= */
   #pingce-modal {
     position: fixed;
@@ -242,6 +294,12 @@
   报名
 </div>
 
+<!-- 作品上传入口 -->
+<a id="pingce-upload-fab" href="/upload.html" title="上传作品" role="link">+ 上传作品</a>
+
+<!-- 管理后台入口 -->
+<a id="pingce-admin-fab" href="/admin.html" title="管理后台" role="link">管理后台</a>
+
 <!-- 报名 Modal -->
 <div id="pingce-modal" role="dialog" aria-modal="true" aria-labelledby="pingce-modal-title">
   <div class="pm-card">
@@ -364,9 +422,9 @@
         });
         var data = await resp.json();
         if (!resp.ok || !data.ok) {
-          showMsg('报名失败：' + (data.error || ('HTTP ' + resp.status)), 'err');
+          showMsg('报名失败：' + ((data.error && data.error.message) || data.error || ('HTTP ' + resp.status)), 'err');
         } else {
-          showMsg(data.message || '报名成功', 'ok');
+          showMsg((data.data && data.data.message) || data.message || '报名成功', 'ok');
           form.reset();
           shareWrap.style.display = 'none';
           setTimeout(close, 1800);

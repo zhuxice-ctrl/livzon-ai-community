@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>管理后台 · 丽珠 AI 创新平台</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<style>
+  /* 登录 mock */
+  .login-wrap { min-height: calc(100vh - 200px); display: flex; align-items: center; justify-content: center; }
+  .login-card {
+    width: 100%; max-width: 400px; text-align: center; padding: 44px 36px;
+  }
+  .login-card h2 { font-family: var(--font-serif); font-size: 20px; letter-spacing: 3px; margin-bottom: 6px; }
+  .login-card p { color: var(--text-dim); font-size: 12px; letter-spacing: 1px; margin-bottom: 28px; }
+  .role-btn {
+    width: 100%; padding: 15px; margin-bottom: 12px; border-radius: 10px;
+    font-size: 15px; letter-spacing: 2px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border-strong); background: transparent; color: #fff;
+    transition: all .2s ease; font-family: inherit;
+  }
+  .role-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.4); }
+  .role-btn.admin { background: linear-gradient(135deg,#2568d8,#173f8f); border: none; font-weight: 700; }
+  .role-btn.admin:hover { filter: brightness(1.15); }
+
+  /* 后台内容 */
+  .bar { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }
+  .bar .logout { margin-left: auto; color: var(--text-dim); cursor: pointer; font-size: 12px; letter-spacing: 2px; }
+  .bar .logout:hover { color: #fff; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .kpi { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); padding: 18px 20px; position: relative; overflow: hidden; }
+  .kpi::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background: linear-gradient(180deg,#5b8cff,#173f8f); opacity:.8; }
+  .kpi .label { font-size: 10px; letter-spacing: 2px; color: var(--text-faint); margin-bottom: 8px; }
+  .kpi .num { font-family: var(--font-mono); font-size: 28px; font-weight: 500; line-height: 1; }
+
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin: 30px 0 16px; }
+  .sec-head .sec-title { font-family: var(--font-serif); font-size: 18px; font-weight: 700; letter-spacing: 3px; }
+  .sec-head .sec-en { font-family: var(--font-mono); font-size: 10px; letter-spacing: 3px; color: var(--text-faint); }
+
+  .status { font-size: 11px; padding: 3px 10px; border-radius: 12px; letter-spacing: 1px; }
+  .status.pending { background: rgba(255,180,60,0.14); color: #ffc46b; }
+  .status.approved { background: rgba(90,220,140,0.14); color: #85dcba; }
+  .status.rejected { background: rgba(255,90,90,0.14); color: #ff8f8f; }
+  .pub { font-size: 11px; color: var(--text-faint); }
+  .actions a { color: #9dbaff; margin-right: 12px; font-size: 12px; cursor: pointer; letter-spacing: 1px; }
+  .actions a:hover { color: #fff; }
+  .actions a.danger { color: #ff8f8f; }
+  .filter-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .filter-tabs .ft { font-size: 12px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; letter-spacing: 1px; }
+  .filter-tabs .ft.active { border-color: var(--accent); color: #fff; background: rgba(91,140,255,0.12); }
+</style>
+</head>
+<body>
+<div class="film-grain"></div>
+<div class="page">
+  <div class="topbar">
+    <span class="brand">LIVZON AI CLUB · ADMIN</span>
+    <a class="back" href="/">← 返回官网首页</a>
+  </div>
+
+  <div class="hero">
+    <div class="sub">CONTROL PANEL / 管理后台</div>
+    <h1 style="font-size:clamp(28px,4vw,42px);margin-top:10px;">作品<span class="accent">管理</span></h1>
+  </div>
+
+  <!-- 登录 mock -->
+  <div class="login-wrap" id="loginView">
+    <div class="card login-card">
+      <h2>选择登录身份</h2>
+      <p>当前为 Mock 登录 · 真实飞书 SSO 稍后接入</p>
+      <button class="role-btn admin" onclick="login('admin')">以 <b>管理员</b> 身份进入</button>
+      <button class="role-btn" onclick="login('member')">以 <b>普通登录</b> 进入</button>
+    </div>
+  </div>
+
+  <!-- 后台内容 -->
+  <div id="contentView" style="display:none;">
+    <div class="bar">
+      <span class="tag" id="roleBadge">管理员</span>
+      <a href="/upload.html" class="tag">+ 上传新作品</a>
+      <span class="logout" onclick="logout()">退出登录</span>
+    </div>
+
+    <div class="kpi-row" id="kpis"></div>
+
+    <div class="sec-head"><span class="sec-title">作品队列</span><span class="sec-en">WORK QUEUE</span></div>
+    <div class="filter-tabs" id="tabs">
+      <div class="ft active" data-f="all">全部</div>
+      <div class="ft" data-f="pending">待审核</div>
+      <div class="ft" data-f="approved">已通过</div>
+      <div class="ft" data-f="rejected">已驳回</div>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>ID</th><th>标题</th><th>作者</th><th>类型</th><th>分类</th><th>状态</th><th>发布</th><th>操作</th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="8" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>LIVZON AI CLUB · ADMIN</span>
+    <span>LOGIN MOCK</span>
+  </div>
+</div>
+
+<script>
+  var role = null, filter = 'all', worksAll = [];
+
+  function login(r) {
+    role = r;
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('contentView').style.display = 'block';
+    var b = document.getElementById('roleBadge');
+    b.className = 'tag' + (r === 'admin' ? ' ok' : '');
+    b.textContent = r === 'admin' ? '管理员' : '普通登录';
+    if (r !== 'admin') document.querySelector('#contentView a.tag').style.display = 'none';
+    loadWorks();
+  }
+  function logout() {
+    role = null;
+    document.getElementById('loginView').style.display = '';
+    document.getElementById('contentView').style.display = 'none';
+  }
+
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var t = e.target.closest('.ft'); if (!t) return;
+    this.querySelectorAll('.ft').forEach(function (x) { x.classList.remove('active'); });
+    t.classList.add('active'); filter = t.getAttribute('data-f'); render();
+  });
+
+  async function loadWorks() {
+    var tbody = document.getElementById('tbody');
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">加载中…</td></tr>';
+    try {
+      var resp = await fetch('/api/admin/works', { headers: { 'x-user-role': role } });
+      var data = await resp.json();
+      if (!data.ok) { tbody.innerHTML = '<tr><td colspan="8" class="empty">加载失败：' + data.error.message + '</td></tr>'; return; }
+      worksAll = data.data.works || [];
+      renderKpis();
+      render();
+    } catch (e) { tbody.innerHTML = '<tr><td colspan="8" class="empty">网络错误</td></tr>'; }
+  }
+
+  function renderKpis() {
+    var box = document.getElementById('kpis');
+    var total = worksAll.length;
+    var pending = worksAll.filter(function (w) { return w.status === 'pending'; }).length;
+    var approved = worksAll.filter(function (w) { return w.status === 'approved'; }).length;
+    var published = worksAll.filter(function (w) { return w.published; }).length;
+    box.innerHTML = '<div class="kpi"><div class="label">作品总数</div><div class="num">' + total + '</div></div>' +
+      '<div class="kpi"><div class="label">待审核</div><div class="num">' + pending + '</div></div>' +
+      '<div class="kpi"><div class="label">已通过</div><div class="num">' + approved + '</div></div>' +
+      '<div class="kpi"><div class="label">已发布</div><div class="num">' + published + '</div></div>';
+  }
+
+  function render() {
+    var tbody = document.getElementById('tbody');
+    var list = worksAll;
+    if (filter !== 'all') list = list.filter(function (w) { return w.status === filter; });
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无作品</td></tr>'; return; }
+    tbody.innerHTML = list.map(function (w) {
+      return '<tr>' +
+        '<td class="mono">' + w.id + '</td>' +
+        '<td>' + esc(w.title) + '</td>' +
+        '<td>' + esc(w.author) + '</td>' +
+        '<td>' + esc(kindLabel(w.kind)) + '</td>' +
+        '<td>' + esc(w.category) + '</td>' +
+        '<td><span class="status ' + w.status + '">' + statusLabel(w.status) + '</span></td>' +
+        '<td>' + (w.published ? '<span class="pub">已发布</span>' : '<span class="pub">未发布</span>') + '</td>' +
+        '<td class="actions">' + actions(w) + '</td></tr>';
+    }).join('');
+  }
+
+  function actions(w) {
+    if (role !== 'admin') return '<span class="pub">只读</span>';
+    var html = '';
+    if (w.status !== 'approved') html += '<a onclick="act(' + w.id + ',\'approved\',true)">通过并发布</a>';
+    if (w.status !== 'rejected') html += '<a class="danger" onclick="act(' + w.id + ',\'rejected\')">驳回</a>';
+    if (!w.published && w.status === 'approved') html += '<a onclick="act(' + w.id + ',\'approved\',true)">发布</a>';
+    if (w.published) html += '<a class="danger" onclick="act(' + w.id + ',\'approved\',false)">下架</a>';
+    return html || '<span class="pub">—</span>';
+  }
+
+  async function act(id, status, published) {
+    var body = { status: status };
+    if (published != null) body.published = published;
+    var resp = await fetch('/api/admin/works/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'x-user-role': role }, body: JSON.stringify(body) });
+    var data = await resp.json();
+    if (data.ok) loadWorks(); else alert(data.error.message);
+  }
+
+  function statusLabel(s) { return { pending: '待审核', approved: '已通过', rejected: '已驳回' }[s] || s; }
+  function kindLabel(k) { return { image:'AI 图像', video:'AI 视频', '3d':'3D 生成', app:'小程序/产品', tool:'工具/插件', skill:'Skill', mcp:'MCP 工具', source:'源码包' }[k] || k; }
+  function esc(s) { return String(s||'').replace(/[&<>"]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+</script>
+</body>
+</html>

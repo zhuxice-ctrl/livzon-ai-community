@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>作品上传 · 丽珠 AI 创新平台</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<style>
+  .upload-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .upload-grid { grid-template-columns: 1fr; } }
+
+  .card-body { padding: 30px 32px; }
+
+  /* 封面预览 */
+  .preview-card { padding: 24px; }
+  .preview-thumb {
+    width: 100%; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+  }
+  .preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .preview-thumb .ph { color: var(--text-faint); font-size: 11px; letter-spacing: 2px; font-family: var(--font-mono); }
+  .preview-meta { font-size: 12px; color: var(--text-dim); letter-spacing: 1px; line-height: 1.9; }
+  .preview-meta b { color: #fff; font-weight: 500; }
+
+  /* 类型选择分段 */
+  .kind-seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+  @media (max-width: 640px) { .kind-seg { grid-template-columns: repeat(2, 1fr); } }
+  .kind-opt {
+    padding: 10px; text-align: center; border-radius: 10px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.1); color: var(--text-dim);
+    font-size: 12px; letter-spacing: 1px; transition: all .2s ease;
+  }
+  .kind-opt:hover { border-color: rgba(91,140,255,0.4); color: #fff; }
+  .kind-opt.active { border-color: var(--accent); background: rgba(91,140,255,0.12); color: #fff; }
+</style>
+</head>
+<body>
+<div class="film-grain"></div>
+<div class="page">
+  <div class="topbar">
+    <span class="brand">LIVZON · AI CLUB</span>
+    <a class="back" href="/">← 返回官网首页</a>
+  </div>
+
+  <div class="hero">
+    <div class="sub">WORK SUBMISSION / 作品登记</div>
+    <h1 style="font-size:clamp(30px,4.5vw,46px);margin-top:10px;">提交你的<span class="accent">作品</span></h1>
+  </div>
+
+  <div class="upload-grid" style="margin-top:36px;">
+    <!-- 表单 -->
+    <div class="card">
+      <div class="card-body">
+        <form id="uploadForm" novalidate>
+          <div class="field">
+            <label>作品类型 <span class="req">*</span></label>
+            <div class="kind-seg" id="kindSeg">
+              <div class="kind-opt" data-kind="image">AI 图像</div>
+              <div class="kind-opt" data-kind="video">AI 视频</div>
+              <div class="kind-opt" data-kind="3d">3D 生成</div>
+              <div class="kind-opt" data-kind="app">小程序/产品</div>
+              <div class="kind-opt" data-kind="tool">工具/插件</div>
+              <div class="kind-opt" data-kind="skill">Skill</div>
+              <div class="kind-opt" data-kind="mcp">MCP 工具</div>
+              <div class="kind-opt" data-kind="source">源码包</div>
+            </div>
+            <input type="hidden" name="kind" id="kindInput" value="">
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label>作品标题 <span class="req">*</span></label>
+              <input name="title" maxlength="100" placeholder="例如：水墨舞者" required>
+            </div>
+            <div class="field">
+              <label>作者 <span class="req">*</span></label>
+              <input name="author" maxlength="60" placeholder="姓名 / 团队" required>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label>分类</label>
+              <input name="category" maxlength="40" placeholder="例如：AI 图像 / 科学可视化">
+            </div>
+            <div class="field">
+              <label>来源</label>
+              <input name="source" maxlength="200" placeholder="例如：AI 训练营 · 第 3 期">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>简介</label>
+            <textarea name="description" maxlength="2000" placeholder="简要描述这件作品的创意与亮点"></textarea>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label>封面路径</label>
+              <input name="cover" maxlength="300" placeholder="images/works/w01.jpeg" onchange="previewCover(this.value)">
+              <div class="hint">真实的作品文件上传通道后续接入</div>
+            </div>
+            <div class="field">
+              <label>作品链接</label>
+              <input name="link" maxlength="1000" placeholder="原网页 / 下载 / 调用入口地址">
+              <div class="hint">图片类可先填地址，其余类型后续走文件上传</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>相关内容（可空）</label>
+            <textarea name="theme" maxlength="4000" placeholder="主题 / 团队 / 开发流程说明（后续随制品一起管理）"></textarea>
+          </div>
+
+          <button class="btn primary" type="submit" id="submitBtn" style="width:100%;">提交作品</button>
+          <div class="msg" id="msg"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 实时预览 -->
+    <div class="card preview-card">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--text-faint);margin-bottom:14px;">LIVE PREVIEW / 实时预览</div>
+      <div class="preview-thumb" id="pvThumb"><span class="ph">NO COVER</span></div>
+      <div class="preview-meta">
+        <div><span style="color:var(--text-faint);">类型</span> <b id="pvKind">—</b></div>
+        <div><span style="color:var(--text-faint);">标题</span> <b id="pvTitle">—</b></div>
+        <div><span style="color:var(--text-faint);">作者</span> <b id="pvAuthor">—</b></div>
+        <div style="margin-top:10px;color:var(--text-faint);" id="pvDesc">尚未输入内容</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>LIVZON AI CLUB · SUBMIT</span>
+    <span>MOCK · 真实上传通道待接入</span>
+  </div>
+</div>
+
+<script>
+  var form = document.getElementById('uploadForm');
+  var btn = document.getElementById('submitBtn');
+  var msg = document.getElementById('msg');
+
+  document.getElementById('kindSeg').addEventListener('click', function (e) {
+    var opt = e.target.closest('.kind-opt');
+    if (!opt) return;
+    this.querySelectorAll('.kind-opt').forEach(function (o) { o.classList.remove('active'); });
+    opt.classList.add('active');
+    document.getElementById('kindInput').value = opt.getAttribute('data-kind');
+    document.getElementById('pvKind').textContent = opt.textContent;
+  });
+
+  function previewCover(v) {
+    var t = document.getElementById('pvThumb');
+    if (v.trim()) { t.innerHTML = '<img src="' + v.trim() + '" onerror="this.parentElement.innerHTML=\'<span class=ph>IMAGE ERROR</span>\'">'; }
+    else { t.innerHTML = '<span class="ph">NO COVER</span>'; }
+  }
+
+  ['title', 'author'].forEach(function (name) {
+    var el = form.querySelector('[name=' + name + ']');
+    el.addEventListener('input', function () {
+      document.getElementById(name === 'title' ? 'pvTitle' : 'pvAuthor').textContent = el.value || '—';
+    });
+  });
+  form.querySelector('[name=description]').addEventListener('input', function () {
+    document.getElementById('pvDesc').textContent = this.value || '尚未输入内容';
+  });
+
+  function showMsg(text, type) { msg.className = 'msg ' + type; msg.textContent = text; }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var fd = new FormData(form);
+    var payload = {
+      title: (fd.get('title') || '').trim(),
+      author: (fd.get('author') || '').trim(),
+      kind: fd.get('kind') || '',
+      category: (fd.get('category') || '').trim(),
+      source: (fd.get('source') || '').trim(),
+      description: (fd.get('description') || '').trim(),
+      cover: (fd.get('cover') || '').trim(),
+      link: (fd.get('link') || '').trim(),
+      detail: { theme: (fd.get('theme') || '').trim() }
+    };
+    if (!payload.kind || !payload.title || !payload.author) { showMsg('请填写必填项：作品类型、标题、作者', 'err'); return; }
+
+    btn.disabled = true; btn.textContent = '提交中…';
+    try {
+      var resp = await fetch('/api/works', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      var data = await resp.json();
+      if (resp.ok && data.ok) {
+        showMsg('提交成功！作品已进入待审核队列，管理员通过后将对外展示。', 'ok');
+        form.reset();
+        document.querySelectorAll('#kindSeg .kind-opt').forEach(function (o) { o.classList.remove('active'); });
+        document.getElementById('pvThumb').innerHTML = '<span class="ph">NO COVER</span>';
+        document.getElementById('pvKind').textContent = '—'; document.getElementById('pvTitle').textContent = '—'; document.getElementById('pvAuthor').textContent = '—'; document.getElementById('pvDesc').textContent = '尚未输入内容';
+      } else {
+        showMsg((data.error && data.error.message) || ('提交失败：HTTP ' + resp.status), 'err');
+      }
+    } catch (err) { showMsg('网络错误：' + err.message, 'err'); }
+    finally { btn.disabled = false; btn.textContent = '提交作品'; }
+  });
+</script>
+</body>
+</html>

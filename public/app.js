@@ -258,12 +258,12 @@ var MarqueeRow = ({ row, direction, paused, hoverIndex, setHoverIndex, onWorkCli
   return /* @__PURE__ */ React.createElement("div", {
     style: {
       display: "flex",
-      gap: 6,
       padding: "3px 0",
       overflow: "hidden",
       animation: `marquee${direction === "left" ? "Left" : "Right"} ${duration}s linear infinite`,
       willChange: "transform",
-      transform: `rotateY(${row === 0 ? "0deg" : row === 3 ? "0deg" : "0deg"})`
+      transform: `rotateY(${row === 0 ? "0deg" : row === 3 ? "0deg" : "0deg"})`,
+      width: "max-content"
     }
   }, repeated.map((item, i) => /* @__PURE__ */ React.createElement(WallTile, {
     key: i,
@@ -281,6 +281,7 @@ var WallTile = ({ img, globalIdx, isHovered, onHover, onLeave, onClick }) => {
     className: "wall-tile",
     style: {
       flexShrink: 0,
+      marginRight: 6,
       width: 220,
       aspectRatio: "3 / 2",
       borderRadius: 2,

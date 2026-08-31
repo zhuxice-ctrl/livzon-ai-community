@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>接口 Mock 验收 · 丽珠 AI 创新平台</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<style>
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+  .panel { padding: 24px; }
+  .panel h3 { font-family: var(--font-serif); font-size: 16px; font-weight: 700; letter-spacing: 2px; margin-bottom: 16px; }
+  .mock-id { display: block; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; font-size: 12px; color: var(--text-dim); }
+  .btn.sm { padding: 9px 18px; font-size: 12px; margin-right: 8px; }
+  .out { margin-top: 16px; font-family: var(--font-mono); font-size: 12px; color: rgba(255,255,255,0.7); white-space: pre-wrap; word-break: break-all; border-top: 1px solid var(--border); padding-top: 12px; max-height: 200px; overflow: auto; }
+  .mock-tag { font-size: 10px; letter-spacing: 1px; background: rgba(255,255,255,0.08); border: 1px solid var(--border-strong); padding: 2px 8px; border-radius: 20px; color: var(--text-dim); margin-left: 8px; }
+</style>
+</head>
+<body>
+<div class="film-grain"></div>
+<div class="page">
+  <div class="topbar">
+    <span class="brand">LIVZON · AI CLUB · MOCK</span>
+    <a class="back" href="/">← 返回官网首页</a>
+  </div>
+  <div class="hero">
+    <div class="sub">API MOCK / 接口验收</div>
+    <h1 style="font-size:clamp(28px,4vw,42px);margin-top:10px;">报名 · 投票 · <span class="accent">制品资源</span></h1>
+    <p style="color:var(--text-faint);font-size:12px;letter-spacing:1px;margin-top:8px;">前端简单的 mock 调用页，用于验证后端接口，你可按模块自行落地正式前端</p>
+  </div>
+
+  <div class="grid" style="margin-top:32px;">
+
+    <!-- 报名 -->
+    <div class="card panel">
+      <h3>报名 <span class="mock-tag">POST /api/register</span></h3>
+      <div class="mock-id">姓名：<b id="reg-name">张三</b> · 活动：<b>AI 训练营</b> · 联系方式：<b>138****0000</b></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn sm primary" onclick="doRegister()">提交报名</button>
+        <button class="btn sm" onclick="doRegisterBad()">测试空表单</button>
+      </div>
+      <div class="out" id="reg-out">点击按钮执行接口</div>
+    </div>
+
+    <!-- 投票 -->
+    <div class="card panel">
+      <h3>投票 <span class="mock-tag">POST /api/vote</span></h3>
+      <div class="mock-id">作品ID：<b id="vote-work">1</b> · 身份：<b id="vote-user">user-test</b></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn sm primary" onclick="doVote()">投一票</button>
+        <button class="btn sm" onclick="doVoteDup()">重复投票</button>
+        <button class="btn sm" onclick="doVoteResults()">查看统计</button>
+      </div>
+      <div class="out" id="vote-out">点击按钮执行接口</div>
+    </div>
+
+    <!-- 制品 -->
+    <div class="card panel">
+      <h3>制品资源 <span class="mock-tag">POST /api/artifacts</span></h3>
+      <div class="mock-id">作品ID：<b id="art-work">1</b> · 类型：<b>video</b> · 文件：<b>demo.mp4</b></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn sm primary" onclick="doArtifact()">登记上传(mock)</button>
+        <button class="btn sm" onclick="doArtifactList()">资源列表</button>
+        <button class="btn sm" onclick="doArtifactDl()">下载计数</button>
+      </div>
+      <div class="out" id="art-out">点击按钮执行接口</div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <span>LIVZON AI CLUB · MOCK</span>
+    <span>后端接口验收页</span>
+  </div>
+</div>
+
+<script>
+  function put(id, obj) { document.getElementById(id).textContent = JSON.stringify(obj, null, 2); }
+
+  async function doRegister() {
+    try {
+      var r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: document.getElementById('reg-name').textContent, department: '研发中心', contact: '13800000000', activity: 'AI 训练营', willShare: true, shareTopic: 'RAG 实践' }) });
+      put('reg-out', await r.json());
+    } catch (e) { put('reg-out', { err: e.message }); }
+  }
+  async function doRegisterBad() {
+    try {
+      var r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      var j = await r.json();
+      put('reg-out', { http: r.status, ...j });
+    } catch (e) { put('reg-out', { err: e.message }); }
+  }
+
+  async function doVote() {
+    try {
+      var r = await fetch('/api/vote', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': document.getElementById('vote-user').textContent }, body: JSON.stringify({ workId: Number(document.getElementById('vote-work').textContent) }) });
+      var j = await r.json();
+      put('vote-out', { http: r.status, ...j });
+    } catch (e) { put('vote-out', { err: e.message }); }
+  }
+  async function doVoteDup() {
+    try {
+      var r = await fetch('/api/vote', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': document.getElementById('vote-user').textContent }, body: JSON.stringify({ workId: Number(document.getElementById('vote-work').textContent) }) });
+      var j = await r.json();
+      put('vote-out', { http: r.status, ...j });
+    } catch (e) { put('vote-out', { err: e.message }); }
+  }
+  async function doVoteResults() {
+    try {
+      var r = await fetch('/api/vote/results');
+      put('vote-out', await r.json());
+    } catch (e) { put('vote-out', { err: e.message }); }
+  }
+
+  async function doArtifact() {
+    try {
+      var r = await fetch('/api/artifacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workId: Number(document.getElementById('art-work').textContent), kind: 'video', filename: 'demo.mp4', version: 'v1', size: 102400, guide: '下载后本地导入运行即可' }) });
+      var j = await r.json();
+      put('art-out', { http: r.status, ...j });
+    } catch (e) { put('art-out', { err: e.message }); }
+  }
+  async function doArtifactList() {
+    try {
+      var r = await fetch('/api/artifacts?work_id=' + Number(document.getElementById('art-work').textContent));
+      put('art-out', await r.json());
+    } catch (e) { put('art-out', { err: e.message }); }
+  }
+  async function doArtifactDl() {
+    try {
+      var list = await (await fetch('/api/artifacts?work_id=' + Number(document.getElementById('art-work').textContent))).json();
+      var id = list.data && list.data.artifacts && list.data.artifacts[0] && list.data.artifacts[0].id;
+      if (!id) { put('art-out', { note: '暂无资源，请先登记上传' }); return; }
+      var r = await fetch('/api/artifacts/' + id + '/download', { method: 'PATCH' });
+      put('art-out', await r.json());
+    } catch (e) { put('art-out', { err: e.message }); }
+  }
+</script>
+</body>
+</html>
