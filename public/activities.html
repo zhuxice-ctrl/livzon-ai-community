@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>活动大厅 · 丽珠 AI 创新平台</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@200;300;400;500;700;900&family=Noto+Serif+SC:wght@300;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; }
+  body {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f8f8f6;
+    color: #1a1a1f;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  ::selection { background: rgba(26,26,31,0.15); color: #1a1a1f; }
+  a { color: inherit; text-decoration: none; }
+  .page { max-width: 1160px; margin: 0 auto; padding: 48px 40px 90px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 56px; }
+  .topbar .brand { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 4px; color: #999; }
+  .topbar .back {
+    font-size: 12px; letter-spacing: 2px; color: #888;
+    border: 1px solid rgba(0,0,0,0.15); border-radius: 999px;
+    padding: 8px 18px; transition: all .25s ease;
+  }
+  .topbar .back:hover { color: #fff; background: #1a1a1f; border-color: #1a1a1f; }
+
+  .hero .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 3px; color: #999; margin-bottom: 16px; }
+  .hero h1 { font-family: 'Noto Serif SC', serif; font-weight: 300; font-size: clamp(36px,6vw,56px); letter-spacing: 2px; line-height: 1.2; }
+  .hero .sub { margin-top: 20px; color: #666; font-size: 15px; line-height: 1.9; max-width: 560px; }
+
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin: 64px 0 22px; }
+  .sec-title { font-family: 'Noto Serif SC', serif; font-size: 22px; font-weight: 500; letter-spacing: 2px; }
+  .sec-en { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #aaa; }
+
+  /* 本月焦点 —— 浅色活动卡 + 手绘阴影感（去蓝） */
+  /* ===== 演出季 · 节目单 ===== */
+  .stage-card { position: relative; overflow: hidden; background: #fff; color: #1a1a1f; border-radius: 10px; padding: 48px 52px; min-height: 280px; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 6px 16px rgba(0,0,0,0.05), 0 18px 36px rgba(0,0,0,0.04); }
+  .stage-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:#1a1a1f; }
+  .stage-light { position:absolute; left:0; right:0; top:0; height:220px; background: linear-gradient(180deg, rgba(26,26,31,0.07) 0%, rgba(26,26,31,0.025) 60%, transparent 100%); pointer-events:none; }
+  .stage-top { display:flex; align-items:center; gap:12px; margin-bottom:20px; position:relative; }
+  .stage-tag { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:3px; color:#1a1a1f; border:1px solid currentColor; padding:3px 10px; border-radius:2px; }
+  .stage-tag-soft { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; color:#999; }
+  .stage-title { font-family:'Noto Serif SC',serif; font-size:clamp(28px,4vw,42px); font-weight:500; color:#1a1a1f; letter-spacing:1px; line-height:1.25; margin-bottom:16px; position:relative; }
+  .stage-meta { display:flex; flex-wrap:wrap; gap:24px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#888; margin-bottom:18px; position:relative; }
+  .stage-desc { color:#555; font-size:14px; line-height:1.95; max-width:760px; margin-bottom:22px; position:relative; }
+  .stage-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:26px; position:relative; }
+  .stage-chip { font-size:11px; color:#555; background:#f3f3ef; padding:5px 11px; border-radius:2px; letter-spacing:.5px; }
+  .stage-cta { display:flex; gap:12px; flex-wrap:wrap; position:relative; }
+  .btn-primary { display:inline-flex; align-items:center; gap:6px; font-size:13px; letter-spacing:2px; padding:11px 26px; border-radius:999px; background:#1a1a1f; color:#fff; font-weight:600; cursor:pointer; border:none; transition:all .2s; text-decoration:none; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .btn-primary:hover { transform:translateY(-2px); box-shadow:0 10px 26px rgba(26,26,31,0.22); }
+  .btn-ghost { display:inline-flex; align-items:center; gap:6px; font-size:13px; letter-spacing:2px; padding:11px 24px; border-radius:999px; background:transparent; color:#1a1a1f; font-weight:500; cursor:pointer; border:1px solid rgba(0,0,0,0.15); transition:all .2s; }
+  .btn-ghost:hover { border-color:rgba(0,0,0,0.4); background:rgba(0,0,0,0.03); }
+
+  .rail-wrap { position:relative; margin: 0 -8px; }
+  .rail-wrap::after { content:''; position:absolute; right:0; top:0; bottom:24px; width:48px; background:linear-gradient(to right, transparent, #f8f8f6 80%); pointer-events:none; }
+  .poster-rail { display:flex; gap:14px; overflow-x:auto; padding:8px 8px 24px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+  .poster-rail::-webkit-scrollbar { height:4px; }
+  .poster-rail::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.15); border-radius:2px; }
+  .poster { flex:0 0 180px; min-height:240px; padding:24px 22px 20px; background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:8px; cursor:pointer; display:flex; flex-direction:column; scroll-snap-align:start; transition:all .3s ease; position:relative; overflow:hidden; }
+  .poster:hover { transform:translateY(-4px); box-shadow:0 16px 40px rgba(0,0,0,0.08); }
+  .poster::before { content:''; position:absolute; left:0; top:0; right:0; height:3px; background:var(--c,#5b8cff); }
+  .poster-month { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; color:#aaa; margin-bottom:auto; }
+  .poster-name { font-family:'Noto Serif SC',serif; font-size:17px; font-weight:500; color:#1a1a1f; line-height:1.45; margin:14px 0 10px; }
+  .poster-tag { font-size:10px; color:var(--c,#5b8cff); border:1px solid currentColor; padding:2px 8px; border-radius:2px; align-self:flex-start; letter-spacing:1px; }
+  @media (max-width:560px) { .poster { flex-basis:160px; min-height:200px; padding:20px 18px 16px; } }
+  .rail-detail { background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:8px; padding:32px 36px; margin-top:6px; }
+  .rail-detail-title { font-family:'Noto Serif SC',serif; font-size:22px; font-weight:500; margin-bottom:8px; }
+  .rail-detail-meta { font-family:'JetBrains Mono',monospace; font-size:11px; color:#999; margin-bottom:14px; letter-spacing:1px; }
+  .rail-detail-desc { font-size:13.5px; color:#555; line-height:1.9; margin-bottom:16px; max-width:780px; }
+  .rail-detail-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:20px; }
+  .rail-detail-tags span { font-size:11px; color:#666; background:#f3f3ef; padding:4px 10px; border-radius:2px; }
+  .rail-detail-cta { display:flex; gap:10px; flex-wrap:wrap; }
+  .rail-detail-cta .btn-primary { background:var(--c,#1a1a1f); color:#fff; }
+  .rail-detail-cta .btn-ghost { color:#1a1a1f; border-color:rgba(0,0,0,0.2); }
+  .rail-detail-cta .btn-ghost:hover { border-color:#1a1a1f; background:rgba(0,0,0,0.04); }
+
+  .stub-wall { display:grid; grid-template-columns:repeat(2,1fr); gap:18px 22px; }
+  @media (max-width:700px){ .stub-wall{grid-template-columns:1fr;} }
+  .stub { position:relative; background:#fff; border:1px dashed rgba(0,0,0,0.2); border-radius:3px; padding:22px 24px 22px 42px; cursor:pointer; transition:all .35s ease; transform:rotate(var(--rot,0deg)); transform-origin:center; }
+  .stub::before, .stub::after { content:''; position:absolute; left:-7px; width:12px; height:12px; background:#f8f8f6; border:1px dashed rgba(0,0,0,0.2); border-radius:50%; }
+  .stub::before { top:28%; } .stub::after { top:64%; }
+  .stub:hover { transform:rotate(0deg) translateY(-4px); box-shadow:0 18px 40px rgba(0,0,0,0.08); border-style:solid; }
+  .stub-date { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; color:#aaa; margin-bottom:8px; }
+  .stub-name { font-family:'Noto Serif SC',serif; font-size:17px; font-weight:500; color:#1a1a1f; margin-bottom:8px; line-height:1.4; }
+  .stub-summary { font-size:12.5px; color:#666; line-height:1.8; margin-bottom:12px; }
+  .stub-stats { display:flex; gap:18px; flex-wrap:wrap; margin-bottom:10px; }
+  .stub-stats .stat .n { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:500; color:#1a1a1f; line-height:1; }
+  .stub-stats .stat .l { font-size:10px; color:#aaa; letter-spacing:1px; margin-top:3px; }
+  .stub-more { font-size:11px; color:#999; letter-spacing:1px; }
+  .stub-more::after { content:' →'; }
+  .stub-toggle { grid-column:1/-1; text-align:center; margin-top:8px; }
+  .stub-toggle button { font-size:12px; color:#888; padding:8px 20px; border:1px solid rgba(0,0,0,0.12); border-radius:999px; background:transparent; cursor:pointer; transition:all .2s; }
+  .stub-toggle button:hover { color:#1a1a1f; border-color:#888; }
+  @media (prefers-reduced-motion: reduce) { .stub { transition:none; } .stub:hover { transform:rotate(var(--rot,0deg)); } }
+
+  .format-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  @media (max-width:900px){ .format-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:480px){ .format-grid{grid-template-columns:1fr;} }
+  .format-card { background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:6px; padding:26px 24px; transition:all .3s ease; }
+  .format-card:hover { transform:translateY(-3px); box-shadow:0 12px 30px rgba(0,0,0,0.06); border-color:rgba(0,0,0,0.12); }
+  .format-no { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:3px; color:#ccc; margin-bottom:10px; }
+  .format-name { font-family:'Noto Serif SC',serif; font-size:18px; font-weight:500; margin-bottom:6px; }
+  .format-tagline { font-size:12px; color:#888; margin-bottom:14px; }
+  .format-meta { font-size:11px; color:#aaa; font-family:'JetBrains Mono',monospace; line-height:1.9; }
+  .format-meta .k { color:#555; }
+  .format-suit { font-size:11px; color:#888; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(0,0,0,0.08); }
+
+  .toast { position:fixed; bottom:32px; left:50%; transform:translateX(-50%) translateY(20px); background:#1a1a1f; color:#fff; font-size:13px; padding:11px 22px; border-radius:999px; box-shadow:0 8px 24px rgba(0,0,0,0.2); opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; z-index:11000; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+.join-card { background:#1a1a1f; color:#fff; border-radius:8px; padding:56px 48px; text-align:center; margin-top:60px; }
+  .join-card .eyebrow { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:4px; color:rgba(255,255,255,0.4); margin-bottom:16px; }
+  .join-card h3 { font-family:'Noto Serif SC',serif; font-size:30px; font-weight:300; letter-spacing:2px; margin-bottom:24px; }
+  .join-card p { font-size:14px; color:rgba(255,255,255,0.6); line-height:2; max-width:600px; margin:0 auto 26px; }
+  .join-btn { display:inline-block; font-size:13px; letter-spacing:2px; padding:12px 30px; border-radius:999px; background:#fff; color:#1a1a1f; font-weight:600; transition:all .25s; }
+  .join-btn:hover { transform:translateY(-2px); }
+
+  /* 回顾弹层 */
+  .modal { position:fixed; inset:0; z-index:10000; display:none; align-items:center; justify-content:center; padding:24px; }
+  .modal.open { display:flex; }
+  .modal-mask { position:absolute; inset:0; background:rgba(26,26,31,0.7); backdrop-filter:blur(4px); }
+  .modal-card { position:relative; width:100%; max-width:620px; background:#fff; border-radius:10px; padding:36px; max-height:82vh; overflow:auto; box-shadow:0 30px 80px rgba(0,0,0,0.3); }
+  .modal-close { position:absolute; top:18px; right:18px; cursor:pointer; color:#aaa; font-size:22px; background:none; border:none; }
+  .modal-close:hover{color:#1a1a1f;}
+  .modal-tag { font-size:11px; letter-spacing:1px; padding:2px 10px; border-radius:2px; display:inline-block; }
+  .modal-title { font-family:'Noto Serif SC',serif; font-size:26px; font-weight:500; margin:14px 0 8px; }
+  .modal-meta { font-family:'JetBrains Mono',monospace; font-size:12px; color:#999; margin-bottom:14px; }
+  .modal-desc { font-size:14px; color:#555; line-height:1.9; }
+  .sec-in { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:3px; color:#aaa; margin:22px 0 12px; }
+  .art-row { display:flex; justify-content:space-between; gap:12px; padding:14px 0; border-bottom:1px solid rgba(0,0,0,0.06); }
+  .art-row .t { font-size:13px; color:#1a1a1f; }
+  .art-row .n { font-size:11px; color:#888; font-family:'JetBrains Mono',monospace; }
+  .art-row .note { font-size:11px; color:#aaa; }
+
+  .empty { color:#aaa; font-size:13px; padding:40px 18px; text-align:center; letter-spacing:2px; }
+  .footer { margin-top:70px; padding-top:24px; border-top:1px solid rgba(0,0,0,0.06); font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:3px; color:#aaa; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+
+  /* ===== 物理标题（移植自妙搭物理标题版） ===== */
+  .hero { position: relative; }
+  .hero-title-wrap { position: relative; height: 90px; margin-bottom: 20px; }
+  .physics-title { position: relative; height: 100%; }
+  .char-body {
+    position: absolute;
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+    font-size: 72px;
+    font-weight: 600;
+    color: #111;
+    line-height: 1;
+    user-select: none;
+    cursor: pointer;
+    white-space: nowrap;
+    will-change: transform;
+    transform-origin: center center;
+  }
+  .char-body.pinned { cursor: pointer; }
+  .char-body:not(.pinned) { cursor: grab; }
+  .char-body:not(.pinned):active { cursor: grabbing; }
+  @media (max-width: 768px) {
+    .char-body { font-size: 44px; }
+    .hero-title-wrap { height: 60px; }
+  }
+
+  .hero-hint {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #bbb;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    transition: opacity 0.6s;
+  }
+  .hero-hint.faded { opacity: 0; pointer-events: none; }
+  .hero-hint span { display: inline-flex; align-items: center; gap: 6px; }
+  .hint-dot { width: 4px; height: 4px; border-radius: 50%; background: #ccc; }
+
+  .reset-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 12px;
+    color: #999;
+    padding: 6px 14px;
+    border: 1px solid #ddd;
+    border-radius: 999px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 50;
+  }
+  .reset-btn:hover { color: #111; border-color: #bbb; }
+  @media (max-width: 768px) {
+    .reset-btn { top: auto; bottom: -44px; right: 0; font-size: 11px; padding: 5px 12px; }
+  }
+
+  /* ---- 卡通气泡 ---- */
+  .title-bubble {
+    position: fixed;
+    z-index: 60;
+    color: #1c1d20;
+    font-family: "Yuanti SC", "Yuanti TC", "YouYuan", "幼圆", "Comic Sans MS", "Microsoft YaHei", sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.6) rotate(-2deg);
+    transform-origin: bottom left;
+    pointer-events: none;
+    transition: opacity 0.22s ease-out;
+    filter: drop-shadow(3px 3px 0 rgba(28, 29, 32, 0.15));
+  }
+  .bubble-shape {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .bubble-shape path {
+    fill: #fff;
+    stroke: #1c1d20;
+    stroke-width: 3;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .bubble-text {
+    position: relative;
+    z-index: 1;
+    padding: 12px 22px;
+    pointer-events: auto;
+  }
+  .title-bubble.show {
+    opacity: 1;
+    pointer-events: auto;
+    animation: bubblePop 0.38s cubic-bezier(.2, 1.4, .4, 1) forwards, bubbleWiggle 2.4s ease-in-out 0.38s infinite;
+  }
+  .title-bubble.hide {
+    opacity: 0 !important;
+    transform: scale(0.8) rotate(-2deg) !important;
+    animation: none !important;
+  }
+  @keyframes bubblePop {
+    0% { opacity: 0; transform: scale(0.3) rotate(-8deg); }
+    60% { opacity: 1; transform: scale(1.1) rotate(1deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-2deg); }
+  }
+  @keyframes bubbleWiggle {
+    0%, 100% { transform: scale(1) rotate(-2deg) translate(0, 0); }
+    25% { transform: scale(1.01) rotate(-1deg) translate(0.5px, -0.5px); }
+    50% { transform: scale(1) rotate(-2.5deg) translate(-0.5px, 0.5px); }
+    75% { transform: scale(1.01) rotate(-1.5deg) translate(0.5px, 0.5px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .title-bubble { transition: opacity 0.3s ease; }
+    .title-bubble.show { animation: none; transform: scale(1) rotate(-2deg); }
+  }
+  @media (max-width: 480px) {
+    .title-bubble { font-size: 14px; }
+    .bubble-text { padding: 8px 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <span class="brand">LIVZON · AI CLUB · ACTIVITIES</span>
+    <a class="back" href="/">← 返回官网首页</a>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">ACTIVITIES · 活动大厅</div>
+    <div class="hero-title-wrap">
+      <div class="physics-title" id="physicsTitle"><!-- 字符由 JS 注入 --></div>
+    </div>
+    <p class="sub">每月 1 次深度活动 + 不定期小实验，像兴趣小组一样轻松。高效上班，不耽误下班。</p>
+    <div class="hero-hint" id="heroHint">
+      <span><span class="hint-dot"></span>点击字符 · 让它掉下去</span>
+      <span><span class="hint-dot"></span>掉的过程中可以滚动页面 · 惯性不会被打断</span>
+    </div>
+    <button class="reset-btn" id="resetBtn">重置标题</button>
+  </div>
+  <!-- 演出季 · 正在上演 -->
+  <div class="sec-head">
+    <span class="sec-title">正在上演</span>
+    <span class="sec-en">NOW SHOWING · 本周焦点</span>
+  </div>
+  <div id="stageSlot"></div>
+
+  <!-- 近期排期 · 海报栏 -->
+  <div class="sec-head">
+    <span class="sec-title">近期排期</span>
+    <span class="sec-en">COMING UP · 点海报看详情</span>
+  </div>
+  <div class="rail-wrap"><div class="poster-rail" id="railSlot"></div></div>
+  <div id="railDetail"></div>
+
+  <!-- 票根墙 · 每场活动留一张票根 -->
+  <div class="sec-head">
+    <span class="sec-title">票根墙</span>
+    <span class="sec-en">STUB WALL · 已结束的活动沉淀在这里</span>
+  </div>
+  <div class="stub-wall" id="stubSlot"></div>
+
+  <!-- 玩法图鉴 -->
+  <div class="sec-head">
+    <span class="sec-title">玩法图鉴</span>
+    <span class="sec-en">FORMATS · 我们怎么玩</span>
+  </div>
+  <div class="format-grid" id="formatSlot"></div>
+
+<div class="join-card" id="joinSection">
+    <div class="eyebrow">HOW TO JOIN</div>
+    <h3>想参加怎么办？</h3>
+    <p>在 AI 社团群里报名即可。每次活动提前 1 周在群内发布主题和时间，想分享的同学回复报名，想来听的同学直接来。<br/>想报名当前活动，或从首页右下角进入报名。</p>
+    <a class="join-btn" href="/">返回首页报名</a>
+  </div>
+
+  <div class="footer" id="siteFooter">
+    <span>LIVZON AI CLUB · ACTIVITIES</span>
+    <span>DATA SOURCE /api/activities</span>
+  </div>
+</div>
+
+<!-- 回顾弹层 -->
+<div class="modal" id="modal">
+  <div class="modal-mask" onclick="closeModal()"></div>
+  <div class="modal-card" id="modalBody"></div>
+</div>
+
+<script>
+  var esc = function (s) { return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  var pad2 = function(n){ return String(n).padStart(2,'0'); };
+
+  function labelOf(k) {
+    return { participants:'参与', works:'作品', inWall:'入墙', sessions:'场次', docs:'文档', teams:'小组', mvp:'MVP', production:'生产', speakers:'分享', avgMinutes:'分享均长' }[k] || k;
+  }
+
+  function icsFor(a) {
+    var d = String(a.date||'');
+    var m = d.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+    if (!m) return null;
+    var Y=m[1], Mo=m[2], Da=m[3];
+    var tm = String(a.dateLabel||'').match(/(\d{1,2}):(\d{2})\s*[-–~]\s*(\d{1,2}):(\d{2})/);
+    var dtStart, dtEnd;
+    if (Da && tm) {
+      dtStart = Y+pad2(Mo)+pad2(Da)+'T'+pad2(tm[1])+pad2(tm[2])+'00';
+      dtEnd   = Y+pad2(Mo)+pad2(Da)+'T'+pad2(tm[3])+pad2(tm[4])+'00';
+    } else if (Da) {
+      var nd = new Date(Date.UTC(+Y, +Mo-1, +Da));
+      nd.setUTCDate(nd.getUTCDate()+1);
+      dtStart = ';VALUE=DATE:'+Y+pad2(Mo)+pad2(Da);
+      dtEnd   = ';VALUE=DATE:'+nd.getUTCFullYear()+pad2(nd.getUTCMonth()+1)+pad2(nd.getUTCDate());
+    } else {
+      var nd2 = new Date(Date.UTC(+Y, +Mo-1, 1));
+      nd2.setUTCMonth(nd2.getUTCMonth()+1);
+      dtStart = ';VALUE=DATE:'+Y+pad2(Mo)+'01';
+      dtEnd   = ';VALUE=DATE:'+nd2.getUTCFullYear()+pad2(nd2.getUTCMonth()+1)+pad2(nd2.getUTCDate());
+    }
+    var now = new Date();
+    var stamp = now.getUTCFullYear()+pad2(now.getUTCMonth()+1)+pad2(now.getUTCDate())+'T'+pad2(now.getUTCHours())+pad2(now.getUTCMinutes())+pad2(now.getUTCSeconds())+'Z';
+    var escIcs = function(s){ return String(s||'').replace(/[\\;,]/g, function(c){return '\\\\'+c;}).replace(/\n/g,'\\n'); };
+    return [
+      'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//livzon-ai-club//activities//ZH','CALSCALE:GREGORIAN','METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      'UID:'+a.id+'@livzon-ai-club',
+      'DTSTAMP:'+stamp,
+      'DTSTART'+dtStart,
+      'DTEND'+dtEnd,
+      'SUMMARY:'+escIcs(a.name),
+      'LOCATION:'+escIcs(a.location||''),
+      'DESCRIPTION:'+escIcs((a.desc||'')+'\nhttps://livzon-ai-club/activities.html#'+a.id),
+      'END:VEVENT','END:VCALENDAR'
+    ].join('\r\n');
+  }
+
+  function downloadIcs(act) {
+    if (!act) return;
+    var ics = icsFor(act);
+    if (!ics) { toast('该活动暂无具体时间，无法加入日历'); return; }
+    var blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = act.id + '.ics';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 500);
+    toast('已生成 ' + act.id + '.ics，导入日历即可');
+  }
+
+  function toast(text) {
+    var t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'toast'; t.className = 'toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = text; t.classList.add('show');
+    clearTimeout(t._tm); t._tm = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  }
+
+  var DATA = null;
+  var BYID = {};
+  var STUB_COLLAPSE_THRESHOLD = 6;
+  var stubExpanded = false;
+  var selectedRailIdx = 0;
+
+  function render(data) {
+    DATA = data;
+    BYID = {};
+    (data.current||[]).forEach(function(x){ BYID[x.id]=x; });
+    (data.upcoming||[]).forEach(function(x){ BYID[x.id]=x; });
+    (data.past||[]).forEach(function(x){ BYID[x.id]=x; });
+    renderStage(data.current, data.upcoming);
+    renderRail(data.upcoming);
+    renderRailDetail();
+    renderStubs(data.past);
+    renderFormats(data.types);
+  }
+
+  function renderStage(current, upcoming) {
+    var slot = document.getElementById('stageSlot');
+    if (!current && (!upcoming || !upcoming.length)) {
+      slot.innerHTML = '<div class="stage-card" style="--accent:#5b8cff;"><div class="stage-tag">敬请期待</div>'+
+        '<h2 class="stage-title">更多活动正在筹备中</h2>'+
+        '<p class="stage-desc">我们正在策划下一场深度活动，欢迎在 AI 社团群里提想法。</p></div>';
+      return;
+    }
+    var a = current || upcoming[0];
+    var isUpcoming = !current;
+    var c = a.color || '#5b8cff';
+    var tag = isUpcoming ? '下一场即将开票' : (a.tag || '正在上演');
+    var sub  = isUpcoming ? '抢先提醒 · ' + esc(a.dateLabel) : '◷ ' + esc(a.dateLabel);
+    var hili = (a.highlights || []).slice(0,4).map(function(h){return '<span class="stage-chip"># '+esc(h)+'</span>';}).join('');
+    var signup = a.signup || '/upload.html';
+    slot.innerHTML =
+      '<div class="stage-card" style="--accent:'+esc(c)+';">'+
+        '<div class="stage-light"></div>'+
+        '<div class="stage-top"><span class="stage-tag">'+esc(tag)+'</span><span class="stage-tag-soft">'+sub+'</span></div>'+
+        '<h2 class="stage-title">'+esc(a.name)+'</h2>'+
+        '<div class="stage-meta"><span>◷ '+esc(a.dateLabel)+'</span><span>⌂ '+esc(a.location)+'</span></div>'+
+        '<p class="stage-desc">'+esc(a.desc)+'</p>'+
+        (hili ? '<div class="stage-chips">'+hili+'</div>' : '')+
+        '<div class="stage-cta">'+
+          '<a class="btn-primary" href="'+esc(signup)+'">立即报名 →</a>'+
+          '<button class="btn-ghost" data-ics-id="'+esc(a.id)+'">◷ 提醒我</button>'+
+        '</div>'+
+      '</div>';
+  }
+
+  function renderRail(upcoming) {
+    var slot = document.getElementById('railSlot');
+    if (!upcoming || !upcoming.length) {
+      slot.innerHTML = '<div class="empty" style="padding:40px 18px;">近期暂无排期</div>';
+      document.getElementById('railDetail').innerHTML = '';
+      return;
+    }
+    slot.innerHTML = upcoming.map(function(a, i){
+      var c = a.color || '#5b8cff';
+      var sel = i===selectedRailIdx;
+      var style = '--c:'+esc(c)+';'+(sel?' border-color:'+esc(c)+';box-shadow:0 0 0 1px '+esc(c)+', 0 16px 40px rgba(0,0,0,0.08);':'');
+      return '<div class="poster" data-poster-idx="'+i+'" style="'+style+'">'+
+        '<div class="poster-month">'+esc(a.dateLabel)+'</div>'+
+        '<div class="poster-name">'+esc(a.name)+'</div>'+
+        '<span class="poster-tag">'+esc(a.tag || '即将开票')+'</span>'+
+      '</div>';
+    }).join('');
+  }
+
+  function renderRailDetail() {
+    var slot = document.getElementById('railDetail');
+    if (!DATA || !DATA.upcoming || !DATA.upcoming.length) { slot.innerHTML=''; return; }
+    var a = DATA.upcoming[selectedRailIdx] || DATA.upcoming[0];
+    var c = a.color || '#5b8cff';
+    var hili = (a.highlights || []).map(function(h){return '<span>'+esc(h)+'</span>';}).join('');
+    var signup = a.signup || '/upload.html';
+    slot.innerHTML =
+      '<div class="rail-detail">'+
+        '<div class="rail-detail-title">'+esc(a.name)+'</div>'+
+        '<div class="rail-detail-meta">◷ '+esc(a.dateLabel)+' · ⌂ '+esc(a.location)+'</div>'+
+        '<p class="rail-detail-desc">'+esc(a.desc)+'</p>'+
+        (hili ? '<div class="rail-detail-tags">'+hili+'</div>' : '')+
+        '<div class="rail-detail-cta">'+
+          '<a class="btn-primary" href="'+esc(signup)+'">立即报名 →</a>'+
+          '<button class="btn-ghost" data-ics-id="'+esc(a.id)+'">◷ 提醒我</button>'+
+        '</div>'+
+      '</div>';
+  }
+
+  function renderStubs(past) {
+    var slot = document.getElementById('stubSlot');
+    if (!past || !past.length) {
+      slot.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:50px 18px;">第一张票根虚位以待</div>';
+      return;
+    }
+    var list = stubExpanded ? past : past.slice(0, STUB_COLLAPSE_THRESHOLD);
+    var html = list.map(function(a, i){
+      var c = a.color || '#5b8cff';
+      var rot = [-1.4, 0.9, -0.6, 1.6, -1.0, 0.5][i % 6].toFixed(2);
+      var stats = a.stats || {};
+      var statHtml = Object.keys(stats).map(function(k){
+        return '<div class="stat"><div class="n">'+stats[k]+'</div><div class="l">'+esc(labelOf(k))+'</div></div>';
+      }).join('');
+      return '<div class="stub" data-act-id="'+esc(a.id)+'" style="--rot:'+rot+'deg;--c:'+esc(c)+';">'+
+        '<div class="stub-date">'+esc(a.dateLabel)+' · 已结束</div>'+
+        '<div class="stub-name">'+esc(a.name)+'</div>'+
+        '<p class="stub-summary">'+esc(a.summary||'')+'</p>'+
+        (statHtml ? '<div class="stub-stats">'+statHtml+'</div>' : '')+
+        '<div class="stub-more">查看回顾</div>'+
+      '</div>';
+    }).join('');
+    if (past.length > STUB_COLLAPSE_THRESHOLD) {
+      html += '<div class="stub-toggle"><button data-stub-toggle>'+(stubExpanded?'收起票根':('展开全部 '+past.length+' 张票根'))+'</button></div>';
+    }
+    slot.innerHTML = html;
+  }
+
+  function renderFormats(types) {
+    var slot = document.getElementById('formatSlot');
+    if (!types || !types.length) { slot.innerHTML=''; return; }
+    slot.innerHTML = types.map(function(t, i){
+      return '<div class="format-card">'+
+        '<div class="format-no">No. '+pad2(i+1)+' / 0'+types.length+'</div>'+
+        '<div class="format-name">'+esc(t.name)+'</div>'+
+        '<div class="format-tagline">'+esc(t.tagline)+'</div>'+
+        '<div class="format-meta"><span class="k">频率</span> '+esc(t.cadence)+'<br/><span class="k">形式</span> '+esc(t.format)+'</div>'+
+        '<div class="format-suit">适合：'+esc(t.suitableFor||'')+'</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    var icsBtn = t.closest && t.closest('[data-ics-id]');
+    if (icsBtn) { e.preventDefault(); downloadIcs(BYID[icsBtn.getAttribute('data-ics-id')]); return; }
+    var stub = t.closest && t.closest('[data-act-id]');
+    if (stub) { openReview(stub.getAttribute('data-act-id')); return; }
+    var poster = t.closest && t.closest('[data-poster-idx]');
+    if (poster) {
+      selectedRailIdx = +poster.getAttribute('data-poster-idx');
+      renderRail(DATA.upcoming);
+      renderRailDetail();
+      return;
+    }
+    var tg = t.closest && t.closest('[data-stub-toggle]');
+    if (tg) { stubExpanded = !stubExpanded; renderStubs(DATA.past); return; }
+  });
+
+  async function openReview(id) {
+    var r = await fetch('/api/activities/' + id);
+    var j = await r.json();
+    if (!j.ok) return;
+    var a = j.data;
+    var c = a.color || '#5b8cff';
+    var stats = a.stats || {};
+    var statHtml = Object.keys(stats).map(function(k){ return '<div class="past-stat" style="margin-right:26px;"><div class="n">'+stats[k]+'</div><div class="l">'+labelOf(k)+'</div></div>'; }).join('');
+    var artHtml = (a.artifacts || []).map(function(art){
+      return '<div class="art-row"><div><div class="t">'+esc(art.type)+'</div>'+(art.note?'<div class="note">'+esc(art.note)+'</div>':'')+'</div>'+(art.count?'<div class="n">'+art.count+' 项</div>':'')+'</div>';
+    }).join('');
+    document.getElementById('modalBody').innerHTML =
+      '<button class="modal-close" onclick="closeModal()">×</button>' +
+      '<span class="modal-tag" style="color:'+c+';border:1px solid '+c+'33;background:'+c+'0d;">'+esc(a.tag||'已举办')+'</span>' +
+      '<div class="modal-title">'+esc(a.name)+'</div>' +
+      '<div class="modal-meta">'+esc(a.dateLabel)+' · '+esc(a.location)+'</div>' +
+      '<p class="modal-desc">'+esc(a.summary)+'</p>' +
+      (statHtml ? '<div style="display:flex;flex-wrap:wrap;margin-top:18px;">'+statHtml+'</div>' : '') +
+      (a.artifacts && a.artifacts.length ? '<div class="sec-in">产出沉淀 / ARTIFACTS</div>' + artHtml : '');
+    document.getElementById('modal').classList.add('open');
+  }
+
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeModal(); });
+
+  async function load() {
+    var r = await fetch('/api/activities');
+    var j = await r.json();
+    if (j.ok) render(j.data);
+  }
+
+  load();
+</script>
+
+
+<script>
+// ==================== PHYSICS ENGINE ====================
+  // 2D physics with AABB bodies, gravity, collision, rotation
+  // Character bodies represented as AABB rectangles for collision
+  // World Y is in document coordinates (scroll doesn't affect physics)
+
+  const PHYSICS = {
+    gravity: 2200,           // px/s²
+    restitution: 0.5,        // bounce factor
+    friction: 0.985,         // linear damping per frame at contact
+    angularDamping: 0.995,   // angular damping
+    fixedDt: 1 / 120,        // fixed timestep
+    maxSubsteps: 6,
+    maxDt: 0.05,             // clamp dt when tab backgrounded
+  };
+
+  const CHARS = ['玩', '出', '来', '的', 'A', 'I'];
+  const CHAR_FONT_SIZE_DESKTOP = 72;
+  const CHAR_FONT_SIZE_MOBILE = 44;
+  const CHAR_LINE_HEIGHT = 1;
+
+  // state
+  let bodies = [];
+  let worldGroundY = 0;       // current dynamic ground world Y
+  let groundMaxY = 0;         // white line (hard floor) world Y
+  let groundVelocity = 0;     // kinematic ground velocity (world Y/s)
+  let lastGroundY = 0;
+  let smoothedScrollDelta = 0;
+  let scrollY = 0;
+  let lastScrollY = 0;
+  let running = true;
+  let lastTime = 0;
+  let accumulator = 0;
+  let hintFaded = false;
+  let isMobile = window.innerWidth <= 768;
+
+  // DOM references
+  const titleContainer = document.getElementById('physicsTitle');
+  const resetBtn = document.getElementById('resetBtn');
+  const heroHint = document.getElementById('heroHint');
+  const footerEl = document.getElementById('siteFooter');
+
+  // ---- Body class ----
+  function createBody(char, index, startX, startY, width, height) {
+    const mass = width * height * 0.01;
+    return {
+      el: null,
+      char,
+      index,
+      // world position (center) — x is viewport-relative, y is document-relative
+      x: startX,
+      y: startY,
+      homeX: startX,
+      homeY: startY,
+      vx: 0,
+      vy: 0,
+      angle: 0,
+      angularVel: 0,
+      width,
+      height,
+      mass,
+      invMass: 1 / mass,
+      inertia: (1 / 12) * mass * (width * width + height * height),
+      invInertia: 12 / (mass * (width * width + height * height)),
+      pinned: true,
+      grabbed: false,
+      grabAnchorX: 0,
+      grabAnchorY: 0,
+      wigglePhase: Math.random() * Math.PI * 2,
+      resetting: false,
+      resetStartX: 0,
+      resetStartY: 0,
+      resetStartAngle: 0,
+      resetTargetX: 0,
+      resetTargetY: 0,
+      resetT: 0,
+      resetDuration: 0.7,
+    };
+  }
+
+  function updateGroundMaxY() {
+    // 白色分界线 = 页脚顶部（最低上限）；视口底部跟随滚动，由 computeGroundY 实时算
+    const rect = footerEl.getBoundingClientRect();
+    groundMaxY = rect.top + window.scrollY - 4;
+  }
+
+  function computeGroundY() {
+    // 跟随视口底部，但不超过页脚顶部（视口底 = scrollY + window.innerHeight）
+    const viewportBottom = scrollY + window.innerHeight;
+    return Math.min(viewportBottom, groundMaxY);
+  }
+
+  function updateGroundVelocity(dt) {
+    const newGroundY = computeGroundY();
+    const rawDelta = newGroundY - lastGroundY;
+    // Smooth the ground velocity
+    const targetVel = dt > 0 ? rawDelta / dt : 0;
+    groundVelocity = groundVelocity * 0.7 + targetVel * 0.3;
+    lastGroundY = newGroundY;
+    worldGroundY = newGroundY;
+  }
+
+  // ---- Pointer / Drag ----
+  let grabbedBody = null;
+  let pointerWorldX = 0;
+  let pointerWorldY = 0;
+  let pointerHistory = [];
+
+  function onPointerDown(e, body) {
+    e.preventDefault();
+    body.el.setPointerCapture(e.pointerId);
+
+    if (body.pinned || body.resetting) {
+      // Release it — make it fall
+      body.pinned = false;
+      body.resetting = false;
+      body.el.classList.remove('pinned');
+      body.vy = 60;
+      body.vx = (Math.random() - 0.5) * 40;
+      fadeHint();
+      hideBubble();
+      return;
+    }
+
+    // Grab free body
+    grabbedBody = body;
+    body.grabbed = true;
+
+    const worldX = e.clientX;
+    const worldY = e.clientY + window.scrollY;
+    body.grabAnchorX = worldX - body.x;
+    body.grabAnchorY = worldY - body.y;
+
+    pointerHistory = [];
+  }
+
+  document.addEventListener('pointermove', (e) => {
+    pointerWorldX = e.clientX;
+    pointerWorldY = e.clientY + window.scrollY;
+
+    if (grabbedBody) {
+      const now = performance.now();
+      pointerHistory.push({ x: pointerWorldX, y: pointerWorldY, t: now });
+      while (pointerHistory.length > 0 && now - pointerHistory[0].t > 100) {
+        pointerHistory.shift();
+      }
+    }
+  });
+
+  document.addEventListener('pointerup', () => {
+    if (grabbedBody) {
+      grabbedBody.grabbed = false;
+
+      if (pointerHistory.length >= 2) {
+        const first = pointerHistory[0];
+        const last = pointerHistory[pointerHistory.length - 1];
+        const dt = (last.t - first.t) / 1000;
+        if (dt > 0.01) {
+          grabbedBody.vx = (last.x - first.x) / dt;
+          grabbedBody.vy = (last.y - first.y) / dt;
+        }
+      }
+
+      grabbedBody = null;
+      pointerHistory = [];
+    }
+  });
+
+  // ---- Physics step ----
+  function step(dt) {
+    // Apply forces & integrate
+    for (const b of bodies) {
+      if (b.pinned || b.resetting) continue;
+
+      if (b.grabbed) {
+        // Spring toward pointer (critically damped)
+        const targetX = pointerWorldX - b.grabAnchorX;
+        const targetY = pointerWorldY - b.grabAnchorY;
+        const stiffness = 40;
+        const damping = 12;
+
+        const dx = targetX - b.x;
+        const dy = targetY - b.y;
+        b.vx += (dx * stiffness - b.vx * damping) * dt;
+        b.vy += (dy * stiffness - b.vy * damping) * dt;
+        // Also dampen angular velocity
+        b.angularVel *= Math.pow(0.1, dt);
+      } else {
+        // Gravity
+        b.vy += PHYSICS.gravity * dt;
+      }
+
+      // Integrate position
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.angle += b.angularVel * dt;
+
+      // Damping (air resistance)
+      b.vx *= Math.pow(0.998, dt * 60);
+      b.angularVel *= Math.pow(PHYSICS.angularDamping, dt * 60);
+    }
+
+    // Ground collision (kinematic platform)
+    for (const b of bodies) {
+      if (b.pinned || b.resetting) continue;
+
+      const bottomY = b.y + b.height / 2;
+      if (bottomY > worldGroundY) {
+        const penetration = bottomY - worldGroundY;
+        b.y -= penetration;
+
+        // Relative velocity between body and ground
+        // Ground has velocity groundVelocity (moving platform)
+        const relVy = b.vy - groundVelocity;
+
+        if (relVy > 0) {
+          // Bounce off moving ground
+          b.vy = groundVelocity - relVy * PHYSICS.restitution;
+          // Friction on contact
+          b.vx *= PHYSICS.friction;
+          const contactAngularImpulse = b.vx * 0.02 / (b.width / 2);
+          b.angularVel += contactAngularImpulse;
+          b.angularVel *= 0.9;
+        } else {
+          // Body moving slower than ground / ground rising: push body up
+          b.vy = groundVelocity;
+        }
+
+        // Settle check
+        if (Math.abs(relVy) < 50 && penetration < 2) {
+          b.vy = groundVelocity;
+          b.y = worldGroundY - b.height / 2;
+        }
+      }
+    }
+
+    // Wall collisions (left/right of viewport - allow some overflow)
+    const leftWall = -50;
+    const rightWall = document.documentElement.scrollWidth + 50;
+    for (const b of bodies) {
+      if (b.pinned || b.resetting) continue;
+
+      const leftX = b.x - b.width / 2;
+      const rightX = b.x + b.width / 2;
+
+      if (leftX < leftWall) {
+        b.x = leftWall + b.width / 2;
+        if (b.vx < 0) {
+          b.vx = -b.vx * PHYSICS.restitution;
+          b.angularVel += b.vy * 0.01 / (b.height / 2);
+        }
+      }
+      if (rightX > rightWall) {
+        b.x = rightWall - b.width / 2;
+        if (b.vx > 0) {
+          b.vx = -b.vx * PHYSICS.restitution;
+          b.angularVel -= b.vy * 0.01 / (b.height / 2);
+        }
+      }
+    }
+
+    // Body-body collision (AABB with angular effects)
+    for (let i = 0; i < bodies.length; i++) {
+      for (let j = i + 1; j < bodies.length; j++) {
+        const a = bodies[i];
+        const b = bodies[j];
+        if ((a.pinned && b.pinned) || a.resetting || b.resetting) continue;
+
+        resolveAABBCollision(a, b);
+      }
+    }
+  }
+
+  function resolveAABBCollision(a, b) {
+    // Simplified AABB collision with positional correction and impulse
+    // For better feel, treat as circles for collision response (approximation)
+    // Actually use AABB overlap to find minimum penetration axis
+
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const overlapX = (a.width + b.width) / 2 - Math.abs(dx);
+    const overlapY = (a.height + b.height) / 2 - Math.abs(dy);
+
+    if (overlapX <= 0 || overlapY <= 0) return;
+
+    let normalX, normalY, penetration;
+
+    if (overlapX < overlapY) {
+      // Collide on X axis
+      penetration = overlapX;
+      normalX = dx > 0 ? 1 : -1;
+      normalY = 0;
+    } else {
+      // Collide on Y axis
+      penetration = overlapY;
+      normalX = 0;
+      normalY = dy > 0 ? 1 : -1;
+    }
+
+    // Positional correction
+    const percent = 0.6;
+    const correction = penetration * percent;
+    const totalInvMass = (a.pinned ? 0 : a.invMass) + (b.pinned ? 0 : b.invMass);
+    if (totalInvMass > 0) {
+      if (!a.pinned && !a.resetting) {
+        a.x -= normalX * correction * (a.invMass / totalInvMass);
+        a.y -= normalY * correction * (a.invMass / totalInvMass);
+      }
+      if (!b.pinned && !b.resetting) {
+        b.x += normalX * correction * (b.invMass / totalInvMass);
+        b.y += normalY * correction * (b.invMass / totalInvMass);
+      }
+    }
+
+    // Relative velocity at contact point (approximate with center vel for simplicity)
+    // For more accurate feel, add tangential component
+    let rvx = (b.pinned ? 0 : b.vx) - (a.pinned ? 0 : a.vx);
+    let rvy = (b.pinned ? 0 : b.vy) - (a.pinned ? 0 : a.vy);
+
+    // Velocity along normal
+    const velAlongNormal = rvx * normalX + rvy * normalY;
+
+    // Don't resolve if objects are separating
+    if (velAlongNormal > 0) return;
+
+    const e = PHYSICS.restitution;
+    let jImpulse = -(1 + e) * velAlongNormal;
+    jImpulse /= totalInvMass;
+
+    const impulseX = jImpulse * normalX;
+    const impulseY = jImpulse * normalY;
+
+    if (!a.pinned && !a.resetting) {
+      a.vx -= impulseX * a.invMass;
+      a.vy -= impulseY * a.invMass;
+      // Add some angular velocity from tangential friction
+      const tangentX = -normalY;
+      const tangentY = normalX;
+      const tangentVel = rvx * tangentX + rvy * tangentY;
+      const frictionImpulse = -tangentVel * 0.3 / totalInvMass;
+      a.vx -= frictionImpulse * tangentX * a.invMass;
+      a.vy -= frictionImpulse * tangentY * a.invMass;
+      // Angular effect
+      const r = (a.width + a.height) / 4;
+      a.angularVel += frictionImpulse * r * a.invInertia;
+    }
+    if (!b.pinned && !b.resetting) {
+      b.vx += impulseX * b.invMass;
+      b.vy += impulseY * b.invMass;
+      const tangentX = -normalY;
+      const tangentY = normalX;
+      const tangentVel = rvx * tangentX + rvy * tangentY;
+      const frictionImpulse = -tangentVel * 0.3 / totalInvMass;
+      b.vx += frictionImpulse * tangentX * b.invMass;
+      b.vy += frictionImpulse * tangentY * b.invMass;
+      const r = (b.width + b.height) / 4;
+      b.angularVel -= frictionImpulse * r * b.invInertia;
+    }
+  }
+
+    // ---- Init physics & character DOM ----
+  function initPhysics() {
+    // Remove old character elements
+    const oldChars = document.querySelectorAll('.char-body');
+    oldChars.forEach(el => el.remove());
+    bodies = [];
+
+    const fontSize = isMobile ? CHAR_FONT_SIZE_MOBILE : CHAR_FONT_SIZE_DESKTOP;
+    const charHeight = fontSize * CHAR_LINE_HEIGHT;
+
+    // Measure widths
+    const measurer = document.createElement('span');
+    measurer.style.cssText = `
+      position: absolute; visibility: hidden; white-space: nowrap;
+      font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+      font-size: ${fontSize}px; font-weight: 600; line-height: ${CHAR_LINE_HEIGHT};
+    `;
+    document.body.appendChild(measurer);
+
+    const charWidths = [];
+    let totalWidth = 0;
+    for (let i = 0; i < CHARS.length; i++) {
+      measurer.textContent = CHARS[i];
+      const w = measurer.offsetWidth;
+      charWidths.push(w);
+      totalWidth += w;
+    }
+    const spacing = fontSize * 0.15;
+    totalWidth += spacing * (CHARS.length - 1);
+    document.body.removeChild(measurer);
+
+    // Container position (world coords)
+    const containerRect = titleContainer.getBoundingClientRect();
+    const containerWorldLeft = containerRect.left + window.scrollX;
+    const containerWorldTop = containerRect.top + window.scrollY;
+
+    // Starting positions (world coords, center of char)
+    // Left-align with some padding from container left
+    const startX = containerWorldLeft;
+    const startY = containerWorldTop + charHeight / 2;
+
+    let cursorX = startX;
+    for (let i = 0; i < CHARS.length; i++) {
+      const w = charWidths[i];
+      const h = charHeight;
+      const x = cursorX + w / 2;
+      const y = startY;
+      const body = createBody(CHARS[i], i, x, y, w, h);
+      body.homeX = x;
+      body.homeY = y;
+
+      // Create DOM element (position: fixed)
+      const el = document.createElement('span');
+      el.className = 'char-body pinned';
+      el.textContent = CHARS[i];
+      el.style.cssText = `
+        position: fixed;
+        left: 0; top: 0;
+        font-size: ${fontSize}px;
+        width: ${w}px;
+        height: ${h}px;
+        line-height: ${CHAR_LINE_HEIGHT};
+        font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+        font-weight: 600;
+        color: #111;
+        z-index: 50;
+        transform-origin: center center;
+        will-change: transform;
+      `;
+      document.body.appendChild(el);
+      body.el = el;
+
+
+      el.addEventListener('pointerdown', (e) => onPointerDown(e, body));
+      el.addEventListener('pointerenter', () => triggerWiggle(body));
+      body._hoverWiggle = 0;
+      body._wiggleId = 0;
+
+      bodies.push(body);
+      cursorX += w + spacing;
+    }
+
+    updateGroundMaxY();
+    lastScrollY = window.scrollY;
+    scrollY = window.scrollY;
+    lastGroundY = computeGroundY();
+    worldGroundY = lastGroundY;
+    groundVelocity = 0;
+    updateCharacterPositions();
+  }
+
+  function updateCharacterPositions() {
+    scrollY = window.scrollY;
+    for (const b of bodies) {
+      // Screen position from world position
+      const screenX = b.x;
+      const screenY = b.y - scrollY;
+
+      // Offset to center
+      const left = screenX - b.width / 2;
+      const top = screenY - b.height / 2;
+
+      // Use translate for performance
+      b.el.style.transform = `translate(${left}px, ${top}px) rotate(${b.angle}rad)`;
+    }
+  }
+
+  // ---- Reset ----
+  function resetAll() {
+    for (const b of bodies) {
+      b.resetting = true;
+      b.resetStartX = b.x;
+      b.resetStartY = b.y;
+      b.resetStartAngle = b.angle;
+      b.resetTargetX = b.homeX;
+      b.resetTargetY = b.homeY;
+      b.resetT = 0;
+      b.vx = 0;
+      b.vy = 0;
+      b.angularVel = 0;
+      b.grabbed = false;
+      b.el.classList.add('pinned');
+    }
+    grabbedBody = null;
+    scheduleBubble(1000);
+  }
+
+  function updateResetting(dt) {
+    let anyResetting = false;
+    for (const b of bodies) {
+      if (!b.resetting) continue;
+      anyResetting = true;
+
+      b.resetT += dt;
+      const t = Math.min(1, b.resetT / b.resetDuration);
+      // ease out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+
+      b.x = b.resetStartX + (b.resetTargetX - b.resetStartX) * eased;
+      b.y = b.resetStartY + (b.resetTargetY - b.resetStartY) * eased;
+      // Rotate back toward 0
+      // Find shortest angle
+      let angleDiff = b.resetStartAngle;
+      b.angle = angleDiff * (1 - eased);
+
+      if (t >= 1) {
+        b.resetting = false;
+        b.pinned = true;
+        b.x = b.homeX;
+        b.y = b.homeY;
+        b.angle = 0;
+        b.vx = 0;
+        b.vy = 0;
+        b.angularVel = 0;
+      }
+    }
+    return anyResetting;
+  }
+
+  // ---- Hover wiggle for pinned chars ----
+  let hoveredBody = null;
+  function updateHoverWiggle(time) {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    for (const b of bodies) {
+      if (!b.pinned || b.resetting) {
+        if (b._wiggleId) { b._wiggleId = 0; }
+        continue;
+      }
+      if (reduceMotion) { b.angle = 0; continue; }
+
+      if (b._hoverWiggle > 0) {
+        // Decay wiggle energy
+        b._hoverWiggle *= Math.pow(0.85, 1 / 60);
+        if (b._hoverWiggle < 0.001) b._hoverWiggle = 0;
+      }
+
+      if (b._hoverWiggle > 0) {
+        const t = time * 0.015 + b.wigglePhase;
+        b.angle = Math.sin(t) * b._hoverWiggle;
+      } else {
+        b.angle = 0;
+      }
+    }
+  }
+
+  function triggerWiggle(body) {
+    if (!body.pinned || body.resetting) return;
+    body._hoverWiggle = 0.025; // ~1.4 degrees
+  }
+
+  // ---- Hint fade ----
+  function fadeHint() {
+    if (hintFaded) return;
+    hintFaded = true;
+    heroHint.classList.add('faded');
+  }
+
+  // ---- Title bubble ----
+  let bubbleEl = null;
+  let bubbleVisible = false;
+  let bubbleTimer = null;
+
+  function createBubble() {
+    if (bubbleEl) return;
+    bubbleEl = document.createElement('div');
+    bubbleEl.className = 'title-bubble';
+
+    // Integrated manga-bubble shape (single SVG path = rounded body + smoothly tapered tail)
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'bubble-shape');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'bubble-path');
+    svg.appendChild(path);
+    bubbleEl.appendChild(svg);
+
+    // Text layer (sits inside the rounded body, not entering the tail)
+    const textEl = document.createElement('span');
+    textEl.className = 'bubble-text';
+    textEl.textContent = '你可别点我啊';
+    bubbleEl.appendChild(textEl);
+
+    document.body.appendChild(bubbleEl);
+    bubbleEl.addEventListener('pointerdown', hideBubble);
+  }
+
+  // Build a single SVG path string for the bubble shape.
+  // Rounded pill body on top + a tail that tapers smoothly from the bottom edge.
+  // The shape is one continuous outline — no seams, no joints.
+  function buildBubblePath(w, h, tailX, tailY, tailWidth) {
+    const r = h / 2; // corner radius = half height = pill shape
+    // Body top: y=0; body bottom: y=h
+    // Tail tip at (tailX, tailY); tail base spans tailWidth along the bottom edge
+    const halfBase = tailWidth / 2;
+    const baseLeft = tailX - halfBase;
+    const baseRight = tailX + halfBase;
+
+    const d = [
+      // Start at top-left arc start
+      'M', r, 0,
+      // Top edge + top-right arc
+      'L', w - r, 0,
+      'A', r, r, 0, 0, 1, w, r,
+      // Right edge + bottom-right arc
+      'L', w, h - r,
+      'A', r, r, 0, 0, 1, w - r, h,
+      // Bottom edge from right to tail base right
+      'L', baseRight, h,
+      // Smooth curve to tail tip (out and down)
+      'Q', tailX + halfBase * 0.4, h + 2,
+           tailX + 2, tailY - 2,
+      // Tip
+      'L', tailX, tailY,
+      // Back up the other side
+      'L', tailX - 2, tailY - 2,
+      'Q', tailX - halfBase * 0.4, h + 2,
+           baseLeft, h,
+      // Bottom edge from tail base left to bottom-left arc start
+      'L', r, h,
+      'A', r, r, 0, 0, 1, 0, h - r,
+      // Left edge + top-left arc
+      'L', 0, r,
+      'A', r, r, 0, 0, 1, r, 0,
+      'Z'
+    ].join(' ');
+    return d;
+  }
+
+  function showBubble() {
+    if (!bubbleEl) createBubble();
+    if (bubbleVisible) return;
+    bubbleVisible = true;
+    bubbleEl.classList.remove('hide');
+    // Force reflow to restart animation
+    void bubbleEl.offsetWidth;
+    bubbleEl.classList.add('show');
+  }
+
+  function hideBubble() {
+    if (!bubbleVisible) return;
+    bubbleVisible = false;
+    if (bubbleEl) {
+      bubbleEl.classList.remove('show');
+      bubbleEl.classList.add('hide');
+    }
+  }
+
+  function scheduleBubble(delay) {
+    if (bubbleTimer) clearTimeout(bubbleTimer);
+    bubbleTimer = setTimeout(() => {
+      showBubble();
+      bubbleTimer = null;
+    }, delay);
+  }
+
+  function updateBubblePosition() {
+    if (!bubbleEl || !bubbleVisible) return;
+    const aBody = bodies[bodies.length - 2]; // "A"
+    const iBody = bodies[bodies.length - 1]; // "I"
+    if (!aBody || !iBody) return;
+
+    // Measure bubble text to get body dimensions (use offset*, unaffected by transform:scale)
+    const textEl = bubbleEl.querySelector('.bubble-text');
+    const shapeSvg = bubbleEl.querySelector('.bubble-shape');
+    const pathEl = bubbleEl.querySelector('.bubble-path');
+    if (!textEl || !shapeSvg || !pathEl) return;
+
+    const bodyW = textEl.offsetWidth;
+    const bodyH = textEl.offsetHeight;
+
+    // Tail tip lands near the top of A (slightly above the A char)
+    const anchorX = aBody.x + aBody.width * 0.3;  // slightly left of A center
+    const anchorY = iBody.y - scrollY - iBody.height / 2 + 2;
+
+    // Tail base position along the bubble bottom (x within 0..bodyW)
+    // Place tail base near the left side of the bubble (18px from left)
+    const tailBaseX = 28;
+    const tailBaseWidth = 18;
+    const tailLength = 22;  // how far the tip extends below the body
+    const tailTipX = tailBaseX - 6;  // tip curves slightly left
+    const tailTipY = bodyH + tailLength;
+
+    // Total SVG viewBox covers body + tail
+    const totalH = tailTipY + 4;
+    shapeSvg.setAttribute('viewBox', `0 0 ${bodyW} ${totalH}`);
+    shapeSvg.style.width = bodyW + 'px';
+    shapeSvg.style.height = totalH + 'px';
+    const d = buildBubblePath(bodyW, bodyH, tailBaseX, tailTipY, tailBaseWidth);
+    pathEl.setAttribute('d', d);
+
+    // Position bubble so tail tip touches anchor
+    const bubbleX = anchorX - tailTipX;
+    const bubbleY = anchorY - tailTipY;
+    bubbleEl.style.left = bubbleX + 'px';
+    bubbleEl.style.top = bubbleY + 'px';
+
+    // Hide when title is far out of viewport
+    if (bubbleY < -120 || bubbleY > window.innerHeight + 40) {
+      bubbleEl.style.opacity = '0';
+      bubbleEl.style.pointerEvents = 'none';
+    } else {
+      bubbleEl.style.opacity = '';
+      bubbleEl.style.pointerEvents = '';
+    }
+  }
+
+  // ---- Main loop ----
+  function gameLoop(time) {
+    if (!lastTime) lastTime = time;
+    let dt = (time - lastTime) / 1000;
+    lastTime = time;
+
+    // Clamp dt
+    if (dt > PHYSICS.maxDt) dt = PHYSICS.maxDt;
+
+    // Update scroll & ground before physics
+    scrollY = window.scrollY;
+    updateGroundVelocity(dt);
+
+    accumulator += dt;
+
+    // Fixed timestep substeps
+    let substeps = 0;
+    while (accumulator >= PHYSICS.fixedDt && substeps < PHYSICS.maxSubsteps) {
+      step(PHYSICS.fixedDt);
+      updateResetting(PHYSICS.fixedDt);
+      accumulator -= PHYSICS.fixedDt;
+      substeps++;
+    }
+    if (accumulator > PHYSICS.fixedDt * PHYSICS.maxSubsteps) {
+      accumulator = 0;
+    }
+
+    updateHoverWiggle(time);
+    updateCharacterPositions();
+    updateBubblePosition();
+
+    lastScrollY = scrollY;
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ---- Scroll handler ----
+  function onScroll() {
+    // No effect on physics, just trigger visual update
+    // updateCharacterPositions is called every frame anyway
+  }
+
+  // ---- Resize handler ----
+  let resizeTimer = null;
+  function onResize() {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      updateGroundMaxY();
+      lastGroundY = computeGroundY();
+      worldGroundY = lastGroundY;
+      groundVelocity = 0;
+      const newMobile = window.innerWidth <= 768;
+      if (newMobile !== isMobile) {
+        isMobile = newMobile;
+        initPhysics();
+        resetAll();
+      }
+      resizeTimer = null;
+    }, 150);
+  }
+
+  // ---- Init ----
+  function init() {
+    initPhysics();
+    lastTime = 0;
+    requestAnimationFrame(gameLoop);
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize);
+
+    resetBtn.addEventListener('click', resetAll);
+
+    // 1s 后弹出气泡
+    createBubble();
+    scheduleBubble(1000);
+  }
+
+  // Start
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+</script>
+</body>
+</html>

@@ -531,238 +531,1059 @@ var HeroSection = ({ onWorkClick }) => {
   })));
 };
 var ActivitiesSection = () => {
-  const activities = [
-    {
-      tag: "即将开演",
-      title: "SKILL 实用技能午间沙龙",
-      date: "8月31日 周五 · 11:00-14:00",
-      location: "204会议室 / 休闲区",
-      desc: "报名时在群里回复想分享的方向，必须参与讨论和投屏演示（workflow、prompts、截图、demo、经验），不局限于工作场景。",
-      highlights: ["办公场景自动化", "生活实用小工具", "数据玩法与可视化", "效率工具开发"],
-      color: "#e8a87c"
-    },
-    {
-      tag: "深度活动",
-      title: "AI 微电影创作赛",
-      date: "9月 · 全月征集",
-      location: "线上 + 线下展映会",
-      desc: "月初发布主题，参与者 T+3 日内报名，T+25~30 日提交作品，次月月初小型作品展示会，像看产品发布会一样轮流播放讨论。",
-      highlights: ["1-3分钟短片", "1-2人组队", "奖金激励", "影视鉴赏氛围"],
-      color: "#c38d9e"
-    },
-    {
-      tag: "动手实操",
-      title: "Vibe Coding 沙龙",
-      date: "10月 · 待定",
-      location: "204会议室",
-      desc: '围绕"氛围感"进行代码创作，用最新模型快速生成一个有强烈氛围的交互网页/小游戏/视觉生成器。现场或线上同步 coding。',
-      highlights: ["限时创作", "2-3人组队", "最有氛围奖", "即时反馈"],
-      color: "#85dcba"
-    },
-    {
-      tag: "硬核挑战",
-      title: "Skill 开发黑客松",
-      date: "11月 · 待定",
-      location: "全天封闭式开发",
-      desc: "提前 1 周征集候选方向，现场投票选定 2-3 个，每人独立开发。把 skill 发给所有人在各自 agent 上实测评分。",
-      highlights: ["单人开发", "实测评分", "最实用奖", "最稳健奖"],
-      color: "#7f9cf5"
-    },
-    {
-      tag: "创作分享",
-      title: "AI 设计沙龙",
-      date: "12月 · 待定",
-      location: "204会议室",
-      desc: "AI 海报、AI 音乐、AI 表情包、AI 配音、AI 创作类 skill。现场每人 10-15 分钟轮流展示 + 拆解工作流。",
-      highlights: ["海报设计", "音乐创作", "表情包", "工作流拆解"],
-      color: "#f6ad55"
-    },
-    {
-      tag: "硬核分享",
-      title: "前沿模型开发者讲座",
-      date: "每季度 1 次",
-      location: "闭门小型讲座（8-12人）",
-      desc: "邀请 Qwen、DeepSeek、InternLM 等开源模型核心贡献者、高校 AI 实验室年轻研究员、独立研究者做深度分享。",
-      highlights: ["小范围深度", "模型训练", "前沿进展", "高质量交流"],
-      color: "#9f7aea"
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    let engineCleanup = null;
+    const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
+    const labelOf = function (k) { return { participants: "参与", works: "作品", inWall: "入墙", sessions: "场次", docs: "文档", teams: "小组", mvp: "MVP", production: "生产", speakers: "分享", avgMinutes: "分享均长" }[k] || k; };
+    const statsHtml = function (stats) { return Object.keys(stats).map(function (k) { return "<div class='past-stat'><div class='n'>" + stats[k] + "</div><div class='l'>" + labelOf(k) + "</div></div>"; }).join(""); };
+    const modalBody = function (a) {
+      var c = a.color || "#5b8cff";
+      var stats = a.stats || {};
+      var artHtml = (a.artifacts || []).map(function (art) {
+        return "<div class='art-row'><div><div class='t'>" + esc(art.type) + "</div>" + (art.note ? "<div class='note'>" + esc(art.note) + "</div>" : "") + "</div>" + (art.count ? "<div class='n'>" + art.count + " 项</div>" : "") + "</div>";
+      }).join("");
+      return "<button class='act-close' onclick='window.actClose()'>×</button>" +
+        "<span class='act-tag' style='color:" + c + "'>" + esc(a.tag || "已举办") + "</span>" +
+        "<div class='act-title'>" + esc(a.name) + "</div>" +
+        "<div class='act-meta'>" + esc(a.dateLabel) + " · " + esc(a.location) + "</div>" +
+        "<p class='act-desc'>" + esc(a.summary) + "</p>" +
+        (Object.keys(stats).length ? "<div class='act-stats'>" + statsHtml(stats) + "</div>" : "") +
+        ((a.artifacts && a.artifacts.length) ? "<div class='sec-in'>产出沉淀 / ARTIFACTS</div>" + artHtml : "");
+    };
+    const openReview = function (id) {
+      fetch("/api/activities/" + id).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok || cancelled) return;
+        var el = document.getElementById("act-modal");
+        if (!el) return;
+        el.innerHTML = "<div class='act-modal-mask' onclick='window.actClose()'></div><div class='act-modal-card'>" + modalBody(j.data) + "</div>";
+        el.style.display = "flex";
+      });
+    };
+    window.actClose = function () { var el = document.getElementById("act-modal"); if (el) el.style.display = "none"; };
+    fetch("/api/activities").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (j) {
+      if (!j.ok || cancelled || !ref.current) return;
+      var data = j.data;
+      var focus = (data.current || [])[0];
+      var upcoming = data.upcoming || [];
+      var past = data.past || [];
+      var types = data.types || [];
+      var h = "";
+      h += "<div class='act-hero'><div class='act-eyebrow'>ACTIVITIES · 活动大厅</div><div class='act-title-wrap'><h1 class='act-title-lg' id='actPhysicsTitle' aria-label='玩出来的 AI'><!-- 字符由物理引擎注入 --></h1></div><p class='act-sub'>" + esc(data.motto || "") + "</p><div class='hero-hint' id='actHeroHint'><span><span class='hint-dot'></span>点击字符 · 让它掉下去</span><span><span class='hint-dot'></span>掉的过程中可以滚动页面 · 惯性不会被打断</span></div><button class='reset-btn' id='actResetBtn' type='button'>重置标题</button></div>";
+      // 本月焦点
+      h += "<div class='act-sechead'><span class='act-sectitle'>本月焦点</span><span class='act-secen'>SPOTLIGHT</span></div>";
+      if (focus) {
+        var fc = focus.color || "#5b8cff";
+        h += "<div class='act-focus'><span class='act-focusbar' style='background:" + fc + "'></span><div class='act-focus-in'><span class='act-focustag'>" + esc(focus.tag || "本月焦点") + "</span><div class='act-focusname'>" + esc(focus.name) + "</div><div class='act-focusmeta'>◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location) + "</div><p class='act-focusdesc'>" + esc(focus.desc) + "</p><div>" + (focus.highlights || []).map(function (x) { return "<span class='ftag'># " + esc(x) + "</span>"; }).join("") + "</div></div></div>";
+      } else {
+        h += "<div class='act-focus'><div class='act-focus-in'><span class='act-focustag'>敬请期待</span><div class='act-focusname'>下一场活动筹备中</div><p class='act-focusdesc'>我们正在策划下一场深度活动。</p></div></div>";
+      }
+      // 接下来
+      h += "<div class='act-sechead'><span class='act-sectitle'>接下来</span><span class='act-secen'>UPCOMING</span></div>";
+      h += "<div class='act-upcoming'>" + upcoming.map(function (a) { return "<div class='tl-item'><div class='tl-dot' style='background:" + (a.color || "#5b8cff") + "'></div><div class='tl-month'>" + esc(a.dateLabel) + "</div><div class='tl-name'>" + esc(a.name) + "</div><span class='tl-tag'>" + esc(a.tag || "") + "</span><div class='tl-loc'>" + esc(a.location) + "</div></div>"; }).join("") + "</div>";
+      // 往期回顾
+      h += "<div class='act-sechead'><span class='act-sectitle'>往期回顾</span><span class='act-secen'>ARCHIVE · 点击查看回顾</span></div>";
+      h += "<div class='act-past'>" + past.map(function (a) {
+        var c = a.color || "#5b8cff";
+        return "<div class='past-card' style='--c:" + c + "' onclick=\"window.actOpen&&window.actOpen('" + a.id + "')\"><span class='past-bar' style='background:" + c + "'></span><div class='past-head'><span class='past-date'>" + esc(a.dateLabel) + "</span><span class='past-tag' style='color:" + c + "'>" + esc(a.tag || "已举办") + "</span></div><div class='past-name'>" + esc(a.name) + "</div><p class='past-summary'>" + esc(a.summary) + "</p>" + (a.stats ? "<div class='past-stats'>" + statsHtml(a.stats) + "</div>" : "") + "<span class='past-more'>查看回顾 →</span></div>";
+      }).join("") + "</div>";
+      // 类型
+      h += "<div class='act-sechead'><span class='act-sectitle'>活动姿势</span><span class='act-secen'>OUR TYPES</span></div>";
+      h += "<div class='act-types'>" + types.map(function (t) { return "<div class='type-item'><div class='type-name'>" + esc(t.name) + "</div><div class='type-tagline'>" + esc(t.tagline) + "</div><div class='type-meta'>" + esc(t.cadence) + "<br/>" + esc(t.format) + "</div></div>"; }).join("") + "</div>";
+      // 参与方式
+      h += "<div class='act-join'><div class='act-eyebrow'>HOW TO JOIN</div><h3>怎么参加？</h3><p>在 AI 社团群里报名即可。每次活动提前 1 周在群内发布主题和时间，想分享的同学回复报名，想来听的同学直接来。</p></div>";
+      ref.current.innerHTML = h;
+      window.actOpen = openReview;
+      // ===== v3 物理引擎（恢复版）：视口跟随地面 + 页脚上限 + 字符互撞 + 抓取投掷 + 回正 =====
+      var titleContainerOuter = document.getElementById('actPhysicsTitle');
+      var resetBtnEl = document.getElementById('actResetBtn');
+      var heroHintEl = document.getElementById('actHeroHint');
+      var footerEl = document.getElementById('siteFooter') || document.querySelector('.site-footer');
+      if (titleContainerOuter && footerEl) {
+        const PHYSICS = {
+          gravity: 2200,           // px/s²
+          restitution: 0.5,        // bounce factor
+          friction: 0.985,         // linear damping per frame at contact
+          angularDamping: 0.995,   // angular damping
+          fixedDt: 1 / 120,        // fixed timestep
+          maxSubsteps: 6,
+          maxDt: 0.05,             // clamp dt when tab backgrounded
+        };
+
+        const CHARS = ['玩', '出', '来', '的', 'A', 'I'];
+        const CHAR_FONT_SIZE_DESKTOP = 72;
+        const CHAR_FONT_SIZE_MOBILE = 44;
+        const CHAR_LINE_HEIGHT = 1;
+
+        // state
+        let bodies = [];
+        let worldGroundY = 0;       // current dynamic ground world Y
+        let groundMaxY = 0;         // white line (hard floor) world Y
+        let groundVelocity = 0;     // kinematic ground velocity (world Y/s)
+        let lastGroundY = 0;
+        let smoothedScrollDelta = 0;
+        let scrollY = 0;
+        let lastScrollY = 0;
+        let running = true;
+        let lastTime = 0;
+        let accumulator = 0;
+        let hintFaded = false;
+        let isMobile = window.innerWidth <= 768;
+
+        // DOM references
+              const titleContainer = titleContainerOuter;
+              const resetBtn = resetBtnEl;
+              const heroHint = heroHintEl;
+
+        // ---- Body class ----
+        function createBody(char, index, startX, startY, width, height) {
+          const mass = width * height * 0.01;
+          return {
+            el: null,
+            char,
+            index,
+            // world position (center) — x is viewport-relative, y is document-relative
+            x: startX,
+            y: startY,
+            homeX: startX,
+            homeY: startY,
+            vx: 0,
+            vy: 0,
+            angle: 0,
+            angularVel: 0,
+            width,
+            height,
+            mass,
+            invMass: 1 / mass,
+            inertia: (1 / 12) * mass * (width * width + height * height),
+            invInertia: 12 / (mass * (width * width + height * height)),
+            pinned: true,
+            grabbed: false,
+            grabAnchorX: 0,
+            grabAnchorY: 0,
+            wigglePhase: Math.random() * Math.PI * 2,
+            resetting: false,
+            resetStartX: 0,
+            resetStartY: 0,
+            resetStartAngle: 0,
+            resetTargetX: 0,
+            resetTargetY: 0,
+            resetT: 0,
+            resetDuration: 0.7,
+          };
+        }
+
+        function updateGroundMaxY() {
+          // 白色分界线 = 页脚顶部（最低上限）；视口底部跟随滚动，由 computeGroundY 实时算
+          const rect = footerEl.getBoundingClientRect();
+          groundMaxY = rect.top + window.scrollY - 4;
+        }
+
+        function computeGroundY() {
+          // 跟随视口底部，但不超过页脚顶部（视口底 = scrollY + window.innerHeight）
+          const viewportBottom = scrollY + window.innerHeight;
+          return Math.min(viewportBottom, groundMaxY);
+        }
+
+        function updateGroundVelocity(dt) {
+          const newGroundY = computeGroundY();
+          const rawDelta = newGroundY - lastGroundY;
+          // Smooth the ground velocity
+          const targetVel = dt > 0 ? rawDelta / dt : 0;
+          groundVelocity = groundVelocity * 0.7 + targetVel * 0.3;
+          lastGroundY = newGroundY;
+          worldGroundY = newGroundY;
+        }
+
+        // ---- Pointer / Drag ----
+        let grabbedBody = null;
+        let pointerWorldX = 0;
+        let pointerWorldY = 0;
+        let pointerHistory = [];
+
+        function onPointerDown(e, body) {
+          e.preventDefault();
+          body.el.setPointerCapture(e.pointerId);
+
+          if (body.pinned || body.resetting) {
+            // Release it — make it fall
+            body.pinned = false;
+            body.resetting = false;
+            body.el.classList.remove('pinned');
+            body.vy = 60;
+            body.vx = (Math.random() - 0.5) * 40;
+            fadeHint();
+            hideBubble();
+            return;
+          }
+
+          // Grab free body
+          grabbedBody = body;
+          body.grabbed = true;
+
+          const worldX = e.clientX;
+          const worldY = e.clientY + window.scrollY;
+          body.grabAnchorX = worldX - body.x;
+          body.grabAnchorY = worldY - body.y;
+
+          pointerHistory = [];
+        }
+
+        const physPointerMove = (e) => {
+          pointerWorldX = e.clientX;
+          pointerWorldY = e.clientY + window.scrollY;
+
+          if (grabbedBody) {
+            const now = performance.now();
+            pointerHistory.push({ x: pointerWorldX, y: pointerWorldY, t: now });
+            while (pointerHistory.length > 0 && now - pointerHistory[0].t > 100) {
+              pointerHistory.shift();
+            }
+          }
+        };
+        document.addEventListener('pointermove', physPointerMove);
+
+        const physPointerUp = () => {
+          if (grabbedBody) {
+            grabbedBody.grabbed = false;
+
+            if (pointerHistory.length >= 2) {
+              const first = pointerHistory[0];
+              const last = pointerHistory[pointerHistory.length - 1];
+              const dt = (last.t - first.t) / 1000;
+              if (dt > 0.01) {
+                grabbedBody.vx = (last.x - first.x) / dt;
+                grabbedBody.vy = (last.y - first.y) / dt;
+              }
+            }
+
+            grabbedBody = null;
+            pointerHistory = [];
+          }
+        };
+        document.addEventListener('pointerup', physPointerUp);
+
+        // ---- Physics step ----
+        function step(dt) {
+          // Apply forces & integrate
+          for (const b of bodies) {
+            if (b.pinned || b.resetting) continue;
+
+            if (b.grabbed) {
+              // Spring toward pointer (critically damped)
+              const targetX = pointerWorldX - b.grabAnchorX;
+              const targetY = pointerWorldY - b.grabAnchorY;
+              const stiffness = 40;
+              const damping = 12;
+
+              const dx = targetX - b.x;
+              const dy = targetY - b.y;
+              b.vx += (dx * stiffness - b.vx * damping) * dt;
+              b.vy += (dy * stiffness - b.vy * damping) * dt;
+              // Also dampen angular velocity
+              b.angularVel *= Math.pow(0.1, dt);
+            } else {
+              // Gravity
+              b.vy += PHYSICS.gravity * dt;
+            }
+
+            // Integrate position
+            b.x += b.vx * dt;
+            b.y += b.vy * dt;
+            b.angle += b.angularVel * dt;
+
+            // Damping (air resistance)
+            b.vx *= Math.pow(0.998, dt * 60);
+            b.angularVel *= Math.pow(PHYSICS.angularDamping, dt * 60);
+          }
+
+          // Ground collision (kinematic platform)
+          for (const b of bodies) {
+            if (b.pinned || b.resetting) continue;
+
+            const bottomY = b.y + b.height / 2;
+            if (bottomY > worldGroundY) {
+              const penetration = bottomY - worldGroundY;
+              b.y -= penetration;
+
+              // Relative velocity between body and ground
+              // Ground has velocity groundVelocity (moving platform)
+              const relVy = b.vy - groundVelocity;
+
+              if (relVy > 0) {
+                // Bounce off moving ground
+                b.vy = groundVelocity - relVy * PHYSICS.restitution;
+                // Friction on contact
+                b.vx *= PHYSICS.friction;
+                const contactAngularImpulse = b.vx * 0.02 / (b.width / 2);
+                b.angularVel += contactAngularImpulse;
+                b.angularVel *= 0.9;
+              } else {
+                // Body moving slower than ground / ground rising: push body up
+                b.vy = groundVelocity;
+              }
+
+              // Settle check
+              if (Math.abs(relVy) < 50 && penetration < 2) {
+                b.vy = groundVelocity;
+                b.y = worldGroundY - b.height / 2;
+              }
+            }
+          }
+
+          // Wall collisions (left/right of viewport - allow some overflow)
+          const leftWall = -50;
+          const rightWall = document.documentElement.scrollWidth + 50;
+          for (const b of bodies) {
+            if (b.pinned || b.resetting) continue;
+
+            const leftX = b.x - b.width / 2;
+            const rightX = b.x + b.width / 2;
+
+            if (leftX < leftWall) {
+              b.x = leftWall + b.width / 2;
+              if (b.vx < 0) {
+                b.vx = -b.vx * PHYSICS.restitution;
+                b.angularVel += b.vy * 0.01 / (b.height / 2);
+              }
+            }
+            if (rightX > rightWall) {
+              b.x = rightWall - b.width / 2;
+              if (b.vx > 0) {
+                b.vx = -b.vx * PHYSICS.restitution;
+                b.angularVel -= b.vy * 0.01 / (b.height / 2);
+              }
+            }
+          }
+
+          // Body-body collision (AABB with angular effects)
+          for (let i = 0; i < bodies.length; i++) {
+            for (let j = i + 1; j < bodies.length; j++) {
+              const a = bodies[i];
+              const b = bodies[j];
+              if ((a.pinned && b.pinned) || a.resetting || b.resetting) continue;
+
+              resolveAABBCollision(a, b);
+            }
+          }
+        }
+
+        function resolveAABBCollision(a, b) {
+          // Simplified AABB collision with positional correction and impulse
+          // For better feel, treat as circles for collision response (approximation)
+          // Actually use AABB overlap to find minimum penetration axis
+
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const overlapX = (a.width + b.width) / 2 - Math.abs(dx);
+          const overlapY = (a.height + b.height) / 2 - Math.abs(dy);
+
+          if (overlapX <= 0 || overlapY <= 0) return;
+
+          let normalX, normalY, penetration;
+
+          if (overlapX < overlapY) {
+            // Collide on X axis
+            penetration = overlapX;
+            normalX = dx > 0 ? 1 : -1;
+            normalY = 0;
+          } else {
+            // Collide on Y axis
+            penetration = overlapY;
+            normalX = 0;
+            normalY = dy > 0 ? 1 : -1;
+          }
+
+          // Positional correction
+          const percent = 0.6;
+          const correction = penetration * percent;
+          const totalInvMass = (a.pinned ? 0 : a.invMass) + (b.pinned ? 0 : b.invMass);
+          if (totalInvMass > 0) {
+            if (!a.pinned && !a.resetting) {
+              a.x -= normalX * correction * (a.invMass / totalInvMass);
+              a.y -= normalY * correction * (a.invMass / totalInvMass);
+            }
+            if (!b.pinned && !b.resetting) {
+              b.x += normalX * correction * (b.invMass / totalInvMass);
+              b.y += normalY * correction * (b.invMass / totalInvMass);
+            }
+          }
+
+          // Relative velocity at contact point (approximate with center vel for simplicity)
+          // For more accurate feel, add tangential component
+          let rvx = (b.pinned ? 0 : b.vx) - (a.pinned ? 0 : a.vx);
+          let rvy = (b.pinned ? 0 : b.vy) - (a.pinned ? 0 : a.vy);
+
+          // Velocity along normal
+          const velAlongNormal = rvx * normalX + rvy * normalY;
+
+          // Don't resolve if objects are separating
+          if (velAlongNormal > 0) return;
+
+          const e = PHYSICS.restitution;
+          let jImpulse = -(1 + e) * velAlongNormal;
+          jImpulse /= totalInvMass;
+
+          const impulseX = jImpulse * normalX;
+          const impulseY = jImpulse * normalY;
+
+          if (!a.pinned && !a.resetting) {
+            a.vx -= impulseX * a.invMass;
+            a.vy -= impulseY * a.invMass;
+            // Add some angular velocity from tangential friction
+            const tangentX = -normalY;
+            const tangentY = normalX;
+            const tangentVel = rvx * tangentX + rvy * tangentY;
+            const frictionImpulse = -tangentVel * 0.3 / totalInvMass;
+            a.vx -= frictionImpulse * tangentX * a.invMass;
+            a.vy -= frictionImpulse * tangentY * a.invMass;
+            // Angular effect
+            const r = (a.width + a.height) / 4;
+            a.angularVel += frictionImpulse * r * a.invInertia;
+          }
+          if (!b.pinned && !b.resetting) {
+            b.vx += impulseX * b.invMass;
+            b.vy += impulseY * b.invMass;
+            const tangentX = -normalY;
+            const tangentY = normalX;
+            const tangentVel = rvx * tangentX + rvy * tangentY;
+            const frictionImpulse = -tangentVel * 0.3 / totalInvMass;
+            b.vx += frictionImpulse * tangentX * b.invMass;
+            b.vy += frictionImpulse * tangentY * b.invMass;
+            const r = (b.width + b.height) / 4;
+            b.angularVel -= frictionImpulse * r * b.invInertia;
+          }
+        }
+
+          // ---- Init physics & character DOM ----
+        function initPhysics() {
+          // Remove old character elements
+          const oldChars = document.querySelectorAll('.char-body');
+          oldChars.forEach(el => el.remove());
+          bodies = [];
+
+          const fontSize = isMobile ? CHAR_FONT_SIZE_MOBILE : CHAR_FONT_SIZE_DESKTOP;
+          const charHeight = fontSize * CHAR_LINE_HEIGHT;
+
+          // Measure widths
+          const measurer = document.createElement('span');
+          measurer.style.cssText = `
+            position: absolute; visibility: hidden; white-space: nowrap;
+            font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+            font-size: ${fontSize}px; font-weight: 600; line-height: ${CHAR_LINE_HEIGHT};
+          `;
+          document.body.appendChild(measurer);
+
+          const charWidths = [];
+          let totalWidth = 0;
+          for (let i = 0; i < CHARS.length; i++) {
+            measurer.textContent = CHARS[i];
+            const w = measurer.offsetWidth;
+            charWidths.push(w);
+            totalWidth += w;
+          }
+          const spacing = fontSize * 0.15;
+          totalWidth += spacing * (CHARS.length - 1);
+          document.body.removeChild(measurer);
+
+          // Container position (world coords)
+          const containerRect = titleContainer.getBoundingClientRect();
+          const containerWorldLeft = containerRect.left + window.scrollX;
+          const containerWorldTop = containerRect.top + window.scrollY;
+
+          // Starting positions (world coords, center of char)
+          // Left-align with some padding from container left
+          const startX = containerWorldLeft;
+          const startY = containerWorldTop + charHeight / 2;
+
+          let cursorX = startX;
+          for (let i = 0; i < CHARS.length; i++) {
+            const w = charWidths[i];
+            const h = charHeight;
+            const x = cursorX + w / 2;
+            const y = startY;
+            const body = createBody(CHARS[i], i, x, y, w, h);
+            body.homeX = x;
+            body.homeY = y;
+
+            // Create DOM element (position: fixed)
+            const el = document.createElement('span');
+            el.className = 'char-body pinned';
+            el.textContent = CHARS[i];
+            el.style.cssText = `
+              position: fixed;
+              left: 0; top: 0;
+              font-size: ${fontSize}px;
+              width: ${w}px;
+              height: ${h}px;
+              line-height: ${CHAR_LINE_HEIGHT};
+              font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+              font-weight: 600;
+              color: #111;
+              z-index: 50;
+              transform-origin: center center;
+              will-change: transform;
+            `;
+            document.body.appendChild(el);
+            body.el = el;
+
+
+            el.addEventListener('pointerdown', (e) => onPointerDown(e, body));
+            el.addEventListener('pointerenter', () => triggerWiggle(body));
+            body._hoverWiggle = 0;
+            body._wiggleId = 0;
+
+            bodies.push(body);
+            cursorX += w + spacing;
+          }
+
+          updateGroundMaxY();
+          lastScrollY = window.scrollY;
+          scrollY = window.scrollY;
+          lastGroundY = computeGroundY();
+          worldGroundY = lastGroundY;
+          groundVelocity = 0;
+          updateCharacterPositions();
+        }
+
+        function updateCharacterPositions() {
+          scrollY = window.scrollY;
+          for (const b of bodies) {
+            // Screen position from world position
+            const screenX = b.x;
+            const screenY = b.y - scrollY;
+
+            // Offset to center
+            const left = screenX - b.width / 2;
+            const top = screenY - b.height / 2;
+
+            // Use translate for performance
+            b.el.style.transform = `translate(${left}px, ${top}px) rotate(${b.angle}rad)`;
+          }
+        }
+
+        // ---- Reset ----
+        function resetAll() {
+          for (const b of bodies) {
+            b.resetting = true;
+            b.resetStartX = b.x;
+            b.resetStartY = b.y;
+            b.resetStartAngle = b.angle;
+            b.resetTargetX = b.homeX;
+            b.resetTargetY = b.homeY;
+            b.resetT = 0;
+            b.vx = 0;
+            b.vy = 0;
+            b.angularVel = 0;
+            b.grabbed = false;
+            b.el.classList.add('pinned');
+          }
+          grabbedBody = null;
+          scheduleBubble(1000);
+        }
+
+        function updateResetting(dt) {
+          let anyResetting = false;
+          for (const b of bodies) {
+            if (!b.resetting) continue;
+            anyResetting = true;
+
+            b.resetT += dt;
+            const t = Math.min(1, b.resetT / b.resetDuration);
+            // ease out cubic
+            const eased = 1 - Math.pow(1 - t, 3);
+
+            b.x = b.resetStartX + (b.resetTargetX - b.resetStartX) * eased;
+            b.y = b.resetStartY + (b.resetTargetY - b.resetStartY) * eased;
+            // Rotate back toward 0
+            // Find shortest angle
+            let angleDiff = b.resetStartAngle;
+            b.angle = angleDiff * (1 - eased);
+
+            if (t >= 1) {
+              b.resetting = false;
+              b.pinned = true;
+              b.x = b.homeX;
+              b.y = b.homeY;
+              b.angle = 0;
+              b.vx = 0;
+              b.vy = 0;
+              b.angularVel = 0;
+            }
+          }
+          return anyResetting;
+        }
+
+        // ---- Hover wiggle for pinned chars ----
+        let hoveredBody = null;
+        function updateHoverWiggle(time) {
+          const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+          for (const b of bodies) {
+            if (!b.pinned || b.resetting) {
+              if (b._wiggleId) { b._wiggleId = 0; }
+              continue;
+            }
+            if (reduceMotion) { b.angle = 0; continue; }
+
+            if (b._hoverWiggle > 0) {
+              // Decay wiggle energy
+              b._hoverWiggle *= Math.pow(0.85, 1 / 60);
+              if (b._hoverWiggle < 0.001) b._hoverWiggle = 0;
+            }
+
+            if (b._hoverWiggle > 0) {
+              const t = time * 0.015 + b.wigglePhase;
+              b.angle = Math.sin(t) * b._hoverWiggle;
+            } else {
+              b.angle = 0;
+            }
+          }
+        }
+
+        function triggerWiggle(body) {
+          if (!body.pinned || body.resetting) return;
+          body._hoverWiggle = 0.025; // ~1.4 degrees
+        }
+
+        // ---- Hint fade ----
+        function fadeHint() {
+          if (hintFaded) return;
+          hintFaded = true;
+          if (heroHint) heroHint.classList.add('faded');
+        }
+
+        // ---- Title bubble ----
+        let bubbleEl = null;
+        let bubbleVisible = false;
+        let bubbleTimer = null;
+
+        function createBubble() {
+          if (bubbleEl) return;
+          bubbleEl = document.createElement('div');
+          bubbleEl.className = 'title-bubble';
+
+          // Integrated manga-bubble shape (single SVG path = rounded body + smoothly tapered tail)
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('class', 'bubble-shape');
+          svg.setAttribute('preserveAspectRatio', 'none');
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('class', 'bubble-path');
+          svg.appendChild(path);
+          bubbleEl.appendChild(svg);
+
+          // Text layer (sits inside the rounded body, not entering the tail)
+          const textEl = document.createElement('span');
+          textEl.className = 'bubble-text';
+          textEl.textContent = '你可别点我啊';
+          bubbleEl.appendChild(textEl);
+
+          document.body.appendChild(bubbleEl);
+          bubbleEl.addEventListener('pointerdown', hideBubble);
+        }
+
+        // Build a single SVG path string for the bubble shape.
+        // Rounded pill body on top + a tail that tapers smoothly from the bottom edge.
+        // The shape is one continuous outline — no seams, no joints.
+        function buildBubblePath(w, h, tailX, tailY, tailWidth) {
+          const r = h / 2; // corner radius = half height = pill shape
+          // Body top: y=0; body bottom: y=h
+          // Tail tip at (tailX, tailY); tail base spans tailWidth along the bottom edge
+          const halfBase = tailWidth / 2;
+          const baseLeft = tailX - halfBase;
+          const baseRight = tailX + halfBase;
+
+          const d = [
+            // Start at top-left arc start
+            'M', r, 0,
+            // Top edge + top-right arc
+            'L', w - r, 0,
+            'A', r, r, 0, 0, 1, w, r,
+            // Right edge + bottom-right arc
+            'L', w, h - r,
+            'A', r, r, 0, 0, 1, w - r, h,
+            // Bottom edge from right to tail base right
+            'L', baseRight, h,
+            // Smooth curve to tail tip (out and down)
+            'Q', tailX + halfBase * 0.4, h + 2,
+                 tailX + 2, tailY - 2,
+            // Tip
+            'L', tailX, tailY,
+            // Back up the other side
+            'L', tailX - 2, tailY - 2,
+            'Q', tailX - halfBase * 0.4, h + 2,
+                 baseLeft, h,
+            // Bottom edge from tail base left to bottom-left arc start
+            'L', r, h,
+            'A', r, r, 0, 0, 1, 0, h - r,
+            // Left edge + top-left arc
+            'L', 0, r,
+            'A', r, r, 0, 0, 1, r, 0,
+            'Z'
+          ].join(' ');
+          return d;
+        }
+
+        function showBubble() {
+          if (!bubbleEl) createBubble();
+          if (bubbleVisible) return;
+          bubbleVisible = true;
+          bubbleEl.classList.remove('hide');
+          // Force reflow to restart animation
+          void bubbleEl.offsetWidth;
+          bubbleEl.classList.add('show');
+        }
+
+        function hideBubble() {
+          if (!bubbleVisible) return;
+          bubbleVisible = false;
+          if (bubbleEl) {
+            bubbleEl.classList.remove('show');
+            bubbleEl.classList.add('hide');
+          }
+        }
+
+        function scheduleBubble(delay) {
+          if (bubbleTimer) clearTimeout(bubbleTimer);
+          bubbleTimer = setTimeout(() => {
+            showBubble();
+            bubbleTimer = null;
+          }, delay);
+        }
+
+        function updateBubblePosition() {
+          if (!bubbleEl || !bubbleVisible) return;
+          const aBody = bodies[bodies.length - 2]; // "A"
+          const iBody = bodies[bodies.length - 1]; // "I"
+          if (!aBody || !iBody) return;
+
+          // Measure bubble text to get body dimensions (use offset*, unaffected by transform:scale)
+          const textEl = bubbleEl.querySelector('.bubble-text');
+          const shapeSvg = bubbleEl.querySelector('.bubble-shape');
+          const pathEl = bubbleEl.querySelector('.bubble-path');
+          if (!textEl || !shapeSvg || !pathEl) return;
+
+          const bodyW = textEl.offsetWidth;
+          const bodyH = textEl.offsetHeight;
+
+          // Tail tip lands near the top of A (slightly above the A char)
+          const anchorX = aBody.x + aBody.width * 0.3;  // slightly left of A center
+          const anchorY = iBody.y - scrollY - iBody.height / 2 + 2;
+
+          // Tail base position along the bubble bottom (x within 0..bodyW)
+          // Place tail base near the left side of the bubble (18px from left)
+          const tailBaseX = 28;
+          const tailBaseWidth = 18;
+          const tailLength = 22;  // how far the tip extends below the body
+          const tailTipX = tailBaseX - 6;  // tip curves slightly left
+          const tailTipY = bodyH + tailLength;
+
+          // Total SVG viewBox covers body + tail
+          const totalH = tailTipY + 4;
+          shapeSvg.setAttribute('viewBox', `0 0 ${bodyW} ${totalH}`);
+          shapeSvg.style.width = bodyW + 'px';
+          shapeSvg.style.height = totalH + 'px';
+          const d = buildBubblePath(bodyW, bodyH, tailBaseX, tailTipY, tailBaseWidth);
+          pathEl.setAttribute('d', d);
+
+          // Position bubble so tail tip touches anchor
+          const bubbleX = anchorX - tailTipX;
+          const bubbleY = anchorY - tailTipY;
+          bubbleEl.style.left = bubbleX + 'px';
+          bubbleEl.style.top = bubbleY + 'px';
+
+          // Hide when title is far out of viewport
+          if (bubbleY < -120 || bubbleY > window.innerHeight + 40) {
+            bubbleEl.style.opacity = '0';
+            bubbleEl.style.pointerEvents = 'none';
+          } else {
+            bubbleEl.style.opacity = '';
+            bubbleEl.style.pointerEvents = '';
+          }
+        }
+
+        // ---- Main loop ----
+        function gameLoop(time) {
+          if (!lastTime) lastTime = time;
+          let dt = (time - lastTime) / 1000;
+          lastTime = time;
+
+          // Clamp dt
+          if (dt > PHYSICS.maxDt) dt = PHYSICS.maxDt;
+
+          // Update scroll & ground before physics
+          scrollY = window.scrollY;
+          updateGroundVelocity(dt);
+
+          accumulator += dt;
+
+          // Fixed timestep substeps
+          let substeps = 0;
+          while (accumulator >= PHYSICS.fixedDt && substeps < PHYSICS.maxSubsteps) {
+            step(PHYSICS.fixedDt);
+            updateResetting(PHYSICS.fixedDt);
+            accumulator -= PHYSICS.fixedDt;
+            substeps++;
+          }
+          if (accumulator > PHYSICS.fixedDt * PHYSICS.maxSubsteps) {
+            accumulator = 0;
+          }
+
+          updateHoverWiggle(time);
+          updateCharacterPositions();
+          updateBubblePosition();
+
+          lastScrollY = scrollY;
+          if (!cancelled) requestAnimationFrame(gameLoop);
+        }
+
+        // ---- Scroll handler ----
+        function onScroll() {
+          // No effect on physics, just trigger visual update
+          // updateCharacterPositions is called every frame anyway
+        }
+
+        // ---- Resize handler ----
+        let resizeTimer = null;
+        function onResize() {
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            updateGroundMaxY();
+            lastGroundY = computeGroundY();
+            worldGroundY = lastGroundY;
+            groundVelocity = 0;
+            const newMobile = window.innerWidth <= 768;
+            if (newMobile !== isMobile) {
+              isMobile = newMobile;
+              initPhysics();
+              resetAll();
+            }
+            resizeTimer = null;
+          }, 150);
+        }
+
+        // ---- Init ----
+        function init() {
+          initPhysics();
+          lastTime = 0;
+          requestAnimationFrame(gameLoop);
+
+          window.addEventListener('scroll', onScroll, { passive: true });
+          window.addEventListener('resize', onResize);
+
+          if (resetBtn) resetBtn.addEventListener('click', resetAll);
+
+          // 1s 后弹出气泡
+          createBubble();
+          scheduleBubble(1000);
+        }
+        engineCleanup = function () {
+          cancelled = true;
+          document.removeEventListener('pointermove', physPointerMove);
+          document.removeEventListener('pointerup', physPointerUp);
+          window.removeEventListener('scroll', onScroll);
+          window.removeEventListener('resize', onResize);
+          if (resizeTimer) clearTimeout(resizeTimer);
+          if (bubbleTimer) clearTimeout(bubbleTimer);
+          document.querySelectorAll('.char-body').forEach(el => el.remove());
+          if (bubbleEl) { bubbleEl.remove(); bubbleEl = null; }
+        };
+        init();
+      }
+    }).catch(function () {});
+    return function () { cancelled = true; if (engineCleanup) { engineCleanup(); engineCleanup = null; } };
+  }, []);
+  return React.createElement("section", { className: "page-section", style: { background: "#f8f8f6", color: "#1a1a1f", padding: "140px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
+    .act-hero .act-eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:3px;color:#999;margin-bottom:16px;font-weight:400;}
+    .act-title-wrap{position:relative;min-height:118px;padding-top:8px;}
+    .act-title-lg{font-family:'Noto Serif SC',serif;font-size:clamp(42px,6vw,72px);font-weight:300;letter-spacing:8px;line-height:1.2;margin:0;position:relative;z-index:1;white-space:nowrap;}
+    .act-char{display:block;cursor:pointer;transform-origin:center center;will-change:transform;position:absolute;left:0;top:0;z-index:2;}
+    .act-char-latin{letter-spacing:2px;margin-left:8px;font-family:Georgia,'Times New Roman',serif;}
+    .act-title-bubble{position:absolute;left:48%;top:-34px;z-index:3;transform:translateX(-50%);width:240px;height:84px;color:#1a1a1f;font-family:'Noto Sans SC',sans-serif;font-size:16px;font-weight:600;line-height:1;text-align:center;pointer-events:none;filter:drop-shadow(2px 3px 0 rgba(0,0,0,.12));}
+    .act-title-bubble svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+    .act-title-bubble path{fill:#fff;stroke:#1a1a1f;stroke-width:3;stroke-linejoin:round;stroke-linecap:round;}
+    .act-title-bubble span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 24px 12px;white-space:nowrap;}
+    .act-sub{margin-top:20px;color:#666;font-size:15px;line-height:1.9;max-width:560px;}
+    .act-sechead{display:flex;align-items:baseline;gap:14px;margin:60px 0 22px;}
+    .act-sectitle{font-family:'Noto Serif SC',serif;font-size:22px;font-weight:500;letter-spacing:2px;}
+    .act-secen{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#aaa;}
+    .act-focus{background:#1a1a1f;color:#fff;border-radius:8px;overflow:hidden;position:relative;display:flex;}
+    .act-focusbar{width:4px;flex:0 0 4px;}
+    .act-focus-in{padding:40px 44px;}
+    .act-focustag{display:inline-block;font-size:11px;letter-spacing:2px;color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.25);padding:3px 10px;border-radius:2px;margin-bottom:18px;font-weight:500;}
+    .act-focusname{font-family:'Noto Serif SC',serif;font-size:28px;font-weight:300;letter-spacing:1px;margin-bottom:14px;}
+    .act-focusmeta{font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:18px;}
+    .act-focusdesc{color:rgba(255,255,255,0.72);font-size:14px;line-height:1.9;max-width:720px;margin-bottom:20px;}
+    .ftag{font-size:11px;color:rgba(255,255,255,0.65);background:rgba(255,255,255,0.08);padding:4px 10px;border-radius:2px;margin-right:8px;}
+    .act-upcoming{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+    @media(max-width:900px){.act-upcoming{grid-template-columns:repeat(2,1fr);}}
+    .tl-item{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:6px;padding:22px;min-height:150px;}
+    .tl-dot{width:8px;height:8px;border-radius:50%;margin-bottom:14px;}
+    .tl-month{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;color:#aaa;margin-bottom:6px;}
+    .tl-name{font-size:16px;font-weight:600;color:#1a1a1f;margin-bottom:10px;line-height:1.4;}
+    .tl-tag{font-size:11px;color:#888;border:1px solid rgba(0,0,0,0.12);padding:2px 9px;border-radius:2px;display:inline-block;margin-bottom:12px;}
+    .tl-loc{font-size:11px;color:#999;font-family:'JetBrains Mono',monospace;}
+    .act-past{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;}
+    .past-card{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:8px;padding:28px 30px;cursor:pointer;position:relative;overflow:hidden;transition:transform .3s ease,box-shadow .3s ease;}
+    .past-card:hover{transform:translateY(-4px);box-shadow:0 20px 50px rgba(0,0,0,0.08);}
+    .past-bar{position:absolute;left:0;top:0;bottom:0;width:4px;}
+    .past-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+    .past-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:#aaa;letter-spacing:2px;}
+    .past-tag{font-size:11px;letter-spacing:1px;padding:2px 10px;border-radius:2px;background:rgba(0,0,0,0.03);}
+    .past-name{font-family:'Noto Serif SC',serif;font-size:18px;font-weight:500;margin-bottom:10px;}
+    .past-summary{font-size:13px;color:#666;line-height:1.8;margin-bottom:14px;}
+    .past-stats{display:flex;gap:22px;margin-bottom:14px;}
+    .past-stat .n{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#1a1a1f;line-height:1;}
+    .past-stat .l{font-size:10px;color:#aaa;letter-spacing:1px;margin-top:4px;}
+    .past-more{font-size:12px;color:#5b8cff;letter-spacing:1px;}
+    .act-types{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+    @media(max-width:900px){.act-types{grid-template-columns:repeat(2,1fr);}}
+    .type-item{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:6px;padding:24px;}
+    .type-name{font-size:16px;font-weight:600;margin-bottom:6px;}
+    .type-tagline{font-size:12px;color:#999;margin-bottom:14px;}
+    .type-meta{font-size:11px;color:#aaa;font-family:'JetBrains Mono',monospace;line-height:1.9;}
+    .act-join{background:#1a1a1f;color:#fff;border-radius:8px;padding:48px;text-align:center;margin-top:60px;}
+    .act-join .act-eyebrow{color:rgba(255,255,255,0.4);margin-bottom:16px;}
+    .act-join h3{font-family:'Noto Serif SC',serif;font-size:30px;font-weight:300;letter-spacing:2px;margin:0 0 24px;}
+    .act-join p{font-size:14px;color:rgba(255,255,255,0.6);line-height:2;max-width:600px;margin:0 auto;}
+    @media(max-width:768px){.act-title-wrap{min-height:88px}.act-title-lg{font-size:clamp(32px,10vw,52px);letter-spacing:3px}.act-title-bubble{left:58%;top:-26px;transform:translateX(-50%) scale(.78);transform-origin:center bottom;font-size:14px}}
+    /* ===== 物理标题（v3 恢复版） ===== */
+    .act-hero{position:relative;}
+    #actPhysicsTitle{min-height:72px;}
+    .char-body{
+      position: absolute;
+      font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+      font-size: 72px;
+      font-weight: 600;
+      color: #111;
+      line-height: 1;
+      user-select: none;
+      cursor: pointer;
+      white-space: nowrap;
+      will-change: transform;
+      transform-origin: center center;
     }
-  ];
-  return /* @__PURE__ */ React.createElement("section", {
-    className: "page-section",
-    style: {
-      background: "#f8f8f6",
-      color: "#1a1a1f",
-      padding: "140px 64px 100px",
-      minHeight: "100vh"
+    .char-body.pinned { cursor: pointer; }
+    .char-body:not(.pinned) { cursor: grab; }
+    .char-body:not(.pinned):active { cursor: grabbing; }
+    .hero-hint {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #bbb;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      transition: opacity 0.6s;
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    className: "page-container",
-    style: { maxWidth: 1200, margin: "0 auto" }
-  }, /* @__PURE__ */ React.createElement("div", {
-    className: "section-header",
-    style: { marginBottom: 72 }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#999",
-      letterSpacing: 3,
-      marginBottom: 16,
-      fontFamily: "'JetBrains Mono', monospace"
+    .hero-hint.faded { opacity: 0; pointer-events: none; }
+    .hero-hint span { display: inline-flex; align-items: center; gap: 6px; }
+    .hint-dot { width: 4px; height: 4px; border-radius: 50%; background: #ccc; }
+    .reset-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      font-size: 12px;
+      color: #999;
+      padding: 6px 14px;
+      border: 1px solid #ddd;
+      border-radius: 999px;
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      z-index: 50;
     }
-  }, "ACTIVITIES · 活动大厅"), /* @__PURE__ */ React.createElement("h2", {
-    className: "section-title",
-    style: {
-      fontSize: 48,
-      fontWeight: 300,
-      letterSpacing: 2,
-      fontFamily: "'Noto Serif SC', serif",
-      lineHeight: 1.3
+    .reset-btn:hover { color: #111; border-color: #bbb; }
+    .title-bubble {
+      position: fixed;
+      z-index: 60;
+      color: #1c1d20;
+      font-family: "Yuanti SC", "Yuanti TC", "YouYuan", "幼圆", "Comic Sans MS", "Microsoft YaHei", sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      opacity: 0;
+      transform: scale(0.6) rotate(-2deg);
+      transform-origin: bottom left;
+      pointer-events: none;
+      transition: opacity 0.22s ease-out;
+      filter: drop-shadow(3px 3px 0 rgba(28, 29, 32, 0.15));
     }
-  }, "玩出来的 AI"), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      marginTop: 20,
-      color: "#666",
-      fontSize: 15,
-      lineHeight: 1.9,
-      maxWidth: 560
+    .bubble-shape {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
     }
-  }, '氛围是强调"玩"和"探索"，可以带零食、饮料，像兴趣小组一样轻松，自由讨论，拒绝汇报 + 答辩形式。', /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("br", null), "每月 1 次深度活动（2-3 小时）+ 不定期小实验，高效上班、不耽误下班。")), /* @__PURE__ */ React.createElement("div", {
-    className: "activities-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(2, 1fr)",
-      gap: 24
+    .bubble-shape path {
+      fill: #fff;
+      stroke: #1c1d20;
+      stroke-width: 3;
+      stroke-linejoin: round;
+      stroke-linecap: round;
     }
-  }, activities.map((act, i) => /* @__PURE__ */ React.createElement("div", {
-    key: i,
-    style: {
-      background: "#fff",
-      border: "1px solid rgba(0,0,0,0.06)",
-      borderRadius: 6,
-      padding: "36px 32px",
-      position: "relative",
-      cursor: "pointer",
-      transition: "all 0.3s ease",
-      overflow: "hidden"
-    },
-    onMouseEnter: (e) => {
-      e.currentTarget.style.transform = "translateY(-4px)";
-      e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.06)";
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.boxShadow = "none";
+    .bubble-text {
+      position: relative;
+      z-index: 1;
+      display: block;
+      padding: 12px 22px;
+      pointer-events: auto;
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 4,
-      background: act.color
+    .title-bubble.show {
+      opacity: 1;
+      pointer-events: auto;
+      animation: bubblePop 0.38s cubic-bezier(.2, 1.4, .4, 1) forwards, bubbleWiggle 2.4s ease-in-out 0.38s infinite;
     }
-  }), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      display: "inline-block",
-      fontSize: 11,
-      letterSpacing: 2,
-      color: act.color,
-      fontWeight: 500,
-      marginBottom: 14,
-      padding: "3px 10px",
-      border: `1px solid ${act.color}33`,
-      borderRadius: 2,
-      background: `${act.color}0d`
+    .title-bubble.hide {
+      opacity: 0 !important;
+      transform: scale(0.8) rotate(-2deg) !important;
+      animation: none !important;
     }
-  }, act.tag), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 24,
-      fontWeight: 500,
-      marginBottom: 12,
-      letterSpacing: 0.5
+    @keyframes bubblePop {
+      0% { opacity: 0; transform: scale(0.3) rotate(-8deg); }
+      60% { opacity: 1; transform: scale(1.1) rotate(1deg); }
+      100% { opacity: 1; transform: scale(1) rotate(-2deg); }
     }
-  }, act.title), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 20,
-      fontSize: 12,
-      color: "#999",
-      marginBottom: 20
+    @keyframes bubbleWiggle {
+      0%, 100% { transform: scale(1) rotate(-2deg) translate(0, 0); }
+      25% { transform: scale(1.01) rotate(-1deg) translate(0.5px, -0.5px); }
+      50% { transform: scale(1) rotate(-2.5deg) translate(-0.5px, 0.5px); }
+      75% { transform: scale(1.01) rotate(-1.5deg) translate(0.5px, 0.5px); }
     }
-  }, /* @__PURE__ */ React.createElement("span", {
-    style: { display: "flex", alignItems: "center", gap: 6 }
-  }, /* @__PURE__ */ React.createElement("span", {
-    style: { width: 12, height: 12, borderRadius: "50%", border: "1.5px solid #ccc", display: "inline-block" }
-  }), act.date), /* @__PURE__ */ React.createElement("span", {
-    style: { display: "flex", alignItems: "center", gap: 6 }
-  }, /* @__PURE__ */ React.createElement("span", {
-    style: { width: 12, height: 12, border: "1.5px solid #ccc", display: "inline-block" }
-  }), act.location)), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      fontSize: 13,
-      color: "#666",
-      lineHeight: 1.8,
-      marginBottom: 20
+    @media (prefers-reduced-motion: reduce) {
+      .title-bubble { transition: opacity 0.3s ease; }
+      .title-bubble.show { animation: none; transform: scale(1) rotate(-2deg); }
     }
-  }, act.desc), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      display: "flex",
-      flexWrap: "wrap",
-      gap: 8
+    @media (max-width: 768px) {
+      .char-body { font-size: 44px; }
+      #actPhysicsTitle { min-height: 44px; }
+      .reset-btn { top: auto; bottom: -44px; right: 0; font-size: 11px; padding: 5px 12px; }
     }
-  }, act.highlights.map((h, j) => /* @__PURE__ */ React.createElement("span", {
-    key: j,
-    style: {
-      fontSize: 11,
-      color: "#888",
-      padding: "4px 10px",
-      background: "#f5f5f2",
-      borderRadius: 2
+    @media (max-width: 480px) {
+      .title-bubble { font-size: 14px; }
+      .bubble-text { padding: 8px 14px; }
     }
-  }, "# ", h)))))), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      marginTop: 100,
-      padding: "60px",
-      background: "#1a1a1f",
-      borderRadius: 6,
-      color: "#fff",
-      textAlign: "center"
-    }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 11,
-      letterSpacing: 4,
-      color: "rgba(255,255,255,0.4)",
-      marginBottom: 16,
-      fontFamily: "'JetBrains Mono', monospace"
-    }
-  }, "HOW TO JOIN"), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 32,
-      fontWeight: 300,
-      letterSpacing: 2,
-      marginBottom: 28,
-      fontFamily: "'Noto Serif SC', serif"
-    }
-  }, "怎么参加？"), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      fontSize: 14,
-      color: "rgba(255,255,255,0.6)",
-      lineHeight: 2,
-      maxWidth: 600,
-      margin: "0 auto 32px"
-    }
-  }, "在 AI 社团群里报名即可。每次活动提前 1 周在群内发布主题和时间， 想分享的同学回复报名，想来听的同学直接来就行——午餐 + 零食管够。"), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      display: "inline-flex",
-      gap: 8,
-      fontSize: 13,
-      color: "rgba(255,255,255,0.5)",
-      fontFamily: "'JetBrains Mono', monospace"
-    }
-  }, /* @__PURE__ */ React.createElement("span", null, "群内报名"), /* @__PURE__ */ React.createElement("span", null, "→"), /* @__PURE__ */ React.createElement("span", null, "现场分享"), /* @__PURE__ */ React.createElement("span", null, "→"), /* @__PURE__ */ React.createElement("span", null, "作品入库"), /* @__PURE__ */ React.createElement("span", null, "→"), /* @__PURE__ */ React.createElement("span", null, "巨幕展映")))));
+    #act-modal{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:24px;}
+    .act-modal-mask{position:absolute;inset:0;background:rgba(26,26,31,0.7);backdrop-filter:blur(4px);}
+    .act-modal-card{position:relative;width:100%;max-width:620px;background:#fff;border-radius:10px;padding:36px;max-height:82vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,0.3);}
+    .act-close{position:absolute;top:18px;right:18px;cursor:pointer;color:#aaa;font-size:22px;background:none;border:none;}
+    .act-tag{font-size:11px;letter-spacing:1px;padding:2px 10px;border-radius:2px;border:1px solid currentColor;background:rgba(0,0,0,0.03);}
+    .act-title{font-family:'Noto Serif SC',serif;font-size:26px;font-weight:500;margin:14px 0 8px;}
+    .act-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:#999;margin-bottom:14px;}
+    .act-desc{font-size:14px;color:#555;line-height:1.9;}
+    .act-stats{display:flex;flex-wrap:wrap;margin-top:18px;}
+    .act-stats .past-stat{margin-right:26px;}
+    .sec-in{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#aaa;margin:22px 0 12px;}
+    .art-row{display:flex;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid rgba(0,0,0,0.06);}
+    .art-row .t{font-size:13px;color:#1a1a1f;}
+    .art-row .n{font-size:11px;color:#888;font-family:'JetBrains Mono',monospace;}
+    .art-row .note{font-size:11px;color:#aaa;}
+  `), React.createElement("div", { ref: ref }), React.createElement("div", { id: "act-modal", style: { position: "fixed", inset: 0, zIndex: 10000, display: "none", alignItems: "center", justifyContent: "center", padding: 24 } }));
 };
+
 var CommunitySection = () => {
   const sections = [
     {
@@ -2377,6 +3198,3 @@ window.App = App;
 })();
 
 /* __PINGCE_SEG_5_2314a382___END */
-
-
-

@@ -1,20 +1,163 @@
 {
-  "updatedAt": "2026-08-28",
-  "activities": [
+  "updatedAt": "2026-08-31",
+  "intro": "每月 1 次深度活动（2-3 小时）+ 不定期小实验，高效上班、不耽误下班。",
+  "motto": "氛围是强调「玩」和「探索」，可以带零食、饮料，像兴趣小组一样轻松，自由讨论，拒绝汇报 + 答辩形式。",
+
+  "current": [
+    {
+      "id": "skill-salon-aug",
+      "name": "SKILL 实用技能午间沙龙",
+      "status": "ongoing",
+      "date": "2026-08-31",
+      "dateLabel": "8月31日 周五 · 11:00-14:00",
+      "location": "204 会议室 / 休闲区",
+      "tag": "本周焦点",
+      "desc": "报名时在群里回复想分享的方向，必须参与讨论和投屏演示（workflow、prompts、截图、demo、经验），不局限于工作场景。",
+      "highlights": ["办公场景自动化", "生活实用小工具", "数据玩法与可视化", "效率工具开发"],
+      "color": "#5b8cff",
+      "signup": "/upload.html"
+    }
+  ],
+
+  "upcoming": [
+    {
+      "id": "ai-microfilm",
+      "name": "AI 微电影创作赛",
+      "status": "upcoming",
+      "date": "2026-09",
+      "dateLabel": "9月 · 全月征集",
+      "location": "线上 + 线下展映会",
+      "tag": "深度活动",
+      "desc": "月初发布主题，参与者 T+3 日内报名，T+25~30 日提交作品，次月月初小型作品展示会，像看产品发布会一样轮流播放讨论。",
+      "highlights": ["1-3分钟短片", "1-2人组队", "奖金激励", "影视鉴赏氛围"],
+      "color": "#c38d9e"
+    },
+    {
+      "id": "vibe-coding",
+      "name": "Vibe Coding 沙龙",
+      "status": "upcoming",
+      "date": "2026-10",
+      "dateLabel": "10月 · 待定",
+      "location": "204 会议室",
+      "tag": "动手实操",
+      "desc": "围绕「氛围感」进行代码创作，用最新模型快速生成一个有强烈氛围的交互网页/小游戏/视觉生成器。现场或线上同步 coding。",
+      "highlights": ["限时创作", "2-3人组队", "最有氛围奖", "即时反馈"],
+      "color": "#85dcba"
+    },
+    {
+      "id": "skill-hackathon",
+      "name": "Skill 开发黑客松",
+      "status": "upcoming",
+      "date": "2026-11",
+      "dateLabel": "11月 · 待定",
+      "location": "全天封闭式开发",
+      "tag": "硬核挑战",
+      "desc": "提前 1 周征集候选方向，现场投票选定 2-3 个，每人独立开发。把 skill 发给所有人在各自 agent 上实测评分。",
+      "highlights": ["单人开发", "实测评分", "最实用奖", "最稳健奖"],
+      "color": "#7f9cf5"
+    },
+    {
+      "id": "ai-design-salon",
+      "name": "AI 设计沙龙",
+      "status": "upcoming",
+      "date": "2026-12",
+      "dateLabel": "12月 · 待定",
+      "location": "204 会议室",
+      "tag": "创作分享",
+      "desc": "AI 海报、AI 音乐、AI 表情包、AI 配音、AI 创作类 skill。现场每人 10-15 分钟轮流展示 + 拆解工作流。",
+      "highlights": ["海报设计", "音乐创作", "表情包", "工作流拆解"],
+      "color": "#f6ad55"
+    },
+    {
+      "id": "frontier-talk",
+      "name": "前沿模型开发者讲座",
+      "status": "upcoming",
+      "date": "2026-Q",
+      "dateLabel": "每季度 1 次",
+      "location": "闭门小型讲座（8-12人）",
+      "tag": "硬核分享",
+      "desc": "邀请 Qwen、DeepSeek、InternLM 等开源模型核心贡献者、高校 AI 实验室年轻研究员、独立研究者做深度分享。",
+      "highlights": ["小范围深度", "模型训练", "前沿进展", "高质量交流"],
+      "color": "#9f7aea"
+    }
+  ],
+
+  "past": [
+    {
+      "id": "prompt-camp-3",
+      "name": "AI 训练营 · 第 3 期",
+      "status": "past",
+      "dateLabel": "2026-05 · 8 周",
+      "date": "2026-05",
+      "location": "线下集训 + 异步作业",
+      "tag": "已结营",
+      "summary": "35 名学员完成从 Prompt 基础到工作流搭建的 8 周系统学习，产出 12 件结业作品，其中 8 件进入本期作品巨幕。",
+      "stats": { "participants": 35, "works": 12, "inWall": 8 },
+      "artifacts": [
+        { "type": "结营作品集", "count": 12, "note": "8 件入选作品巨幕" },
+        { "type": "结营路演录屏", "note": "导师点评全程" },
+        { "type": "课件 / 讲义", "note": "8 个主题模块" }
+      ],
+      "color": "#e8a87c"
+    },
+    {
+      "id": "tech-salon-8",
+      "name": "技术沙龙 · 第 8 期",
+      "status": "past",
+      "dateLabel": "2026-06",
+      "date": "2026-06",
+      "location": "内部会议室",
+      "tag": "已举办",
+      "summary": "围绕「RAG / Agent / Fine-tuning 实战」四场深度分享，含现场 demo，沉淀了 3 篇工程实践文档进入知识库。",
+      "stats": { "participants": 24, "sessions": 4, "docs": 3 },
+      "artifacts": [
+        { "type": "分享录屏", "count": 4 },
+        { "type": "实践文档", "count": 3, "note": "进入飞书知识库" }
+      ],
+      "color": "#7f9cf5"
+    },
+    {
+      "id": "project-clinic-2",
+      "name": "项目实战 · 第 2 期",
+      "status": "past",
+      "dateLabel": "2026-07 · 6 周",
+      "date": "2026-07",
+      "location": "跨部门小组协作",
+      "tag": "结项",
+      "summary": "6 个跨部门小组各交付一个 AI 应用 MVP，其中「实验室自动化」与「数字孪生园区」进入生产环境，本季最亮眼的一期。",
+      "stats": { "teams": 6, "mvp": 6, "production": 2 },
+      "artifacts": [
+        { "type": "结项展示", "count": 6 },
+        { "type": "MVP 源码", "note": "经安全评审后可复用" }
+      ],
+      "color": "#85dcba"
+    },
+    {
+      "id": "share-summer-26",
+      "name": "内部分享 · 2026 夏季场",
+      "status": "past",
+      "dateLabel": "2026-08",
+      "date": "2026-08",
+      "location": "午间 12:30-13:30",
+      "tag": "已举办",
+      "summary": "14 位同事报名分享，覆盖工具、踩坑、小技巧，氛围最轻松的一场。优秀分享者获社团年度分享奖提名。",
+      "stats": { "speakers": 14, "avgMinutes": 22 },
+      "artifacts": [
+        { "type": "分享集锦录屏" },
+        { "type": "小技巧速查表", "note": "参与者共同维护" }
+      ],
+      "color": "#c38d9e"
+    }
+  ],
+
+  "types": [
     {
       "id": "ai-camp",
       "name": "AI 训练营",
       "tagline": "系统化学习，零基础到上手",
       "cadence": "每季度 1 期，每期 8 周",
       "format": "周三晚 19:00 - 21:00 线下集训 + 异步作业",
-      "highlights": [
-        "Prompt 工程基础到进阶",
-        "主流模型（GPT/Claude/DeepSeek）上手对比",
-        "工作流搭建：Coze / n8n / Dify",
-        "结业项目路演与导师点评"
-      ],
-      "suitableFor": "对 AI 工具好奇但还没系统用过的同事",
-      "nextSession": "2026 Q4 招募中"
+      "suitableFor": "对 AI 工具好奇但还没系统用过的同事"
     },
     {
       "id": "tech-salon",
@@ -22,14 +165,7 @@
       "tagline": "深度技术分享，聚焦工程实践",
       "cadence": "每月 1 期",
       "format": "周五下午 16:00 - 17:30 内部会议室",
-      "highlights": [
-        "RAG / Agent / Fine-tuning 实战",
-        "公司内部 AI 工具链与最佳实践",
-        "邀请外部技术嘉宾专题分享",
-        "现场 demo 与代码走读"
-      ],
-      "suitableFor": "有技术背景、希望深入 AI 工程化落地的同事",
-      "nextSession": "2026-09-19 · 多智能体协作模式"
+      "suitableFor": "有技术背景、希望深入 AI 工程化落地的同事"
     },
     {
       "id": "project-clinic",
@@ -37,14 +173,7 @@
       "tagline": "真问题，真方案，真交付",
       "cadence": "滚动招募，季度复盘",
       "format": "小组制（3-5 人），跨部门协作，4-6 周交付 MVP",
-      "highlights": [
-        "从业务痛点出发选定方向",
-        "社团提供技术辅导与算力支持",
-        "可对接公司创新基金",
-        "结项向全员展示并入选社团档案"
-      ],
-      "suitableFor": "想把 AI 用到本职工作的同事，欢迎拉上你的业务搭档",
-      "nextSession": "2026 Q4 选题征集"
+      "suitableFor": "想把 AI 用到本职工作的同事"
     },
     {
       "id": "share-club",
@@ -52,14 +181,7 @@
       "tagline": "每人都是讲师，每人都有舞台",
       "cadence": "不定期，自愿报名",
       "format": "午间 12:30 - 13:30 轻分享 + 自由交流",
-      "highlights": [
-        "15-30 分钟讲一件事：工具、踩坑、小技巧",
-        "不限主题，鼓励跨领域灵感",
-        "听众自备午餐，欢迎吐槽",
-        "优秀分享者获社团年度分享奖"
-      ],
-      "suitableFor": "愿意输出、想要锻炼表达、或纯粹想分享一个有趣的尝试",
-      "nextSession": "滚动报名，提交意向即可"
+      "suitableFor": "愿意输出、想要锻炼表达的同事"
     }
   ]
 }
