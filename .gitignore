@@ -4,3 +4,4 @@ logs/
 *.zip
 HANDOFF-CODEX.md
 .DS_Store
+*.bak
