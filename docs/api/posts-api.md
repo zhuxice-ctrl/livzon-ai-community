@@ -114,11 +114,12 @@
   "announcement": { "text": "公告正文", "author": "管理员", "time": "09-01 09:00" },
   "banners": [
     { "image": "https://…/banner.jpg", "title": "标题", "caption": "副标题" }
-  ]
+  ],
+  "sections": [ { "key": "featured", "label": "精华", "desc": "官方精选" } ]
 } }
 ```
 
-- `announcement` 可为 null（不渲染公告条）；`banners` 可为空数组（不渲染轮播）。
+- `announcement` 可为 null（不渲染公告条）；`banners` 可为空数组（不渲染轮播）；`sections` 可省略（前端用内置枚举）。
 - banner 图片为可公网访问的 URL（CDN / 静态目录均可）；标题/副标题可省略。
 - 失败回落：前端回落 `/data/community.json` 顶层的 `announcement` / `banners` 字段（SEED 模式）。
 
@@ -132,18 +133,29 @@
 
 建议限制（对齐 works 现有上传中间件，可调）：图片 ≤ 5MB / 9 张，附件 ≤ 20MB / 5 个；图片类型 jpg/png/gif/webp，附件白名单 pdf/xlsx/docx/zip/pptx/txt/md。返回的 `url` 直接进 posts 的 `images[].url` / `attachments[].url`。
 
-### 帖子数据结构变更（v5）
+### 帖子数据结构变更（v5 / v6）
 
-`posts` 表与 GET posts 返回的 post 对象新增两个可选字段：
+`posts` 表与 GET posts 返回的 post 对象新增可选字段：
 
 ```json
 {
   "images": [ { "url": "https://…/a.jpg", "name": "配图说明" } ],
-  "attachments": [ { "name": "检查清单.xlsx", "url": "/files/xxx.xlsx", "size": 38912 } ]
+  "attachments": [ { "name": "检查清单.xlsx", "url": "/files/xxx.xlsx", "size": 38912 } ],
+  "section": "resource"
 }
 ```
 
-`POST /api/community/posts` body 同步扩展：`{ "text": "...", "images": [...], "attachments": [...] }`（均可省略）。评论暂不支持媒体（保持轻量）。
+`POST /api/community/posts` body 同步扩展：`{ "content": "...", "section": "chat", "images": [...], "attachments": [...] }`（均可省略）。评论暂不支持媒体（保持轻量）。
+
+### 分区（v6，v7 修订）
+
+- 浏览分区枚举：`featured`（精华）/ `resource`（资源分享）/ `tutorial`（教程攻略）/ `qa`（问答求助）/ `chat`（闲聊灌水）；`all` 是前端虚拟分区（首页全量），不落库。
+- **发帖分区枚举（v7）**：`resource` / `tutorial` / `qa` / `chat` 四个。`featured` 为管理侧精选分区（由管理员置顶/打标归类），**发帖接口不接受**——`POST /api/community/posts` 的 body 传 `section: "featured"` 时服务端返回 400（前端发布页已不提供精华选项）。
+- `posts.section` 缺省视为 `chat`；历史置顶帖（pinned+tag）按 tag 归区（前端有同样回退逻辑，服务端落库时建议直接补写 section）。
+- `GET /api/community/posts?sort=top|new&section=<key>`：可选 section 参数，按分区过滤返回；不传 = 全量。
+- **搜索（v7）**：信息流顶部搜索框按内容/作者实时过滤，当前为前端本地过滤（对已加载帖子）；预留服务端参数 `GET /api/community/posts?q=<关键词>`，后端支持后可替代本地过滤实现全量搜索，前端无需改结构。
+- 管理员置顶帖在任何分区视图里都排在最前（前端已实现；服务端排序时 pinned 优先）。
+- 分区列表可由 `GET /api/community/config` 的 `sections` 字段下发（`[{key,label,desc}]`），未下发时前端用内置默认枚举。
 
 ## 前端调用点（合并时定位用）
 
@@ -159,6 +171,9 @@
 - `stageImages`/`stageFiles`（`window.comStageImg` / `comStageFile` / `comUnstage`）：发帖前本地暂存（图片≤9、附件≤5，URL.createObjectURL 预览）
 - `window.comPost`（v5）：API 模式先 `uploadOne()` 逐个 POST upload，全部成功后再 POST posts；DEMO 模式直接带本地 blob 链接发帖
 - `mediaHtml(p)`：帖子图片九宫格（1-3 列布局）+ 附件条；`window.comViewer(u)` 大图查看器（#com-lightbox）
+- 顶部导航栏 + 左侧分区侧边栏（v6）：`window.comGoSection(key)` 切分区（首页 all=全量；侧边栏含各分区帖子计数）；`renderSidebar()` 随轮询刷新计数
+- 搜索框（v7，替代原 ghost 引导条）：`window.comSearch(v)` 按内容/作者过滤信息流、`window.comSearchClear()` 清空；输入框在 #com-feed 之外，重渲染不丢焦点
+- 独立发布页（v6，v7 去掉精华选项）：`window.comOpenPublish()`（导航栏右上「发布」按钮进入）、`comPubSection(key)` 选分区（resource/tutorial/qa/chat）、`comPubDraft(v)` 草稿保留、`comClosePublish()` 返回（草稿保留）、`comDiscardPublish()` 清空、`comSubmitPublish()` 提交（API 模式先 upload 再 POST posts，body 含 section）
 - 「导入到我的环境」按钮：`post.work.source` 外链，**无需新接口**
 
 ## 后端接入建议（合并时做，本分支不做）

@@ -22,6 +22,38 @@
       "caption": "本周新增 3 个模型进入评测池，完整榜单见置顶资源帖"
     }
   ],
+  "sections": [
+    {
+      "key": "all",
+      "label": "首页",
+      "desc": "全部动态"
+    },
+    {
+      "key": "featured",
+      "label": "精华",
+      "desc": "官方精选"
+    },
+    {
+      "key": "resource",
+      "label": "资源分享",
+      "desc": "模板 / 工具 / 物料"
+    },
+    {
+      "key": "tutorial",
+      "label": "教程攻略",
+      "desc": "上手与避坑"
+    },
+    {
+      "key": "qa",
+      "label": "问答求助",
+      "desc": "有问必答"
+    },
+    {
+      "key": "chat",
+      "label": "闲聊灌水",
+      "desc": "碎碎念与日常"
+    }
+  ],
   "intro": "丽珠 AI 社团社区",
   "posts": [
     {
@@ -67,7 +99,8 @@
           "url": "https://p3-doubao-search-sign.byteimg.com/labis/image/1adeb986fe656369aa66ee41871a863a~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=hXP8rH6DB9c6U8p162fgHun%2BgpQ%3D",
           "name": "胜率对比"
         }
-      ]
+      ],
+      "section": "resource"
     },
     {
       "id": "p12",
@@ -82,7 +115,8 @@
         "description": "原图+新色号，自动出图并打包下载",
         "source": "https://example.com/agent/bg-batch"
       },
-      "comments": []
+      "comments": [],
+      "section": "chat"
     },
     {
       "id": "p13",
@@ -100,7 +134,8 @@
           "time": "09-01 10:05",
           "likes": 2
         }
-      ]
+      ],
+      "section": "tutorial"
     },
     {
       "id": "p14",
@@ -125,7 +160,8 @@
           "url": "/files/agent-checklist.xlsx",
           "size": 38912
         }
-      ]
+      ],
+      "section": "tutorial"
     },
     {
       "id": "p15",
@@ -149,7 +185,8 @@
           "time": "08-29 16:10",
           "likes": 2
         }
-      ]
+      ],
+      "section": "resource"
     },
     {
       "id": "pp1",
@@ -177,7 +214,8 @@
           "time": "09-01 09:20",
           "likes": 4
         }
-      ]
+      ],
+      "section": "featured"
     },
     {
       "id": "pp2",
@@ -203,7 +241,8 @@
           "time": "08-31 08:44",
           "likes": 3
         }
-      ]
+      ],
+      "section": "tutorial"
     },
     {
       "id": "pp3",
@@ -220,7 +259,8 @@
         "description": "录屏、物料、课件、Skill 一站式入口",
         "source": "https://example.com/club/archive"
       },
-      "comments": []
+      "comments": [],
+      "section": "resource"
     },
     {
       "id": "p10",
@@ -246,7 +286,8 @@
           "time": "09-01 17:05",
           "likes": 2
         }
-      ]
+      ],
+      "section": "chat"
     },
     {
       "id": "p9",
@@ -305,7 +346,8 @@
           "time": "09-01 16:28",
           "likes": 3
         }
-      ]
+      ],
+      "section": "resource"
     },
     {
       "id": "p8",
@@ -339,7 +381,8 @@
           "time": "09-01 12:15",
           "likes": 1
         }
-      ]
+      ],
+      "section": "qa"
     },
     {
       "id": "p7",
@@ -366,7 +409,8 @@
           "time": "08-31 19:15",
           "likes": 5
         }
-      ]
+      ],
+      "section": "chat"
     },
     {
       "id": "p6",
@@ -384,7 +428,8 @@
           "time": "08-31 10:55",
           "likes": 7
         }
-      ]
+      ],
+      "section": "chat"
     },
     {
       "id": "p5",
@@ -417,7 +462,8 @@
           "time": "08-30 16:52",
           "likes": 2
         }
-      ]
+      ],
+      "section": "resource"
     },
     {
       "id": "p4",
@@ -452,7 +498,8 @@
           "time": "08-29 11:01",
           "likes": 4
         }
-      ]
+      ],
+      "section": "qa"
     }
   ]
 }
