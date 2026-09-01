@@ -1,0 +1,523 @@
+{
+ "updatedAt": "2026-09-01",
+ "announcement": {
+  "text": "社区规约 v2 上线：禁止裸贴密钥与内部数据；分享 Agent 请附使用说明与适用范围。违规帖将被管理员移除。",
+  "author": "管理员",
+  "time": "09-01 09:00"
+ },
+ "banners": [
+  {
+   "image": "https://p3-doubao-search-sign.byteimg.com/labis/image/19b2bf3781cc6420bc8998b70bf13c4f~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789791&x-signature=taIhGxOWnGagD%2BtRCLf9hkORs94%3D",
+   "title": "Livzon AI 共创季",
+   "caption": "9 月 Agent 大赛报名通道已开启，冠军团队直通年度创新评审"
+  },
+  {
+   "image": "https://p11-doubao-search-sign.byteimg.com/labis/image/87a497ee01475edd7b9987a055876137~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=fVapuHhGk3YoHFMDiuQIhBdzDt8%3D",
+   "title": "Agent 工坊第二期",
+   "caption": "生产部 × 研发中心 联合实战：把巡检 Agent 落到产线"
+  },
+  {
+   "image": "https://p3-doubao-search-sign.byteimg.com/labis/image/e114dcdca70c4dc81c7f8e74af31da44~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=RnSkKB02gcOnqhbVkFcjbbZ0aYc%3D",
+   "title": "每周模型评测",
+   "caption": "本周新增 3 个模型进入评测池，完整榜单见置顶资源帖"
+  }
+ ],
+ "sections": [
+  {
+   "key": "all",
+   "label": "首页",
+   "desc": "全部动态"
+  },
+  {
+   "key": "featured",
+   "label": "精华",
+   "desc": "官方精选"
+  },
+  {
+   "key": "resource",
+   "label": "资源分享",
+   "desc": "模板 / 工具 / 物料"
+  },
+  {
+   "key": "tutorial",
+   "label": "教程攻略",
+   "desc": "上手与避坑"
+  },
+  {
+   "key": "qa",
+   "label": "问答求助",
+   "desc": "有问必答"
+  },
+  {
+   "key": "chat",
+   "label": "闲聊灌水",
+   "desc": "碎碎念与日常"
+  }
+ ],
+ "intro": "丽珠 AI 社团社区",
+ "posts": [
+  {
+   "id": "p11",
+   "author": "阿禾",
+   "dept": "研发中心",
+   "time": "09-01 17:20",
+   "likes": 6,
+   "text": "本地跑了个 prompt 压力测试：同一任务 8 个模型并发跑 20 轮，胜率最高的那个居然不是最贵的。结果表放共享盘了。",
+   "comments": [
+    {
+     "id": "p11c1",
+     "author": "K",
+     "dept": "信息部",
+     "text": "求表，正好要选型",
+     "time": "09-01 17:35",
+     "likes": 2
+    },
+    {
+     "id": "p11c2",
+     "author": "老周",
+     "dept": "质量部",
+     "text": "并发跑会有限流问题吧？",
+     "time": "09-01 17:50",
+     "likes": 1
+    },
+    {
+     "id": "p11c3",
+     "parent_id": "p11c2",
+     "author": "阿禾",
+     "dept": "研发中心",
+     "text": "加了退避重试，20 轮里只挂了 2 次",
+     "time": "09-01 18:02",
+     "likes": 3
+    },
+    {
+     "id": "p11c4",
+     "parent_id": "p11c3",
+     "author": "老周",
+     "dept": "质量部",
+     "text": "好，那我跑一轮并发验证下，回头贴结果",
+     "time": "09-01 18:10",
+     "likes": 1
+    },
+    {
+     "id": "p11c5",
+     "parent_id": "p11c4",
+     "author": "K",
+     "dept": "信息部",
+     "text": "蹲一个结果，选型报告就差这块了",
+     "time": "09-01 18:21",
+     "likes": 2
+    }
+   ],
+   "images": [
+    {
+     "url": "https://p11-doubao-search-sign.byteimg.com/labis/image/43ebf6c351b6c9d6c0c238685f4ea06e~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=3EsDJvagSMlhcTdk1EP96XAgxW0%3D",
+     "name": "评测配图"
+    },
+    {
+     "url": "https://p3-doubao-search-sign.byteimg.com/labis/image/1adeb986fe656369aa66ee41871a863a~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=hXP8rH6DB9c6U8p162fgHun%2BgpQ%3D",
+     "name": "胜率对比"
+    }
+   ],
+   "section": "resource"
+  },
+  {
+   "id": "p12",
+   "author": "Momo",
+   "dept": "市场部",
+   "time": "09-01 13:55",
+   "likes": 4,
+   "text": "刚试了用 Agent 批量改商品图背景色，200 张十分钟。以前这活儿我外包要等两天。",
+   "work": {
+    "kind": "image",
+    "title": "商品图换背景批处理",
+    "description": "原图+新色号，自动出图并打包下载",
+    "source": "https://example.com/agent/bg-batch"
+   },
+   "comments": [],
+   "section": "chat"
+  },
+  {
+   "id": "p13",
+   "author": "小北",
+   "dept": "国际业务",
+   "time": "09-01 09:30",
+   "likes": 8,
+   "text": "英文会议纪要直接转中文摘要再转待办，全链路一个 Agent 搞定。今天试了三场会，省下的时间够写日报了。",
+   "comments": [
+    {
+     "id": "p13c1",
+     "author": "Nina",
+     "dept": "人力行政",
+     "text": "求流程，下周全组推",
+     "time": "09-01 10:05",
+     "likes": 2
+    }
+   ],
+   "section": "tutorial"
+  },
+  {
+   "id": "p14",
+   "author": "大树",
+   "dept": "生产部",
+   "time": "08-30 11:15",
+   "likes": 3,
+   "text": "踩坑分享：让 Agent 直接改产线参数千万别上生产环境，先在测试环境跑一个月。血泪教训，细节回帖。",
+   "comments": [
+    {
+     "id": "p14c1",
+     "author": "阿禾",
+     "dept": "研发中心",
+     "text": "这条建议加精",
+     "time": "08-30 11:40",
+     "likes": 4
+    }
+   ],
+   "attachments": [
+    {
+     "name": "产线参数变更检查清单.xlsx",
+     "url": "/files/agent-checklist.xlsx",
+     "size": 38912
+    }
+   ],
+   "section": "tutorial"
+  },
+  {
+   "id": "p15",
+   "author": "小鹿",
+   "dept": "供应链",
+   "time": "08-29 15:40",
+   "likes": 5,
+   "text": "第一次在社团群里发东西，紧张。放个库存对账的小工具，谁要拿走，不谢。",
+   "work": {
+    "kind": "tool",
+    "title": "库存对账小工具",
+    "description": "两表差异一键标记，支持导出",
+    "source": "https://example.com/tool/stock-diff"
+   },
+   "comments": [
+    {
+     "id": "p15c1",
+     "author": "K",
+     "dept": "信息部",
+     "text": "已拿，好用，等你模板",
+     "time": "08-29 16:10",
+     "likes": 2
+    }
+   ],
+   "section": "resource"
+  },
+  {
+   "id": "pp1",
+   "pinned": true,
+   "tag": "featured",
+   "author": "官方小编",
+   "dept": "社团运营",
+   "time": "08-31 20:00",
+   "likes": 23,
+   "text": "【精华】第 01 期活动回顾：7 件作品全记录，含团队、制作过程和最终 Demo。看完你会想报名第 02 期的。",
+   "comments": [
+    {
+     "id": "pp1c1",
+     "author": "大树",
+     "dept": "生产部",
+     "text": "全程看完了，录像整理得真清楚",
+     "time": "08-31 21:10",
+     "likes": 2
+    },
+    {
+     "id": "pp1c2",
+     "author": "Nina",
+     "dept": "人力行政",
+     "text": "第 02 期什么时候开？已经开始期待",
+     "time": "09-01 09:20",
+     "likes": 4
+    }
+   ],
+   "section": "featured"
+  },
+  {
+   "id": "pp2",
+   "pinned": true,
+   "tag": "tutorial",
+   "author": "老周",
+   "dept": "质量部",
+   "time": "08-30 15:00",
+   "likes": 15,
+   "text": "【教程】多维表格自动化入门三讲：第一讲建表、第二讲写自动化规则、第三讲接 Skill。建议按顺序看，配套示例表在链接里。",
+   "work": {
+    "kind": "video",
+    "title": "多维表格自动化 · 三讲录屏",
+    "description": "含课件与示例表下载",
+    "source": "https://example.com/tutorial/bitable-3"
+   },
+   "comments": [
+    {
+     "id": "pp2c1",
+     "author": "小鹿",
+     "dept": "供应链",
+     "text": "第二讲直接救命，照着做十分钟跑通",
+     "time": "08-31 08:44",
+     "likes": 3
+    }
+   ],
+   "section": "tutorial"
+  },
+  {
+   "id": "pp3",
+   "pinned": true,
+   "tag": "resource",
+   "author": "官方小编",
+   "dept": "社团运营",
+   "time": "08-29 10:00",
+   "likes": 31,
+   "text": "【资源汇总】往期活动录屏 / 物料 / 课件 / Skill 仓库入口，一帖收齐，持续更新。",
+   "work": {
+    "kind": "tool",
+    "title": "社团资源仓库",
+    "description": "录屏、物料、课件、Skill 一站式入口",
+    "source": "https://example.com/club/archive"
+   },
+   "comments": [],
+   "section": "resource"
+  },
+  {
+   "id": "p10",
+   "author": "小鹿",
+   "dept": "供应链",
+   "time": "09-01 16:40",
+   "likes": 9,
+   "text": "今天用 K 的 Skill 把入库单整理流程跑通了，从两小时缩到十分钟。原来不是我不行，是姿势不对。",
+   "comments": [
+    {
+     "id": "p10c1",
+     "author": "K",
+     "dept": "信息部",
+     "text": "姿势就是生产力",
+     "time": "09-01 16:52",
+     "likes": 5
+    },
+    {
+     "id": "p10c2",
+     "author": "阿禾",
+     "dept": "研发中心",
+     "text": "hhhh 两小时到十分钟，建议写个复盘贴",
+     "time": "09-01 17:05",
+     "likes": 2
+    }
+   ],
+   "section": "chat"
+  },
+  {
+   "id": "p9",
+   "author": "阿茉",
+   "dept": "财务部",
+   "time": "09-01 15:12",
+   "likes": 18,
+   "text": "把自用两个月的周报小结 Agent 挂上来了，点「导入到我的环境」直接用。踩过的坑都写进说明了，欢迎吐槽。",
+   "work": {
+    "kind": "app",
+    "title": "飞书周报小结 Agent",
+    "description": "每周五自动汇总群消息生成周报草稿，支持一键转多维表格",
+    "source": "https://example.com/agent/weekly-report"
+   },
+   "comments": [
+    {
+     "id": "p9c1",
+     "author": "Momo",
+     "dept": "市场部",
+     "text": "导进我们组的群试了一周，周报摘要直接省了半天",
+     "time": "09-01 15:40",
+     "likes": 12
+    },
+    {
+     "id": "p9c2",
+     "parent_id": "p9c1",
+     "author": "阿茉",
+     "dept": "财务部",
+     "text": "谢谢！财务口径的数字记得让它保留两位小数",
+     "time": "09-01 15:52",
+     "likes": 4
+    },
+    {
+     "id": "p9c3",
+     "parent_id": "p9c1",
+     "author": "Momo",
+     "dept": "市场部",
+     "text": "收到，已改",
+     "time": "09-01 16:01",
+     "likes": 1
+    },
+    {
+     "id": "p9c4",
+     "author": "老周",
+     "dept": "质量部",
+     "text": "建议加一个失败重试的说明，第一次配置卡了十分钟",
+     "time": "09-01 16:20",
+     "likes": 5
+    },
+    {
+     "id": "p9c5",
+     "parent_id": "p9c4",
+     "author": "阿茉",
+     "dept": "财务部",
+     "text": "好建议，说明书里补了重试章节，刷新链接再看",
+     "time": "09-01 16:28",
+     "likes": 3
+    }
+   ],
+   "section": "resource"
+  },
+  {
+   "id": "p8",
+   "author": "Momo",
+   "dept": "市场部",
+   "time": "09-01 11:05",
+   "likes": 5,
+   "text": "求推荐：有没有能把会议纪要直接转成待办清单的玩法？现在手动整理好累。",
+   "comments": [
+    {
+     "id": "p8c1",
+     "author": "K",
+     "dept": "信息部",
+     "text": "有个现成 prompt，我晚点整理个帖子发出来",
+     "time": "09-01 11:30",
+     "likes": 6
+    },
+    {
+     "id": "p8c2",
+     "author": "阿禾",
+     "dept": "研发中心",
+     "text": "蹲一个+1",
+     "time": "09-01 11:42",
+     "likes": 2
+    },
+    {
+     "id": "p8c3",
+     "author": "老周",
+     "dept": "质量部",
+     "text": "+1，最好带责任人自动分配",
+     "time": "09-01 12:15",
+     "likes": 1
+    }
+   ],
+   "section": "qa"
+  },
+  {
+   "id": "p7",
+   "author": "老周",
+   "dept": "质量部",
+   "time": "08-31 18:30",
+   "likes": 14,
+   "text": "刚把第 01 期的复盘写完，最大的感受：别憋大招，小步快跑先上线。我们组第一版只有二十行 prompt，但真的在跑。",
+   "comments": [
+    {
+     "id": "p7c1",
+     "author": "阿茉",
+     "dept": "财务部",
+     "text": "二十行 prompt 能干嘛？有点好奇",
+     "time": "08-31 19:02",
+     "likes": 2
+    },
+    {
+     "id": "p7c2",
+     "parent_id": "p7c1",
+     "author": "老周",
+     "dept": "质量部",
+     "text": "把每天的质检日报压缩成三句话发给组长，够用了",
+     "time": "08-31 19:15",
+     "likes": 5
+    }
+   ],
+   "section": "chat"
+  },
+  {
+   "id": "p6",
+   "author": "Nina",
+   "dept": "人力行政",
+   "time": "08-31 10:20",
+   "likes": 11,
+   "text": "下周三中午「Agent 上手快闪」，30 分钟带电脑来就行，不用预习。报名戳我，前 10 名有奶茶。",
+   "comments": [
+    {
+     "id": "p6c1",
+     "author": "大树",
+     "dept": "生产部",
+     "text": "为了奶茶也要去",
+     "time": "08-31 10:55",
+     "likes": 7
+    }
+   ],
+   "section": "chat"
+  },
+  {
+   "id": "p5",
+   "author": "K",
+   "dept": "信息部",
+   "time": "08-30 16:05",
+   "likes": 16,
+   "text": "挂了 5 个多维表格自动化的现成模板，导入即用。想要什么模板评论区说，我周末加。",
+   "work": {
+    "kind": "skill",
+    "title": "多维表格自动化 Skill",
+    "description": "把重复的表格搬运写成一句指令，附 5 个现成模板",
+    "source": "https://example.com/skill/bitable-auto"
+   },
+   "comments": [
+    {
+     "id": "p5c1",
+     "author": "小鹿",
+     "dept": "供应链",
+     "text": "求一个库存对账的模板！",
+     "time": "08-30 16:40",
+     "likes": 3
+    },
+    {
+     "id": "p5c2",
+     "parent_id": "p5c1",
+     "author": "K",
+     "dept": "信息部",
+     "text": "收到，排上了",
+     "time": "08-30 16:52",
+     "likes": 2
+    }
+   ],
+   "section": "resource"
+  },
+  {
+   "id": "p4",
+   "author": "大树",
+   "dept": "生产部",
+   "time": "08-29 09:40",
+   "likes": 7,
+   "text": "AI 小白提问：Agent 和普通聊天机器人到底啥区别？昨天被同事问住了。",
+   "comments": [
+    {
+     "id": "p4c1",
+     "author": "老周",
+     "dept": "质量部",
+     "text": "一句话版：聊天机器人只能陪你说话，Agent 能替你干活——会调工具、会按步骤来",
+     "time": "08-29 10:20",
+     "likes": 9
+    },
+    {
+     "id": "p4c2",
+     "parent_id": "p4c1",
+     "author": "大树",
+     "dept": "生产部",
+     "text": "懂了！那我周五那个算 Agent 了",
+     "time": "08-29 10:33",
+     "likes": 2
+    },
+    {
+     "id": "p4c3",
+     "author": "Momo",
+     "dept": "市场部",
+     "text": "这个解释可以直接进新人指南",
+     "time": "08-29 11:01",
+     "likes": 4
+    }
+   ],
+   "section": "qa"
+  }
+ ]
+}

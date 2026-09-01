@@ -1812,260 +1812,922 @@ var MySection = () => {
 };
 
 var CommunitySection = () => {
-  const sections = [
-    {
-      title: "飞书知识库",
-      desc: "每场活动后归档四类内容：活动录屏、物料与总结、相关飞书云文档、Skill 仓库。",
-      items: ["活动录屏", "物料总结", "飞书云文档", "Skill 仓库"]
-    },
-    {
-      title: "课程目录",
-      desc: "用多维表格做一张课程目录，一行一节活动，支持画廊视图浏览，方便回看与检索。",
-      items: ["主题索引", "主讲人", "录屏链接", "多维表格"]
-    },
-    {
-      title: "精选作品区",
-      desc: '经作者同意后，优秀作品 / Skill 在知识库设"精选"专区，集团内部展示，扩大影响力。',
-      items: ["微电影", "网页设计", "海报设计", "实用 Skill"]
-    },
-    {
-      title: "高校联合",
-      desc: "和本地或有校友关系的高校 AI 实验室建立轻量合作，闭门前沿报告 + 实验室参访。",
-      items: ["季度讲座", "实验室参访", "联合实验", "学术交流"]
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
+    const KIND_LABEL = { image: "图像", video: "视频", "3d": "3D", tool: "工具", app: "应用", skill: "Skill", mcp: "MCP", source: "源码" };
+    const TAG_LABEL = { featured: "精华", tutorial: "教程", resource: "资源" };
+    // v6 口径：导航栏 + 左侧分区侧边栏 + 独立发布页。
+    // 首页（all 分区）默认全量信息流；发布入口 = 右上角「发布」按钮（个人中心左侧），点击进入独立发布页。
+    // 分区枚举 featured/resource/tutorial/qa/chat；帖子 section 字段缺省视为 chat（置顶帖回退 tag）。
+    // 数据契约见 docs/api/posts-api.md：GET /api/community/posts?sort=top|new&section=…，
+    // 未上线回落 /data/community.json 的 posts 种子（SEED 标记，本地内存交互 + 45s 模拟新帖演示）。
+
+    var postsCache = [];
+    var postsApi = false;
+    var localSeq = 0;
+    var replyState = {};     // pid -> {cid, name}
+    var threadOpen = {};     // pid -> true
+    var sortMode = "top";    // top=推荐 new=最新
+    var pendingNew = [];     // 轮询发现的新帖（未合并）
+    var POLL_MS = 30000;
+    var pollTimer = null;
+    var cfgData = null;        // 公告 / 图文轮播（GET /api/community/config，回落 community.json）
+    var bannerIdx = 0;
+    var bannerTimer = null;
+    var stageImages = [];      // 发布页暂存图片（{name,url,file}）
+    var stageFiles = [];       // 发布页暂存附件（{name,size,url,file}）
+    var curSection = "all";    // 当前分区（all=首页全量）
+    var pubOpen = false;       // 独立发布页是否打开
+    var pubSection = "chat";   // 发布页选中的分区
+    var pubDraft = "";         // 发布页草稿（跨渲染保留）
+    var searchQ = "";          // 信息流搜索关键词
+
+    var SECTIONS = [
+      { key: "all", label: "首页", icon: "◈", desc: "全部动态" },
+      { key: "featured", label: "精华", icon: "★", desc: "官方精选" },
+      { key: "resource", label: "资源分享", icon: "⤓", desc: "模板 / 工具 / 物料" },
+      { key: "tutorial", label: "教程攻略", icon: "✎", desc: "上手与避坑" },
+      { key: "qa", label: "问答求助", icon: "?", desc: "有问必答" },
+      { key: "chat", label: "闲聊灌水", icon: "☁", desc: "碎碎念与日常" }
+    ];
+    function sectionOf(p) {
+      if (p.section) return p.section;
+      if (p.pinned && p.tag) return p.tag;
+      return "chat";
     }
-  ];
-  return /* @__PURE__ */ React.createElement("section", {
-    className: "page-section",
-    style: {
-      background: "#f8f8f6",
-      color: "#1a1a1f",
-      padding: "140px 64px 100px",
-      minHeight: "100vh"
+    function sectionLabel(k) {
+      for (var i = 0; i < SECTIONS.length; i++) if (SECTIONS[i].key === k) return SECTIONS[i].label;
+      return k;
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    className: "page-container",
-    style: { maxWidth: 1200, margin: "0 auto" }
-  }, /* @__PURE__ */ React.createElement("div", {
-    className: "section-header",
-    style: { marginBottom: 72, textAlign: "center" }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#999",
-      letterSpacing: 3,
-      marginBottom: 16,
-      fontFamily: "'JetBrains Mono', monospace"
+    function sectionCount(k) {
+      if (k === "all") return postsCache.length;
+      return postsCache.filter(function (p) { return sectionOf(p) === k; }).length;
     }
-  }, "COMMUNITY · 社团社区"), /* @__PURE__ */ React.createElement("h2", {
-    className: "section-title",
-    style: {
-      fontSize: 48,
-      fontWeight: 300,
-      letterSpacing: 2,
-      fontFamily: "'Noto Serif SC', serif"
+
+    function postKey(p) { return String(p.id != null ? p.id : (p.time || Math.random())); }
+    function findPost(pid) {
+      for (var i = 0; i < postsCache.length; i++) if (postKey(postsCache[i]) === String(pid)) return postsCache[i];
+      return null;
     }
-  }, "一群爱玩的人凑在一起"), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      marginTop: 20,
-      color: "#666",
-      fontSize: 15,
-      lineHeight: 1.9,
-      maxWidth: 600,
-      margin: "20px auto 0"
+
+    // ===== 评论规整（无限层级嵌套：顶层新的在前 + 各层回复按时间正序） =====
+    function normComments(raw) {
+      var byId = {};
+      (raw || []).forEach(function (c) { byId[String(c.id)] = c; });
+      var kids = {};
+      (raw || []).forEach(function (c) {
+        if (c.deleted) return;
+        var parent = c.parent_id != null ? byId[String(c.parent_id)] : null;
+        if (parent && !parent.deleted) {
+          (kids[String(c.parent_id)] = kids[String(c.parent_id)] || []).push(c);
+        } else {
+          if (c.parent_id != null) c.parent_id = null; // 父被删/缺失 → 提升为顶层
+          (kids.__root__ = kids.__root__ || []).push(c);
+        }
+      });
+      var ts = function (c) { return String(c.time || c.created_at || ""); };
+      Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return ts(a).localeCompare(ts(b)); }); });
+      var attach = function (c) {
+        c._replies = (kids[String(c.id)] || []).map(function (r) { attach(r); return r; });
+        c._likes = c.likes || 0; c._liked = false;
+        return c;
+      };
+      var tops = (kids.__root__ || []).map(function (c) { return attach(c); });
+      tops.sort(function (a, b) { return ts(b).localeCompare(ts(a)); });
+      return tops;
     }
-  }, "高效上班、不耽误下班。以兴趣为纽带，以分享为乐趣， 不内卷、不汇报、不答辩，就是一群人一起玩 AI。")), /* @__PURE__ */ React.createElement("div", {
-    className: "community-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(4, 1fr)",
-      gap: 20,
-      marginBottom: 80
+    function commentsToRaw(list) {
+      var raw = [];
+      (function walk(arr, parentId) {
+        (arr || []).forEach(function (c) {
+          raw.push({ id: c.id, parent_id: parentId, author: c.author, dept: c.dept, text: c.text, time: c.time, likes: c._likes });
+          walk(c._replies || [], c.id);
+        });
+      })(list, null);
+      return raw;
     }
-  }, sections.map((s, i) => /* @__PURE__ */ React.createElement("div", {
-    key: i,
-    style: {
-      background: "#fff",
-      border: "1px solid rgba(0,0,0,0.06)",
-      padding: "32px 24px",
-      borderRadius: 4,
-      transition: "all 0.3s ease",
-      cursor: "pointer"
-    },
-    onMouseEnter: (e) => {
-      e.currentTarget.style.transform = "translateY(-4px)";
-      e.currentTarget.style.boxShadow = "0 16px 40px rgba(0,0,0,0.05)";
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.boxShadow = "none";
+    function countComments(arr) {
+      var n = 0;
+      (arr || []).forEach(function (c) { n += 1 + countComments(c._replies || []); });
+      return n;
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 40,
-      fontWeight: 200,
-      color: "#ddd",
-      fontFamily: "'Noto Serif SC', serif",
-      marginBottom: 16
+    function findComment(list, cid) {
+      for (var i = 0; i < (list || []).length; i++) {
+        if (String(list[i].id) === String(cid)) return list[i];
+        var hit = findComment(list[i]._replies || [], cid);
+        if (hit) return hit;
+      }
+      return null;
     }
-  }, "0", i + 1), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 18,
-      fontWeight: 500,
-      marginBottom: 10
+    function commentCount(p) {
+      if (p.comments) return countComments(p.comments);
+      return p.commentCount || 0;
     }
-  }, s.title), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      fontSize: 12,
-      color: "#888",
-      lineHeight: 1.8,
-      marginBottom: 16
+
+    // ===== 排序（推荐算法：互动加权 × 时间衰减；契约与 server 公式见 posts-api.md） =====
+    function timeHours(p) {
+      var t = String(p.time || "");
+      if (t === "刚刚" || !t) return 0.1;
+      var m = t.match(/^(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+      if (!m) return 1;
+      var now = new Date();
+      var d = new Date(now.getFullYear(), parseInt(m[1], 10) - 1, parseInt(m[2], 10), parseInt(m[3], 10), parseInt(m[4], 10));
+      var h = (now - d) / 3600000;
+      if (h < 0) h = 0;
+      return Math.max(h, 0.1);
     }
-  }, s.desc), /* @__PURE__ */ React.createElement("div", {
-    style: { display: "flex", flexWrap: "wrap", gap: 6 }
-  }, s.items.map((item, j) => /* @__PURE__ */ React.createElement("span", {
-    key: j,
-    style: {
-      fontSize: 10,
-      color: "#999",
-      padding: "3px 8px",
-      border: "1px solid #eee",
-      borderRadius: 2
+    function score(p) {
+      var base = 1 + (p.likes || 0) + 2 * commentCount(p);
+      return base * Math.exp(-timeHours(p) / 36);
     }
-  }, item)))))), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      background: "#fff",
-      border: "1px solid rgba(0,0,0,0.06)",
-      borderRadius: 6,
-      padding: "60px",
-      marginBottom: 60
+
+    // ===== 数据装载 / 自动刷新 =====
+    function fetchPostsRaw(sort) {
+      return fetch("/api/community/posts?sort=" + (sort || "top"))
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok || !j.data || !j.data.posts) throw 0;
+          return { posts: j.data.posts, api: true };
+        })
+        .catch(function () {
+          return fetch("/data/community.json")
+            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+            .then(function (j) { return { posts: (j && j.posts) || [], api: false }; })
+            .catch(function () { return { posts: [], api: false }; });
+        });
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: { textAlign: "center", marginBottom: 48 }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#999",
-      letterSpacing: 3,
-      marginBottom: 12,
-      fontFamily: "'JetBrains Mono', monospace"
+    function loadComments(p, cb) {
+      if (p._commentsLoaded) { cb && cb(); return; }
+      p._commentsLoaded = true;
+      if (!postsApi) { p.comments = normComments(p.comments || []); cb && cb(); return; }
+      fetch("/api/community/posts/" + encodeURIComponent(postKey(p)) + "/comments")
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok || !j.data || !j.data.comments) throw 0;
+          p.comments = normComments(j.data.comments); cb && cb();
+        })
+        .catch(function () { p.comments = normComments(p.comments || []); cb && cb(); });
     }
-  }, "INCENTIVE"), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 32,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      letterSpacing: 2
+    function poll() {
+      fetchPostsRaw(sortMode).then(function (res) {
+        if (cancelled) return;
+        var known = {};
+        postsCache.forEach(function (p) { known[postKey(p)] = 1; });
+        var byId = {};
+        res.posts.forEach(function (p) { byId[postKey(p)] = p; });
+        var changed = false;
+        postsCache.forEach(function (p) {
+          var n = byId[postKey(p)];
+          if (n && (n.likes !== p.likes || (n.commentCount != null && n.commentCount !== p.commentCount))) {
+            p.likes = n.likes; if (n.commentCount != null) p.commentCount = n.commentCount;
+            changed = true;
+          }
+        });
+        var fresh = res.posts.filter(function (p) { return !known[postKey(p)]; });
+        if (fresh.length) { pendingNew = fresh.concat(pendingNew); changed = true; }
+        if (changed) { renderSidebar(); renderFeed(snapshotDrafts()); }
+      });
     }
-  }, "激励机制")), /* @__PURE__ */ React.createElement("div", {
-    className: "prize-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(4, 1fr)",
-      gap: 24,
-      textAlign: "center"
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(poll, POLL_MS);
     }
-  }, [
-    { prize: "一等奖", amount: "¥500", count: "1 名" },
-    { prize: "二等奖", amount: "¥300", count: "2 名" },
-    { prize: "三等奖", amount: "¥200", count: "3 名" },
-    { prize: "参与奖", amount: "¥100", count: "若干" }
-  ].map((p, i) => /* @__PURE__ */ React.createElement("div", {
-    key: i,
-    style: {
-      padding: "32px 16px",
-      border: "1px solid rgba(0,0,0,0.06)",
-      borderRadius: 4
+
+    // ===== 渲染 =====
+    function workEmbed(p) {
+      var w = p.work;
+      if (!w) return "";
+      var k = KIND_LABEL[w.kind] || esc(w.kind || "作品");
+      return "<div class='com-embed'>" +
+        "<div class='com-embed-head'><span class='com-wk-kind'>" + k + "</span><span class='com-embed-title'>" + esc(w.title || "未命名作品") + "</span></div>" +
+        (w.description ? "<div class='com-embed-desc'>" + esc(w.description) + "</div>" : "") +
+        (w.source ? "<a class='com-embed-import' href='" + esc(w.source) + "' target='_blank' rel='noopener'>⤓ 导入到我的环境</a>" : "<span class='com-embed-nolink'>作者未挂分享链接</span>") +
+        "</div>";
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "#999",
-      marginBottom: 12
+    function cmtHtml(p, c, depth) {
+      depth = depth || 0;
+      var pid = postKey(p);
+      var isAuthor = !!(p.author && c.author && c.author === p.author);
+      var replyCls = depth > 0 && depth <= 8 ? " com-cmt-reply" : "";
+      return "<div class='com-cmt" + replyCls + "'>" +
+        "<span class='com-avatar com-cmt-av'>" + esc((c.author || "同").slice(0, 1)) + "</span>" +
+        "<div class='com-cmt-body'>" +
+        "<div class='com-cmt-head'><b>" + esc(c.author || "同学") + "</b>" + (c.dept ? "<i>" + esc(c.dept) + "</i>" : "") +
+        (isAuthor ? "<span class='com-badge-author'>作者</span>" : "") +
+        "<span class='com-cmt-time'>" + esc(c.time || "") + "</span></div>" +
+        "<p class='com-cmt-text'>" + esc(c.text || "") + "</p>" +
+        "<div class='com-cmt-acts'>" +
+        "<button class='com-act" + (c._liked ? " on" : "") + "' id='clike-" + esc(pid) + "-" + esc(String(c.id)) + "' onclick=\"window.comLikeComment&&window.comLikeComment('" + esc(pid) + "','" + esc(String(c.id)) + "')\">" + (c._liked ? "♥ 已赞" : "♡ 赞") + " " + c._likes + "</button>" +
+        "<button class='com-act' onclick=\"window.comReplyComment&&window.comReplyComment('" + esc(pid) + "','" + esc(String(c.id)) + "','" + esc(String(c.author || "同学")).replace(/'/g, "") + "')\">回复</button>" +
+        "</div></div></div>" +
+        (c._replies || []).map(function (r) { return cmtHtml(p, r, depth + 1); }).join("");
     }
-  }, p.prize), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 36,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      color: "#1a1a1f",
-      marginBottom: 8
+    function threadHtml(p) {
+      var pid = postKey(p);
+      var list = (p.comments || []).map(function (c) { return cmtHtml(p, c, 0); }).join("");
+      var rs = replyState[pid];
+      return "<div class='com-thread'>" +
+        (list || "<div class='com-empty'>还没有人评论——说点什么吧。</div>") +
+        "<div class='com-thread-box'>" +
+        (rs ? "<div class='com-reply-chip'>回复 @" + esc(rs.name || "") + " <button class='com-act' onclick=\"window.comCancelReply&&window.comCancelReply('" + esc(pid) + "')\">取消</button></div>" : "") +
+        "<div class='com-thread-input'>" +
+        "<textarea id='cmt-input-" + esc(pid) + "' rows='2' placeholder='" + (rs ? "回复 @" + esc(rs.name || "") + "…" : "写下你的评论…") + "'></textarea>" +
+        "<button class='com-send' onclick=\"window.comSendComment&&window.comSendComment('" + esc(pid) + "')\">发送</button>" +
+        "</div>" +
+        "<span id='loginhint-" + esc(pid) + "' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span>" +
+        "</div></div>";
     }
-  }, p.amount), /* @__PURE__ */ React.createElement("div", {
-    style: { fontSize: 12, color: "#bbb" }
-  }, p.count)))), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      textAlign: "center",
-      marginTop: 32,
-      fontSize: 12,
-      color: "#aaa"
+    function fmtSize(n) {
+      n = +n || 0;
+      return n > 1048576 ? (n / 1048576).toFixed(1) + "MB" : n > 1024 ? Math.round(n / 1024) + "KB" : n + "B";
     }
-  }, "另设最具想象力奖、最有哲学深度奖、最有氛围奖、最快出活奖、最离谱创意奖等趣味奖项")), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      background: "#1a1a1f",
-      borderRadius: 6,
-      padding: "60px",
-      color: "#fff"
+    function mediaHtml(p) {
+      var h = "";
+      if (p.images && p.images.length) {
+        h += "<div class='com-imgs com-imgs-" + Math.min(p.images.length, 3) + "'>" + p.images.map(function (im) {
+          var u = typeof im === "string" ? im : im.url;
+          return "<img src='" + esc(u) + "' alt='' loading='lazy' onclick=\"window.comViewer&&window.comViewer('" + esc(u).replace(/'/g, "") + "')\">";
+        }).join("") + "</div>";
+      }
+      if (p.attachments && p.attachments.length) {
+        h += p.attachments.map(function (a) {
+          return "<a class='com-attach' href='" + esc(a.url || "#") + "' target='_blank' rel='noopener'>📎 " + esc(a.name || "附件") + (a.size ? "<span>" + fmtSize(a.size) + "</span>" : "") + "</a>";
+        }).join("");
+      }
+      return h;
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: { textAlign: "center", marginBottom: 40 }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 11,
-      letterSpacing: 4,
-      color: "rgba(255,255,255,0.4)",
-      marginBottom: 12,
-      fontFamily: "'JetBrains Mono', monospace"
+    function postHtml(p) {
+      var pid = postKey(p);
+      var open = !!threadOpen[pid];
+      var tag = (p.pinned && p.tag) ? "<span class='com-pin-tag com-tag-" + esc(p.tag) + "'>📌 " + esc(TAG_LABEL[p.tag] || p.tag) + "</span>" : "";
+      if (!p.pinned) tag = "<span class='com-sec-chip'>" + esc(sectionLabel(sectionOf(p))) + "</span>";
+      var cc = commentCount(p);
+      return "<div class='com-post" + (p.pinned ? " com-post-pinned" : "") + "'>" +
+        "<span class='com-avatar'>" + esc((p.author || "同").slice(0, 1)) + "</span>" +
+        "<div class='com-post-main'>" +
+        "<div class='com-post-head'><b>" + esc(p.author || "同学") + "</b>" + (p.dept ? "<i>" + esc(p.dept) + "</i>" : "") + tag +
+        "<span class='com-post-time'>" + esc(p.time || "") + "</span></div>" +
+        "<p class='com-post-text'>" + esc(p.text || "") + "</p>" +
+        workEmbed(p) +
+        mediaHtml(p) +
+        "<div class='com-post-acts'>" +
+        "<button class='com-act" + (open ? " on" : "") + "' onclick=\"window.comToggleThread&&window.comToggleThread('" + esc(pid) + "')\">💬 " + cc + "</button>" +
+        "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥" : "♡") + " " + (p.likes || 0) + "</button>" +
+        "</div>" +
+        (open ? threadHtml(p) : "") +
+        "</div></div>";
     }
-  }, "SHARING RULES"), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 28,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      letterSpacing: 2
+    function snapshotDrafts() {
+      var d = {};
+      var ta = document.querySelectorAll("#com-feed textarea");
+      for (var i = 0; i < ta.length; i++) if (ta[i].id) d[ta[i].id] = ta[i].value;
+      return d;
     }
-  }, "每次分享讲清楚五件事")), /* @__PURE__ */ React.createElement("div", {
-    className: "rules-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(5, 1fr)",
-      gap: 20,
-      textAlign: "center"
+    function restoreDrafts(d) {
+      if (!d) return;
+      Object.keys(d).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.value = d[id];
+      });
     }
-  }, ["创作思路", "完整工作流", "关键 Prompt", "亮点与不足", "工具选型理由"].map((item, i) => /* @__PURE__ */ React.createElement("div", {
-    key: i,
-    style: {
-      padding: "24px 12px",
-      border: "1px solid rgba(255,255,255,0.1)",
-      borderRadius: 4,
-      fontSize: 14,
-      color: "rgba(255,255,255,0.7)",
-      transition: "all 0.3s"
-    },
-    onMouseEnter: (e) => {
-      e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
-      e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-      e.currentTarget.style.background = "transparent";
+    function visiblePosts() {
+      var list = curSection === "all" ? postsCache.slice() : postsCache.filter(function (p) { return sectionOf(p) === curSection; });
+      var q = searchQ.trim().toLowerCase();
+      if (q) list = list.filter(function (p) {
+        return String(p.content || "").toLowerCase().indexOf(q) > -1 || String(p.author || "").toLowerCase().indexOf(q) > -1;
+      });
+      return list;
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 24,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      marginBottom: 8,
-      color: "#fff"
+    function renderFeed(drafts) {
+      if (cancelled || pubOpen) return;
+      var feedEl = document.getElementById("com-feed");
+      if (!feedEl) return;
+      var h = "";
+      var newCount = curSection === "all" ? pendingNew.length : pendingNew.filter(function (p) { return sectionOf(p) === curSection; }).length;
+      if (newCount) {
+        h += "<button class='com-newpill' onclick='window.comShowNew&&window.comShowNew()'>↑ 有 " + newCount + " 条新帖子，点击查看</button>";
+      }
+      h += "<div class='com-tabs'>" +
+        "<button class='com-tab" + (sortMode === "top" ? " on" : "") + "' onclick=\"window.comSort&&window.comSort('top')\">推荐</button>" +
+        "<button class='com-tab" + (sortMode === "new" ? " on" : "") + "' onclick=\"window.comSort&&window.comSort('new')\">最新</button>" +
+        "<span class='com-tab-hint'>" + (postsApi ? "" : "SEED · ") + "每 30s 自动刷新</span>" +
+        "</div>";
+      var pool = visiblePosts();
+      var pinned = pool.filter(function (p) { return p.pinned; });
+      var rest = pool.filter(function (p) { return !p.pinned; });
+      if (sortMode === "new") rest.sort(function (a, b) { return timeHours(a) - timeHours(b); });
+      else rest.sort(function (a, b) { return score(b) - score(a); });
+      h += "<div class='com-feedbox'>";
+      h += pinned.map(postHtml).join("");
+      h += rest.length ? rest.map(postHtml).join("") : (pinned.length ? "" : "<div class='com-empty'>" + (searchQ.trim() ? "没有找到与「" + esc(searchQ.trim()) + "」相关的帖子。" : "这个分区还没有帖子——第一条由你来发。") + "</div>");
+      h += "</div>";
+      feedEl.innerHTML = h;
+      restoreDrafts(drafts);
     }
-  }, "0", i + 1), item))), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      textAlign: "center",
-      marginTop: 32,
-      fontSize: 12,
-      color: "rgba(255,255,255,0.35)"
+    function renderSidebar() {
+      var el = document.getElementById("com-side");
+      if (!el || cancelled) return;
+      var h = "<div class='com-side-title'>分区</div>";
+      h += SECTIONS.map(function (s) {
+        var on = curSection === s.key;
+        return "<button class='com-side-item" + (on ? " on" : "") + "' onclick=\"window.comGoSection&&window.comGoSection('" + s.key + "')\">" +
+          "<span class='com-side-ico'>" + s.icon + "</span><span class='com-side-label'>" + s.label + "</span>" +
+          "<span class='com-side-count'>" + sectionCount(s.key) + "</span></button>";
+      }).join("");
+      h += "<div class='com-side-foot'>" + (postsApi ? "API" : "SEED") + " · 30s 自动刷新</div>";
+      el.innerHTML = h;
     }
-  }, '重点是让大家学到"怎么做出来的"，听完能上手抄作业'))));
+    function renderMain() {
+      var el = document.getElementById("com-main");
+      if (!el || cancelled) return;
+      if (pubOpen) {
+        var chips = SECTIONS.filter(function (s) { return s.key !== "all" && s.key !== "featured"; }).map(function (s) {
+          return "<button class='com-pub-chip" + (pubSection === s.key ? " on" : "") + "' onclick=\"window.comPubSection&&window.comPubSection('" + s.key + "')\">" + s.label + "</button>";
+        }).join("");
+        el.innerHTML =
+          "<div class='com-pub'>" +
+          "<div class='com-pub-head'>" +
+          "<button class='com-pub-back' onclick='window.comClosePublish&&window.comClosePublish()'>← 返回</button>" +
+          "<b>发布新帖</b>" +
+          "</div>" +
+          "<div class='com-pub-card'>" +
+          "<div class='com-pub-row'><span class='com-avatar com-cmt-av'>我</span><div class='com-pub-who'><b>我</b><span>选择要发布到的分区</span></div></div>" +
+          "<div class='com-pub-chips'>" + chips + "</div>" +
+          "<textarea id='com-pub-input' rows='8' placeholder='分享点什么…支持文字、图片、附件' oninput='window.comPubDraft&&window.comPubDraft(this.value)'>" + esc(pubDraft) + "</textarea>" +
+          "<div id='com-stage'></div>" +
+          "<div class='com-compose-foot'>" +
+          "<div class='com-compose-tools'>" +
+          "<button class='com-tool' onclick=\"document.getElementById('com-img-input').click()\">📷 图片</button>" +
+          "<button class='com-tool' onclick=\"document.getElementById('com-file-input').click()\">📎 附件</button>" +
+          "<input type='file' id='com-img-input' accept='image/*' multiple style='display:none' onchange='window.comStageImg&&window.comStageImg(this)'>" +
+          "<input type='file' id='com-file-input' multiple style='display:none' onchange='window.comStageFile&&window.comStageFile(this)'>" +
+          "</div>" +
+          "<div class='com-pub-btns'>" +
+          "<span id='com-pub-hint' class='com-cmt-loginhint' style='display:none'>登录后才能发布（线上接口启用时生效）</span>" +
+          "<button class='com-tool' onclick='window.comDiscardPublish&&window.comDiscardPublish()'>清空</button>" +
+          "<button class='com-send com-pub-submit' onclick='window.comSubmitPublish&&window.comSubmitPublish()'>发布</button>" +
+          "</div>" +
+          "</div>" +
+          "</div>" +
+          "<div class='com-pub-tip'>图片 ≤ 9 张、附件 ≤ 5 个；发布后帖子进入所选分区与首页信息流。</div>" +
+          "</div>";
+        renderStage();
+        var pi = document.getElementById("com-pub-input");
+        if (pi) pi.focus();
+        return;
+      }
+      el.innerHTML =
+        "<div id='com-top'></div>" +
+        "<div class='com-search'>" +
+        "<span class='com-search-icon'>⌕</span>" +
+        "<input id='com-search-input' class='com-search-input' placeholder='搜索帖子内容 / 作者…' value=\"" + esc(searchQ) + "\" oninput='window.comSearch&&window.comSearch(this.value)' />" +
+        (searchQ ? "<button class='com-search-clear' title='清空搜索' onclick='window.comSearchClear&&window.comSearchClear()'>✕</button>" : "") +
+        "</div>" +
+        "<div id='com-feed'><div class='com-empty'>加载帖子中…</div></div>";
+      renderTop();
+      renderFeed();
+    }
+    function renderShell() {
+      if (cancelled || !ref.current) return;
+      ref.current.innerHTML =
+        "<div class='com-wrap'>" +
+        "<div class='com-navbar'>" +
+        "<div class='com-nav-left'><img class='com-nav-logo-img' src='" + LOGO + "' alt='丽珠' /><b>社团社区</b><span class='com-nav-sub'>LIVZON COMMUNITY</span></div>" +
+        "<div class='com-nav-right'>" +
+        "<button class='com-nav-pub' onclick='window.comOpenPublish&&window.comOpenPublish()'>✏️ 发布</button>" +
+        "<span class='com-nav-me' title='个人中心'><span class='com-avatar'>我</span></span>" +
+        "</div>" +
+        "</div>" +
+        "<div class='com-body'>" +
+        "<aside class='com-side' id='com-side'></aside>" +
+        "<main class='com-main' id='com-main'></main>" +
+        "</div>" +
+        "<div id='com-lightbox' onclick='window.comViewerClose&&window.comViewerClose()'></div>" +
+        "</div>";
+    }
+
+    // ===== 顶部：公告 + 图文轮播（仅首页分区显示） =====
+    function loadCfg(cb) {
+      fetch("/api/community/config")
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok || !j.data) throw 0;
+          cb(j.data);
+        })
+        .catch(function () {
+          fetch("/data/community.json")
+            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+            .then(function (j) { cb({ announcement: j.announcement || null, banners: j.banners || [] }); })
+            .catch(function () { cb({ announcement: null, banners: [] }); });
+        });
+    }
+    function renderTop() {
+      var el = document.getElementById("com-top");
+      if (!el || !cfgData || curSection !== "all" || pubOpen) return;
+      var h = "";
+      var a = cfgData.announcement;
+      if (a && a.text) {
+        h += "<div class='com-notice'><span class='com-notice-tag'>📢 公告</span><span class='com-notice-text'>" + esc(a.text) + "</span><span class='com-notice-meta'>" + esc(a.author || "") + (a.time ? " · " + esc(a.time) : "") + "</span></div>";
+      }
+      var bs = cfgData.banners || [];
+      if (bs.length) {
+        h += "<div class='com-banner'>";
+        h += bs.map(function (b, i) {
+          return "<div class='com-banner-slide" + (i === bannerIdx ? " on" : "") + "'>" +
+            "<img src='" + esc(b.image) + "' alt='' loading='lazy'>" +
+            (b.title ? "<div class='com-banner-cap'><b>" + esc(b.title) + "</b>" + (b.caption ? "<span>" + esc(b.caption) + "</span>" : "") + "</div>" : "") +
+            "</div>";
+        }).join("");
+        if (bs.length > 1) {
+          h += "<div class='com-banner-dots'>" + bs.map(function (b, i) {
+            return "<button class='com-dot" + (i === bannerIdx ? " on" : "") + "' onclick=\"window.comBanner&&window.comBanner(" + i + ")\"></button>";
+          }).join("") + "</div>";
+        }
+        h += "</div>";
+      }
+      el.innerHTML = h;
+    }
+    function restartBanner() {
+      if (bannerTimer) clearInterval(bannerTimer);
+      var bs = (cfgData && cfgData.banners) || [];
+      if (bs.length > 1) {
+        bannerTimer = setInterval(function () {
+          bannerIdx = (bannerIdx + 1) % bs.length;
+          renderTop();
+        }, 5000);
+      }
+    }
+
+    // ===== 发布页媒体暂存 =====
+    function renderStage() {
+      var el = document.getElementById("com-stage");
+      if (!el) return;
+      if (!stageImages.length && !stageFiles.length) { el.innerHTML = ""; return; }
+      var h = "<div class='com-stage-row'>";
+      h += stageImages.map(function (f, i) {
+        return "<div class='com-stage-thumb'><img src='" + esc(f.url) + "' alt=''><button class='com-stage-x' onclick=\"window.comUnstage&&window.comUnstage('img'," + i + ")\">×</button></div>";
+      }).join("");
+      h += stageFiles.map(function (f, i) {
+        return "<div class='com-stage-file'>📎 " + esc(f.name) + "<button class='com-stage-x' onclick=\"window.comUnstage&&window.comUnstage('file'," + i + ")\">×</button></div>";
+      }).join("");
+      el.innerHTML = h + "</div>";
+    }
+    window.comStageImg = function (input) {
+      var files = input.files || [];
+      for (var i = 0; i < files.length && stageImages.length < 9; i++) {
+        stageImages.push({ name: files[i].name, url: URL.createObjectURL(files[i]), file: files[i] });
+      }
+      input.value = "";
+      renderStage();
+    };
+    window.comStageFile = function (input) {
+      var files = input.files || [];
+      for (var i = 0; i < files.length && stageFiles.length < 5; i++) {
+        stageFiles.push({ name: files[i].name, size: files[i].size, url: URL.createObjectURL(files[i]), file: files[i] });
+      }
+      input.value = "";
+      renderStage();
+    };
+    window.comUnstage = function (kind, i) {
+      (kind === "img" ? stageImages : stageFiles).splice(i, 1);
+      renderStage();
+    };
+    window.comBanner = function (i) { bannerIdx = i; restartBanner(); renderTop(); };
+    window.comViewer = function (u) {
+      var lb = document.getElementById("com-lightbox");
+      if (!lb) return;
+      lb.innerHTML = "<img src='" + esc(u) + "' alt=''>";
+      lb.style.display = "flex";
+    };
+    window.comViewerClose = function () {
+      var lb = document.getElementById("com-lightbox");
+      if (lb) lb.style.display = "none";
+    };
+
+    // ===== 交互：分区 / 发布页 =====
+    window.comGoSection = function (k) {
+      curSection = SECTIONS.some(function (s) { return s.key === k; }) ? k : "all";
+      pubOpen = false;
+      renderSidebar();
+      renderMain();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.comOpenPublish = function () {
+      if (curSection !== "all" && curSection !== "featured") pubSection = curSection;
+      else if (pubSection === "all" || pubSection === "featured") pubSection = "chat";
+      pubOpen = true;
+      renderSidebar();
+      renderMain();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.comClosePublish = function () {
+      pubOpen = false;
+      renderSidebar();
+      renderMain();
+    };
+    window.comDiscardPublish = function () {
+      pubDraft = ""; stageImages = []; stageFiles = [];
+      renderMain();
+    };
+    window.comPubSection = function (k) {
+      if (k === "all" || k === "featured") return;
+      pubSection = k;
+      renderMain();
+    };
+    window.comPubDraft = function (v) { pubDraft = v; };
+    window.comSearch = function (v) {
+      searchQ = v;
+      renderFeed();
+    };
+    window.comSearchClear = function () {
+      searchQ = "";
+      var i = document.getElementById("com-search-input");
+      if (i) { i.value = ""; i.focus(); }
+      renderFeed();
+    };
+    function publishDone(p) {
+      postsCache.unshift(p);
+      stageImages = []; stageFiles = []; pubDraft = "";
+      pubOpen = false;
+      curSection = "all";
+      renderSidebar();
+      renderMain();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function uploadOne(f) {
+      var fd = new FormData();
+      fd.append("file", f.file);
+      return fetch("/api/community/upload", { method: "POST", body: fd })
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) { if (!j || !j.ok || !j.data || !j.data.url) throw 0; return j.data; });
+    }
+    window.comSubmitPublish = function () {
+      var input = document.getElementById("com-pub-input");
+      var hint = document.getElementById("com-pub-hint");
+      var text = pubDraft || (input && input.value) || "";
+      text = String(text).trim();
+      if (!text && !stageImages.length && !stageFiles.length) { if (input) input.focus(); return; }
+      var btn = document.querySelector(".com-pub-submit");
+      if (btn) { btn.disabled = true; btn.textContent = "发布中…"; }
+      if (!postsApi) {
+        localSeq += 1;
+        publishDone({
+          id: "local-p" + localSeq, author: "我", dept: "", text: text, time: "刚刚", likes: 0,
+          section: pubSection,
+          images: stageImages.map(function (f) { return { url: f.url, name: f.name }; }),
+          attachments: stageFiles.map(function (f) { return { name: f.name, url: f.url, size: f.size }; }),
+          comments: [], _commentsLoaded: true
+        });
+        return;
+      }
+      var ups = stageImages.map(function (f) { return uploadOne(f).then(function (d) { return { url: d.url, name: f.name }; }); });
+      var ats = stageFiles.map(function (f) { return uploadOne(f).then(function (d) { return { name: f.name, url: d.url, size: f.size }; }); });
+      Promise.all([Promise.all(ups), Promise.all(ats)]).then(function (rs) {
+        return fetch("/api/community/posts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: text, section: pubSection, images: rs[0], attachments: rs[1] })
+        }).then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); });
+      }).then(function (res) {
+        if (res.status === 401) {
+          if (hint) hint.style.display = "inline-block";
+          var b2 = document.querySelector(".com-pub-submit");
+          if (b2) { b2.disabled = false; b2.textContent = "发布"; }
+          return;
+        }
+        if (!res.j || !res.j.ok || !res.j.data || !res.j.data.post) throw 0;
+        var p = res.j.data.post; p.comments = []; p._commentsLoaded = true;
+        publishDone(p);
+      }).catch(function () {
+        if (hint) hint.style.display = "inline-block";
+        var b3 = document.querySelector(".com-pub-submit");
+        if (b3) { b3.disabled = false; b3.textContent = "发布"; }
+      });
+    };
+    window.comSort = function (mode) {
+      sortMode = mode === "new" ? "new" : "top";
+      if (postsApi) {
+        // 服务端排序：切 tab 重新拉取
+        fetchPostsRaw(sortMode).then(function (res) {
+          if (cancelled || !res.api) return;
+          postsCache = res.posts;
+          renderFeed(snapshotDrafts());
+        });
+      }
+      renderFeed(snapshotDrafts());
+    };
+    window.comShowNew = function () {
+      postsCache = pendingNew.concat(postsCache);
+      pendingNew = [];
+      renderSidebar();
+      renderFeed();
+      var feed = document.getElementById("com-feed");
+      if (feed && feed.scrollIntoView) feed.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.comToggleThread = function (pid) {
+      var p = findPost(pid);
+      if (!p) return;
+      threadOpen[pid] = !threadOpen[pid];
+      if (threadOpen[pid]) { loadComments(p, function () { renderFeed(snapshotDrafts()); }); }
+      renderFeed(snapshotDrafts());
+    };
+    window.comLikePost = function (pid) {
+      var p = findPost(pid);
+      if (!p) return;
+      var btn = document.getElementById("plike-" + pid);
+      if (!postsApi) {
+        p._liked = !p._liked; p.likes = (p.likes || 0) + (p._liked ? 1 : -1);
+        if (btn) { btn.innerHTML = (p._liked ? "♥" : "♡") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); }
+        return;
+      }
+      fetch("/api/community/posts/" + encodeURIComponent(String(pid)) + "/like", { method: "POST" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (j && j.ok && j.data) { p.likes = j.data.likes; p._liked = !!j.data.liked; if (btn) { btn.innerHTML = (p._liked ? "♥" : "♡") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); } }
+        }).catch(function () {});
+    };
+    window.comSendComment = function (pid) {
+      var p = findPost(pid);
+      if (!p) return;
+      var input = document.getElementById("cmt-input-" + pid);
+      var hint = document.getElementById("loginhint-" + pid);
+      var text = (input && input.value || "").trim();
+      if (!text) { if (input) input.focus(); return; }
+      var rs = replyState[pid];
+      var parentId = rs ? rs.cid : null;
+      var done = function (c) {
+        p.comments = normComments(commentsToRaw(p.comments).concat([c]));
+        delete replyState[pid];
+        renderFeed(snapshotDrafts());
+      };
+      if (!postsApi) {
+        localSeq += 1;
+        done({ id: "local-c" + localSeq, parent_id: parentId, author: "我", dept: "", text: text, time: "刚刚", likes: 0 });
+        return;
+      }
+      fetch("/api/community/posts/" + encodeURIComponent(String(pid)) + "/comments", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text, parent_id: parentId })
+      }).then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+        .then(function (res) {
+          if (res.status === 401) { if (hint) hint.style.display = "inline-block"; return; }
+          if (!res.j || !res.j.ok || !res.j.data || !res.j.data.comment) throw 0;
+          done(res.j.data.comment);
+        })
+        .catch(function () { if (hint) hint.style.display = "inline-block"; });
+    };
+    window.comReplyComment = function (pid, cid, name) {
+      replyState[pid] = { cid: cid, name: name };
+      threadOpen[pid] = true;
+      renderFeed(snapshotDrafts());
+      var input = document.getElementById("cmt-input-" + pid);
+      if (input) input.focus();
+    };
+    window.comCancelReply = function (pid) {
+      delete replyState[pid];
+      renderFeed(snapshotDrafts());
+    };
+    window.comLikeComment = function (pid, cid) {
+      var p = findPost(pid);
+      if (!p) return;
+      var hit = findComment(p.comments || [], cid);
+      if (!hit) return;
+      var btn = document.getElementById("clike-" + pid + "-" + cid);
+      if (!postsApi) {
+        hit._liked = !hit._liked; hit._likes += hit._liked ? 1 : -1;
+        if (btn) { btn.innerHTML = (hit._liked ? "♥ 已赞" : "♡ 赞") + " " + hit._likes; if (btn.classList) btn.classList.toggle("on", hit._liked); }
+        return;
+      }
+      fetch("/api/community/posts/" + encodeURIComponent(String(pid)) + "/comments/" + encodeURIComponent(String(cid)) + "/like", { method: "POST" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (j && j.ok && j.data) { hit._likes = j.data.likes; hit._liked = !!j.data.liked; if (btn) { btn.innerHTML = (hit._liked ? "♥ 已赞" : "♡ 赞") + " " + hit._likes; if (btn.classList) btn.classList.toggle("on", hit._liked); } }
+        }).catch(function () {});
+    };
+
+    // ===== 启动 =====
+    renderShell();
+    renderSidebar();
+    renderMain();
+    loadCfg(function (cfg) {
+      cfgData = cfg || {};
+      renderTop();
+      restartBanner();
+    });
+    loadPostsAndStart();
+    function loadPostsAndStart() {
+      fetchPostsRaw(sortMode).then(function (res) {
+        if (cancelled) return;
+        postsCache = res.posts;
+        postsApi = !!res.api;
+        renderSidebar();
+        renderFeed();
+        startPolling();
+        if (!postsApi) {
+          // DEMO 模式演示自动刷新：45s 后模拟一条新帖进入提示条
+          setTimeout(function () {
+            if (cancelled || postsApi) return;
+            localSeq += 1;
+            pendingNew.push({
+              id: "sim-p" + localSeq, author: "K", dept: "信息部",
+              text: "新帖演示：会议纪要转待办的模板刚挂上仓库，这条是自动刷新推上来的（点击上方提示条并入）。",
+              time: "刚刚", likes: 0, section: "resource", comments: [], _commentsLoaded: true
+            });
+            renderSidebar();
+            renderFeed(snapshotDrafts());
+          }, 45000);
+        }
+      });
+    }
+
+    return function () {
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (bannerTimer) clearInterval(bannerTimer);
+      delete window.comGoSection;
+      delete window.comOpenPublish;
+      delete window.comClosePublish;
+      delete window.comDiscardPublish;
+      delete window.comPubSection;
+      delete window.comPubDraft;
+      delete window.comSearch;
+      delete window.comSearchClear;
+      delete window.comSubmitPublish;
+      delete window.comBanner;
+      delete window.comStageImg;
+      delete window.comStageFile;
+      delete window.comUnstage;
+      delete window.comViewer;
+      delete window.comViewerClose;
+      delete window.comSort;
+      delete window.comShowNew;
+      delete window.comToggleThread;
+      delete window.comLikePost;
+      delete window.comSendComment;
+      delete window.comReplyComment;
+      delete window.comCancelReply;
+      delete window.comLikeComment;
+    };
+  }, []);
+  return React.createElement("section", { className: "page-section", style: { background: "#f6f7f8", color: "#0f1419", padding: "88px 16px 80px", minHeight: "100vh" } }, React.createElement("style", null, `
+    .com-wrap{max-width:1080px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;}
+    .com-navbar{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e4e7eb;border-radius:10px;padding:10px 16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(15,20,25,0.04);}
+    .com-nav-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    .com-nav-logo-img{display:block;width:30px;height:30px;border-radius:8px;object-fit:cover;flex:0 0 30px;}
+    .com-nav-left b{font-size:16px;letter-spacing:1px;color:#0f1419;}
+    .com-nav-sub{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:#9aa3ad;}
+    .com-nav-right{display:flex;align-items:center;gap:10px;}
+    .com-nav-pub{background:#1d6fd1;color:#fff;border:none;border-radius:99px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .2s;}
+    .com-nav-pub:hover{background:#155bb0;}
+    .com-nav-me{display:inline-flex;align-items:center;cursor:pointer;padding:2px;}
+    .com-nav-me .com-avatar{background:#eef0f2;color:#0f1419;border:1px solid #e4e7eb;}
+    .com-body{display:flex;gap:14px;align-items:flex-start;}
+    .com-side{flex:0 0 190px;background:#fff;border:1px solid #e4e7eb;border-radius:10px;padding:8px;align-self:flex-start;}
+    .com-side-title{font-size:11px;color:#9aa3ad;letter-spacing:2px;padding:6px 10px 4px;font-family:'JetBrains Mono',monospace;}
+    .com-side-item{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;border-radius:8px;padding:8px 10px;font-size:13px;color:#374151;cursor:pointer;font-family:inherit;transition:background .15s;margin-bottom:1px;text-align:left;}
+    .com-side-item:hover{background:#f2f4f6;}
+    .com-side-item.on{background:#eef5ff;color:#155bb0;font-weight:700;}
+    .com-side-ico{width:18px;text-align:center;flex:0 0 18px;color:#9aa3ad;}
+    .com-side-item.on .com-side-ico{color:#1d6fd1;}
+    .com-side-label{flex:1;}
+    .com-side-count{font-family:'JetBrains Mono',monospace;font-size:10px;color:#9aa3ad;background:#f2f4f6;border-radius:99px;padding:1px 7px;}
+    .com-side-item.on .com-side-count{background:#d9e8fb;color:#155bb0;}
+    .com-side-foot{padding:8px 10px 4px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#9aa3ad;letter-spacing:1px;border-top:1px solid #f2f4f6;margin-top:6px;}
+    .com-main{flex:1;min-width:0;}
+    .com-search{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;background:#fff;border:1px solid #e4e7eb;border-radius:10px;padding:10px 14px;margin-bottom:12px;transition:border-color .2s,box-shadow .2s;}
+    .com-search:focus-within{border-color:#1d6fd1;box-shadow:0 0 0 3px rgba(29,111,209,.10);}
+    .com-search-icon{font-size:15px;color:#9aa3ad;line-height:1;}
+    .com-search-input{flex:1;border:none;outline:none;font-size:13px;color:#1f2733;font-family:inherit;background:transparent;min-width:0;}
+    .com-search-input::placeholder{color:#9aa3ad;}
+    .com-search-clear{border:none;background:#eef1f5;color:#6b7480;width:22px;height:22px;border-radius:50%;font-size:12px;line-height:1;cursor:pointer;padding:0;font-family:inherit;}
+    .com-search-clear:hover{background:#e2e7ee;color:#1f2733;}
+    .com-avatar{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#0f1419;color:#fff;font-size:13px;font-weight:700;flex:0 0 32px;}
+    .com-newpill{display:block;width:100%;margin:0 0 10px;padding:8px;border:1px solid #cfe0f5;background:#eef5ff;color:#1d6fd1;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+    .com-newpill:hover{background:#e0edff;}
+    .com-tabs{display:flex;align-items:center;gap:2px;margin:0 0 8px;border-bottom:1px solid #e4e7eb;padding:0 4px;background:#fff;border-radius:10px 10px 0 0;}
+    .com-tab{background:none;border:none;padding:10px 14px;font-size:13px;color:#6b7280;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-1px;}
+    .com-tab:hover{color:#0f1419;}
+    .com-tab.on{color:#0f1419;font-weight:700;border-bottom-color:#1d6fd1;}
+    .com-tab-hint{margin-left:auto;padding-right:12px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#9aa3ad;letter-spacing:1px;}
+    .com-feedbox{background:#fff;border:1px solid #e4e7eb;border-top:none;border-radius:0 0 10px 10px;overflow:hidden;}
+    .com-post{display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid #eef0f2;}
+    .com-post:last-child{border-bottom:none;}
+    .com-post-pinned{background:#fdf9ee;}
+    .com-post-main{flex:1;min-width:0;}
+    .com-post-head{display:flex;align-items:center;gap:6px;font-size:12px;color:#6b7280;flex-wrap:wrap;}
+    .com-post-head b{color:#0f1419;font-size:13px;}
+    .com-post-head i{font-style:normal;}
+    .com-pin-tag{font-size:10px;font-weight:600;border-radius:4px;padding:1px 6px;letter-spacing:1px;}
+    .com-sec-chip{font-size:10px;font-weight:600;color:#1d6fd1;background:#eef5ff;border-radius:4px;padding:1px 6px;}
+    .com-tag-featured{background:#0f1419;color:#ffd97a;}
+    .com-tag-tutorial{background:#e8f0fe;color:#155bb0;}
+    .com-tag-resource{background:#fdeae8;color:#b8434e;}
+    .com-post-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#9aa3ad;}
+    .com-post-text{font-size:14px;color:#1f2933;line-height:1.7;margin:5px 0 0;white-space:pre-wrap;}
+    .com-embed{margin-top:8px;border:1px solid #e4e7eb;border-radius:8px;padding:10px 12px;background:#fafbfc;}
+    .com-embed-head{display:flex;align-items:center;gap:8px;}
+    .com-wk-kind{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:#0f1419;border-radius:4px;padding:2px 6px;flex:0 0 auto;}
+    .com-embed-title{font-size:13px;font-weight:700;color:#0f1419;}
+    .com-embed-desc{font-size:12px;color:#6b7280;line-height:1.6;margin-top:4px;}
+    .com-embed-import{display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:#1d6fd1;text-decoration:none;}
+    .com-embed-import:hover{text-decoration:underline;}
+    .com-embed-nolink{display:inline-block;margin-top:8px;font-size:11px;color:#9aa3ad;}
+    .com-post-acts{display:flex;gap:18px;margin-top:8px;}
+    .com-act{background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;padding:2px 0;font-family:inherit;}
+    .com-act:hover{color:#1d6fd1;}
+    .com-act.on{color:#b8434e;font-weight:700;}
+    .com-thread{margin-top:10px;padding-top:8px;border-top:1px solid #eef0f2;}
+    .com-thread-box{margin-top:8px;}
+    .com-thread-input{display:flex;gap:8px;align-items:flex-start;margin-top:6px;}
+    .com-thread-input textarea{flex:1;}
+    .com-thread-input .com-send{margin-top:2px;}
+    .com-thread textarea{width:100%;box-sizing:border-box;border:1px solid #e4e7eb;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;min-height:40px;background:#fafbfc;color:#0f1419;line-height:1.6;}
+    .com-thread textarea:focus{outline:none;border-color:#1d6fd1;background:#fff;}
+    .com-cmt{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #f2f4f6;}
+    .com-cmt:last-of-type{border-bottom:none;}
+    .com-cmt-reply{margin:0 0 0 4px;border-left:2px solid #e4e7eb;padding-left:10px;border-bottom:none;}
+    .com-cmt-av{flex:0 0 26px;width:26px;height:26px;font-size:11px;}
+    .com-cmt-body{flex:1;min-width:0;}
+    .com-cmt-head{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;flex-wrap:wrap;}
+    .com-cmt-head b{color:#0f1419;font-size:12px;}
+    .com-cmt-head i{font-style:normal;}
+    .com-badge-author{background:#0f1419;color:#fff;font-size:10px;padding:0 5px;border-radius:4px;font-weight:600;letter-spacing:1px;}
+    .com-cmt-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:#9aa3ad;}
+    .com-cmt-text{font-size:13px;color:#1f2933;line-height:1.65;margin:3px 0;}
+    .com-cmt-acts{display:flex;gap:14px;}
+    .com-reply-chip{display:inline-block;font-size:11px;color:#1d6fd1;background:#eef5ff;border-radius:99px;padding:2px 10px;margin-bottom:4px;}
+    .com-empty{padding:18px;text-align:center;color:#9aa3ad;font-size:13px;}
+    .com-cmt-loginhint{font-size:12px;color:#b8434e;}
+    .com-send{background:#1d6fd1;color:#fff;border:none;border-radius:99px;padding:6px 18px;font-weight:600;cursor:pointer;font-size:12px;font-family:inherit;}
+    .com-send:hover{background:#155bb0;}
+    .com-send:disabled{opacity:.6;cursor:default;}
+    .com-notice{display:flex;align-items:center;gap:8px;background:#fdf2f0;border:1px solid #f5d5d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;}
+    .com-notice-tag{color:#b8434e;font-weight:700;flex:0 0 auto;}
+    .com-notice-text{color:#1f2933;flex:1;min-width:0;line-height:1.5;}
+    .com-notice-meta{color:#9aa3ad;font-family:'JetBrains Mono',monospace;font-size:10px;flex:0 0 auto;}
+    .com-banner{position:relative;border-radius:10px;overflow:hidden;margin-bottom:12px;background:#0f1419;}
+    .com-banner-slide{display:none;position:relative;height:150px;}
+    .com-banner-slide.on{display:block;}
+    .com-banner-slide img{width:100%;height:150px;object-fit:cover;display:block;}
+    .com-banner-cap{position:absolute;left:0;right:0;bottom:0;padding:18px 14px 8px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;display:flex;align-items:baseline;gap:10px;}
+    .com-banner-cap b{font-size:14px;font-weight:700;}
+    .com-banner-cap span{font-size:11px;opacity:0.85;}
+    .com-banner-dots{position:absolute;right:12px;bottom:10px;display:flex;gap:5px;}
+    .com-dot{width:6px;height:6px;border-radius:50%;border:none;background:rgba(255,255,255,0.45);cursor:pointer;padding:0;}
+    .com-dot.on{background:#fff;}
+    .com-pub-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+    .com-pub-back{background:none;border:none;font-size:13px;color:#6b7280;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:6px;}
+    .com-pub-back:hover{background:#fff;color:#1d6fd1;}
+    .com-pub-head b{font-size:16px;color:#0f1419;letter-spacing:1px;}
+    .com-pub-card{background:#fff;border:1px solid #e4e7eb;border-radius:10px;padding:14px;}
+    .com-pub-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+    .com-pub-who{display:flex;flex-direction:column;line-height:1.3;}
+    .com-pub-who b{font-size:13px;color:#0f1419;}
+    .com-pub-who span{font-size:11px;color:#9aa3ad;}
+    .com-pub-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+    .com-pub-chip{background:#f6f7f8;border:1px solid #e4e7eb;border-radius:99px;padding:5px 14px;font-size:12px;color:#374151;cursor:pointer;font-family:inherit;}
+    .com-pub-chip:hover{border-color:#1d6fd1;color:#1d6fd1;}
+    .com-pub-chip.on{background:#eef5ff;border-color:#1d6fd1;color:#155bb0;font-weight:700;}
+    .com-pub-card textarea{width:100%;box-sizing:border-box;border:1px solid #e4e7eb;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:vertical;min-height:140px;background:#fafbfc;color:#0f1419;line-height:1.7;}
+    .com-pub-card textarea:focus{outline:none;border-color:#1d6fd1;background:#fff;}
+    .com-compose-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;flex-wrap:wrap;}
+    .com-compose-tools{display:flex;gap:4px;}
+    .com-tool{background:none;border:1px solid #e4e7eb;border-radius:6px;font-size:12px;color:#6b7280;cursor:pointer;padding:4px 10px;font-family:inherit;}
+    .com-tool:hover{border-color:#1d6fd1;color:#1d6fd1;}
+    .com-pub-btns{display:flex;align-items:center;gap:8px;}
+    .com-pub-submit{padding:7px 22px;font-size:13px;}
+    .com-pub-tip{font-size:11px;color:#9aa3ad;margin-top:8px;line-height:1.6;}
+    .com-stage-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+    .com-stage-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid #e4e7eb;}
+    .com-stage-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+    .com-stage-x{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;border:none;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;}
+    .com-stage-file{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1f2933;background:#f2f4f6;border-radius:6px;padding:5px 8px;position:relative;}
+    .com-stage-file .com-stage-x{position:static;background:#d0d5db;color:#0f1419;}
+    .com-imgs{display:grid;gap:6px;margin-top:8px;}
+    .com-imgs-1{grid-template-columns:1fr;}
+    .com-imgs-2{grid-template-columns:1fr 1fr;}
+    .com-imgs-3{grid-template-columns:repeat(3,1fr);}
+    .com-imgs img{width:100%;height:110px;object-fit:cover;border-radius:8px;border:1px solid #e4e7eb;cursor:zoom-in;display:block;}
+    .com-imgs-1 img{height:180px;}
+    .com-attach{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#1d6fd1;text-decoration:none;background:#f6f9fd;border:1px solid #e0ecf9;border-radius:6px;padding:6px 10px;}
+    .com-attach:hover{background:#eef5ff;}
+    .com-attach span{color:#9aa3ad;font-family:'JetBrains Mono',monospace;font-size:10px;margin-left:auto;}
+    #com-lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;}
+    #com-lightbox img{max-width:92vw;max-height:92vh;border-radius:8px;}
+    @media (max-width: 900px){
+      .com-body{flex-direction:column;}
+      .com-side{position:static;flex:none;display:flex;align-items:center;gap:2px;overflow-x:auto;padding:6px 8px;}
+      .com-side-title,.com-side-count,.com-side-foot{display:none;}
+      .com-side-item{flex:0 0 auto;padding:6px 12px;margin-bottom:0;}
+    }
+    @media (max-width: 600px){
+      .com-post{padding:10px 12px;}
+      .com-nav-sub{display:none;}
+    }
+  `), React.createElement("div", { ref: ref }));
 };
+
 var AboutSection = () => {
   const timeline = [
     { date: "每月", event: "1 次深度活动（2-3 小时）", desc: "主题沙龙 / 黑客松 / 作品展映" },
@@ -3022,8 +3684,12 @@ var Footer = () => {
     style: { fontFamily: "'JetBrains Mono', monospace", opacity: 0.6 }
   }, "v1.0 · CURVED SCREEN"))));
 };
+var HASH_PAGES = { home: 1, activities: 1, community: 1, about: 1 };
 var App = () => {
-  const [page, setPage] = React.useState("home");
+  const [page, setPage] = React.useState(function () {
+    var h = String(window.location.hash || "").replace(/^#/, "");
+    return HASH_PAGES[h] ? h : "home";
+  });
   const [selectedWork, setSelectedWork] = React.useState(null);
   const lightMode = page !== "home";
   const handleNavigate = (target) => {

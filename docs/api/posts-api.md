@@ -1,0 +1,190 @@
+# 社团社区 · 社交 Feed 接口契约（v3，当前有效）
+
+> 分支：`feat/community-page`（自 main 拉出）
+> 前端实现：`public/app.js` 的 `CommunitySection`（v4：高密度信息流 + 推荐/最新双 tab + 30s 自动刷新）
+> **本文档是社区页数据接口的唯一现行契约**。早期两份文档已废止：
+> - `docs/api/community-api.md`（moments 动态流）→ 被 posts 取代
+> - `docs/api/comments-api.md`（works 维度评论）→ 评论改挂在 posts 维度
+> 废止原因：页面改为「社交优先」布局，moments / 作品弹窗评论区 / 各分区陈列合并为统一帖子流。
+
+## 产品口径
+
+- **一进来就是帖子**：顶部发帖框 + 管理员置顶（精华/教程/资源）+ 高密度信息流，以社交为主
+- **推荐 / 最新双 tab**：默认「推荐」按互动加权+时间衰减排序，「最新」纯时间序（参考推特 For you / Latest）
+- **自动刷新**：前端每 30s 轮询一次（`after_id` 增量），新帖先收进顶部「有 N 条新帖子」提示条，用户点击才合并上屏——不打断浏览位置与正在输入的草稿
+- 任何人可随时发帖（登录后）；帖子可纯文字，可**内嵌一件作品/Agent**（附「⤓ 导入到我的环境」链接，走作品 source 字段）
+- 评论参考推特式排版：顶层新的在前、回复树按时间正序、**无限层级嵌套**（每层都有回复按钮，缩进最多到第 8 层防溢出）、帖子作者徽标、点赞
+- 置顶 = 管理员给帖子打标（featured / tutorial / resource），打标帖子从时间线提到置顶区
+
+## 数据模型（2 张表）
+
+`posts`：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | text PK | 时序可排序（如 `p-<ts>-<seq>`） |
+| `user_id` | bigint | 发帖人（登录用户） |
+| `author` / `dept` | text | 昵称/部门快照，列表直出 |
+| `text` | text | 正文，纯文本（前端转义），≤2000 字 |
+| `work_id` | int, null | 引用的 works.id（可选）；作品分享帖带此字段 |
+| `pinned` | boolean | 是否置顶 |
+| `tag` | text, null | 置顶标签枚举：`featured` / `tutorial` / `resource` |
+| `likes` | int | 点赞数（服务端权威） |
+| `deleted` | boolean | 软删 |
+| `created_at` | timestamp | 发帖时间 |
+
+`comments`（与早期 comments-api.md 的差异：`work_id` 改为 `post_id`）：
+`id` PK、`post_id`（索引）、`parent_id`、`user_id`、`author`/`dept` 快照、`text` ≤500 字、`likes`、`deleted`、`created_at`。
+嵌套规则（v9）：`parent_id` 可指向**同帖任意评论**（不限层级），前端渲染**无限层级嵌套**回复树；父评论被软删后子链不删，前端把孤儿提升为顶层展示。不再拍平。
+
+## 接口（挂 `/api/community`，contract.js 的 ok/err 包装）
+
+### GET /api/community/posts
+
+时间线（含置顶）。无鉴权。
+
+- 可选 query：
+  - `sort`：`top`（默认，推荐排序）或 `new`（纯时间倒序）
+  - `limit`（默认 30，上限 100）、`cursor`（游标向下翻页）
+  - `after_id`：增量拉取——只返回 id 晚于该值的新帖（**自动刷新用**，见下）
+- 排序：
+  - `sort=top`：置顶在前，其余按**推荐分**降序。推荐分（服务端权威公式，前端演示版同构）：
+    `score = (1 + likes + 2 × commentCount) × exp(-ageHours / 36)`
+    即互动加权（评论权重 2 倍于赞）× 36 小时半衰式时间衰减。置顶不参与打分。
+  - `sort=new`：置顶在前，其余纯时间倒序。
+
+```json
+{
+  "ok": true,
+  "data": {
+    "posts": [
+      {
+        "id": "p9", "author": "阿茉", "dept": "财务部",
+        "text": "把自用两个月的周报小结 Agent 挂上来了…",
+        "time": "09-01 15:12", "likes": 18, "liked": false,
+        "pinned": false, "tag": null, "commentCount": 5,
+        "work": { "id": 101, "kind": "app", "title": "飞书周报小结 Agent", "description": "…", "source": "https://…" }
+      }
+    ],
+    "nextCursor": null
+  }
+}
+```
+
+- `work` 为 null 表示纯文字帖；`work.source` 驱动「导入到我的环境」按钮（无则显示提示语）。
+- `liked`：当前登录用户是否已赞（未登录恒 false）。
+- 空列表返回 `"posts": []`，非错误。
+
+### POST /api/community/posts
+
+发帖。**要求登录**。body：`{ "content": "…", "work_id": 101 }`（`work_id` 可选，须为本人可见的作品）。
+校验：content 去空格非空 ≤2000 字。未登录 401（`err("UNAUTHORIZED", …)`，code 以现有 ErrorCodes 为准）。
+成功：`{ "ok": true, "data": { "post": { …同上单条结构, "commentCount": 0 } } }`。
+
+### GET /api/community/posts/:id/comments
+
+拉某帖评论（扁平列表，含全部层级，前端自行组树），展开评论区时前端调用。无鉴权。query：`limit` / `cursor`。
+排序口径：前端组树后顶层新的在前、各层回复时间正序。空列表非错误。
+
+### POST /api/community/posts/:id/comments
+
+发评论/回复。**要求登录**。body：`{ "content": "…", "parent_id": "c3" }`。
+`parent_id` 可选，须为**同帖任意未删除评论**的 id（v9：不限层级，直接存原值，不拍平）。
+成功：`{ "ok": true, "data": { "comment": { "id": "c8", "post_id": "p9", "parent_id": null, "author": "我", "dept": "", "text": "…", "time": "09-01 17:30", "likes": 0 } } }`。
+
+### POST /api/community/posts/:id/like 与 POST /api/community/posts/:id/comments/:cid/like
+
+切换点赞（toggle），要求登录。返回 `{ "ok": true, "data": { "likes": 13, "liked": true } }`。
+点赞去重可选：做则加 `likes(subject_type, subject_id, user_id)` 唯一键；不做则前端本地记状态。
+
+### DELETE /api/community/posts/:id 与 DELETE /api/comments/:id
+
+删自己的帖子/评论（软删）；admin 可删任何。返回 `{ "ok": true, "data": {} }`。
+
+### POST /api/admin/community/posts/:id/pin（管理员）
+
+置顶/取消置顶。body：`{ "pinned": true, "tag": "featured" }`（tag ∈ featured/tutorial/resource；取消置顶传 `pinned:false`）。走现有 admin 鉴权。返回 `{ "ok": true, "data": { "post": { … } } }`。
+
+### GET /api/community/config（新增 v5）
+
+返回顶部公告 + 图文轮播配置。响应：
+
+```json
+{ "ok": true, "data": {
+  "announcement": { "text": "公告正文", "author": "管理员", "time": "09-01 09:00" },
+  "banners": [
+    { "image": "https://…/banner.jpg", "title": "标题", "caption": "副标题" }
+  ],
+  "sections": [ { "key": "featured", "label": "精华", "desc": "官方精选" } ]
+} }
+```
+
+- `announcement` 可为 null（不渲染公告条）；`banners` 可为空数组（不渲染轮播）；`sections` 可省略（前端用内置枚举）。
+- banner 图片为可公网访问的 URL（CDN / 静态目录均可）；标题/副标题可省略。
+- 失败回落：前端回落 `/data/community.json` 顶层的 `announcement` / `banners` 字段（SEED 模式）。
+
+### POST /api/community/upload（新增 v5）
+
+发帖媒体上传。`multipart/form-data`，文件字段名 `file`。响应：
+
+```json
+{ "ok": true, "data": { "url": "/uploads/community/xxx.jpg", "name": "原始文件名.jpg", "size": 204800 } }
+```
+
+建议限制（对齐 works 现有上传中间件，可调）：图片 ≤ 5MB / 9 张，附件 ≤ 20MB / 5 个；图片类型 jpg/png/gif/webp，附件白名单 pdf/xlsx/docx/zip/pptx/txt/md。返回的 `url` 直接进 posts 的 `images[].url` / `attachments[].url`。
+
+### 帖子数据结构变更（v5 / v6）
+
+`posts` 表与 GET posts 返回的 post 对象新增可选字段：
+
+```json
+{
+  "images": [ { "url": "https://…/a.jpg", "name": "配图说明" } ],
+  "attachments": [ { "name": "检查清单.xlsx", "url": "/files/xxx.xlsx", "size": 38912 } ],
+  "section": "resource"
+}
+```
+
+`POST /api/community/posts` body 同步扩展：`{ "content": "...", "section": "chat", "images": [...], "attachments": [...] }`（均可省略）。评论暂不支持媒体（保持轻量）。
+
+### 分区（v6，v7 修订）
+
+- 浏览分区枚举：`featured`（精华）/ `resource`（资源分享）/ `tutorial`（教程攻略）/ `qa`（问答求助）/ `chat`（闲聊灌水）；`all` 是前端虚拟分区（首页全量），不落库。
+- **发帖分区枚举（v7）**：`resource` / `tutorial` / `qa` / `chat` 四个。`featured` 为管理侧精选分区（由管理员置顶/打标归类），**发帖接口不接受**——`POST /api/community/posts` 的 body 传 `section: "featured"` 时服务端返回 400（前端发布页已不提供精华选项）。
+- `posts.section` 缺省视为 `chat`；历史置顶帖（pinned+tag）按 tag 归区（前端有同样回退逻辑，服务端落库时建议直接补写 section）。
+- `GET /api/community/posts?sort=top|new&section=<key>`：可选 section 参数，按分区过滤返回；不传 = 全量。
+- **搜索（v7）**：信息流顶部搜索框按内容/作者实时过滤，当前为前端本地过滤（对已加载帖子）；预留服务端参数 `GET /api/community/posts?q=<关键词>`，后端支持后可替代本地过滤实现全量搜索，前端无需改结构。
+- 管理员置顶帖在任何分区视图里都排在最前（前端已实现；服务端排序时 pinned 优先）。
+- 分区列表可由 `GET /api/community/config` 的 `sections` 字段下发（`[{key,label,desc}]`），未下发时前端用内置默认枚举。
+
+## 前端调用点（合并时定位用）
+
+`public/app.js` → `CommunitySection`：
+- `loadPosts()`（`fetchPostsRaw(sort)`）：GET posts?sort=top|new，失败回落 `/data/community.json` 的 `posts`（SEED 标记；回落模式下推荐分由前端同构公式计算）
+- `poll()`（30s `setInterval`）：拉增量更新点赞/评论数（静默刷新），新帖进 `pendingNew`；`window.comShowNew` 点击合并
+- `window.comSort(mode)`：切 推荐/最新 tab（API 模式重新拉取服务端排序结果）
+- `snapshotDrafts()/restoreDrafts()`：重渲染前保存/恢复所有输入框草稿，自动刷新不丢内容
+- `window.comPost`：发帖（DEMO 本地内存；401 → 发帖框下登录提示）
+- `window.comToggleThread`：展开/收起行内评论串；首次展开 `loadComments(p)` GET comments
+- `window.comSendComment` / `comReplyComment` / `comCancelReply` / `comLikeComment` / `comLikePost`：评论与点赞（DEMO 本地切换；API 模式 POST 后以服务端返回覆盖）
+- `loadCfg()`：GET config → 回落 community.json 的 announcement/banners；`renderTop()` 渲染公告条 + 5s 自动轮播（`window.comBanner(i)` 手动切换）
+- `stageImages`/`stageFiles`（`window.comStageImg` / `comStageFile` / `comUnstage`）：发帖前本地暂存（图片≤9、附件≤5，URL.createObjectURL 预览）
+- `window.comPost`（v5）：API 模式先 `uploadOne()` 逐个 POST upload，全部成功后再 POST posts；DEMO 模式直接带本地 blob 链接发帖
+- `mediaHtml(p)`：帖子图片九宫格（1-3 列布局）+ 附件条；`window.comViewer(u)` 大图查看器（#com-lightbox）
+- 顶部导航栏 + 左侧分区侧边栏（v6）：`window.comGoSection(key)` 切分区（首页 all=全量；侧边栏含各分区帖子计数）；`renderSidebar()` 随轮询刷新计数
+- 搜索框（v7，替代原 ghost 引导条）：`window.comSearch(v)` 按内容/作者过滤信息流、`window.comSearchClear()` 清空；输入框在 #com-feed 之外，重渲染不丢焦点
+- 独立发布页（v6，v7 去掉精华选项）：`window.comOpenPublish()`（导航栏右上「发布」按钮进入）、`comPubSection(key)` 选分区（resource/tutorial/qa/chat）、`comPubDraft(v)` 草稿保留、`comClosePublish()` 返回（草稿保留）、`comDiscardPublish()` 清空、`comSubmitPublish()` 提交（API 模式先 upload 再 POST posts，body 含 section）
+- 「导入到我的环境」按钮：`post.work.source` 外链，**无需新接口**
+
+## 后端接入建议（合并时做，本分支不做）
+
+1. 新建 `server/routes/community.js`，风格对齐 works.js（contract + validate）；建 posts / comments 两表。
+2. `server/server.js` 挂载 `app.use('/api/community', communityRouter)`；admin 置顶子路由走现有 admin 鉴权中间件。
+3. 发帖/评论/点赞一律 `req.session.userId`（与 works 上传同口径）。
+4. upload 复用 works 的 multer/静态目录方案（建议独立子目录 `uploads/community/`）；config 可先做成读 env / 管理后台可写的简单表，或直接返回固定 JSON。
+4. 上线后前端零改动自动切换（回落只在接口失败时生效）；种子数据可删可留。
+
+## 兼容性说明
+
+- 本分支不改 `server/` 任何文件、不改其它页面；新增 CSS 全部 `com-` 前缀。
+- 页面不再请求 `/api/works` 与 `/data/community.json` 的 moments/courses/resources/partner 字段——作品数据通过 posts.work 内嵌返回（后端联 works 表），静态分区数据全部并入置顶帖子。
