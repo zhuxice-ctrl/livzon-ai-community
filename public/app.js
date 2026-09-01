@@ -667,6 +667,13 @@ var ActivitiesSection = () => {
       });
     };
     window.actClose = function () { var el = document.getElementById("act-modal"); if (el) el.style.display = "none"; };
+    window.actSignup = function (url) {
+      if (!url) return;
+      fetch("/api/my/profile").then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.ok) { window.location.href = url; }
+        else { window.location.href = "/login.html"; }
+      }).catch(function () { window.location.href = "/login.html"; });
+    };
     fetch("/api/activities").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (j) {
       if (!j.ok || cancelled || !ref.current) return;
       var data = j.data;
@@ -676,17 +683,41 @@ var ActivitiesSection = () => {
       var types = data.types || [];
       var h = "";
       h += "<div class='act-hero'><div class='act-eyebrow'>ACTIVITIES · 活动大厅</div><div class='act-title-wrap'><h1 class='act-title-lg' id='actPhysicsTitle' aria-label='玩出来的 AI'><!-- 字符由物理引擎注入 --></h1></div><p class='act-sub'>" + esc(data.motto || "") + "</p><div class='hero-hint' id='actHeroHint'><span><span class='hint-dot'></span>点击字符 · 让它掉下去</span><span><span class='hint-dot'></span>掉的过程中可以滚动页面 · 惯性不会被打断</span></div><button class='reset-btn' id='actResetBtn' type='button'>重置标题</button></div>";
+      // 活动统计条（新增：汇总 past[*].stats）
+      var focusSignup = focus && focus.signup ? focus.signup : "";
+      var signupBtnHtml = function (url, cls, label) {
+        return url
+          ? "<button class='" + cls + "' onclick=\"window.actSignup&&window.actSignup('" + esc(url) + "')\">" + label + "</button>"
+          : "<button class='" + cls + "' disabled>联系群内报名</button>";
+      };
+      var statSum = function (keys) {
+        var s = 0;
+        past.forEach(function (a) {
+          var st = a.stats || {};
+          keys.forEach(function (k) { if (typeof st[k] === "number") s += st[k]; });
+        });
+        return s;
+      };
+      var kpis = [
+        { n: past.length, l: "已办场次" },
+        { n: statSum(["participants", "speakers", "teams"]), l: "累计参与" },
+        { n: statSum(["works", "mvp", "inWall", "production"]), l: "沉淀作品" },
+        { n: types.length, l: "活动类型" }
+      ];
+      h += "<div class='act-statbar'>" + kpis.map(function (k) {
+        return "<div class='act-stat'><div class='n'>" + (k.n ? k.n : "—") + "</div><div class='l'>" + k.l + "</div></div>";
+      }).join("") + "</div>";
       // 本月焦点
       h += "<div class='act-sechead'><span class='act-sectitle'>本月焦点</span><span class='act-secen'>SPOTLIGHT</span></div>";
       if (focus) {
         var fc = focus.color || "#5b8cff";
-        h += "<div class='act-focus'><span class='act-focusbar' style='background:" + fc + "'></span><div class='act-focus-in'><span class='act-focustag'>" + esc(focus.tag || "本月焦点") + "</span><div class='act-focusname'>" + esc(focus.name) + "</div><div class='act-focusmeta'>◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location) + "</div><p class='act-focusdesc'>" + esc(focus.desc) + "</p><div>" + (focus.highlights || []).map(function (x) { return "<span class='ftag'># " + esc(x) + "</span>"; }).join("") + "</div></div></div>";
+        h += "<div class='act-focus'><span class='act-focusbar' style='background:" + fc + "'></span><div class='act-focus-in'><span class='act-focustag'>" + esc(focus.tag || "本月焦点") + "</span><div class='act-focusname'>" + esc(focus.name) + "</div><div class='act-focusmeta'>◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location) + "</div><p class='act-focusdesc'>" + esc(focus.desc) + "</p><div>" + (focus.highlights || []).map(function (x) { return "<span class='ftag'># " + esc(x) + "</span>"; }).join("") + "</div>" + "<div class='act-focus-cta'>" + signupBtnHtml(focus.signup, "act-signup-btn", "去报名") + "</div></div></div>";
       } else {
         h += "<div class='act-focus'><div class='act-focus-in'><span class='act-focustag'>敬请期待</span><div class='act-focusname'>下一场活动筹备中</div><p class='act-focusdesc'>我们正在策划下一场深度活动。</p></div></div>";
       }
       // 接下来
       h += "<div class='act-sechead'><span class='act-sectitle'>接下来</span><span class='act-secen'>UPCOMING</span></div>";
-      h += "<div class='act-upcoming'>" + upcoming.map(function (a) { return "<div class='tl-item'><div class='tl-dot' style='background:" + (a.color || "#5b8cff") + "'></div><div class='tl-month'>" + esc(a.dateLabel) + "</div><div class='tl-name'>" + esc(a.name) + "</div><span class='tl-tag'>" + esc(a.tag || "") + "</span><div class='tl-loc'>" + esc(a.location) + "</div></div>"; }).join("") + "</div>";
+      h += "<div class='act-upcoming'>" + upcoming.map(function (a) { return "<div class='tl-item'><div class='tl-dot' style='background:" + (a.color || "#5b8cff") + "'></div><div class='tl-month'>" + esc(a.dateLabel) + "</div><div class='tl-name'>" + esc(a.name) + "</div><span class='tl-tag'>" + esc(a.tag || "") + "</span><div class='tl-loc'>" + esc(a.location) + "</div>" + signupBtnHtml(a.signup || focusSignup, "tl-signup", "报名 / 预约") + "</div>"; }).join("") + "</div>";
       // 往期回顾
       h += "<div class='act-sechead'><span class='act-sectitle'>往期回顾</span><span class='act-secen'>ARCHIVE · 点击查看回顾</span></div>";
       h += "<div class='act-past'>" + past.map(function (a) {
@@ -1510,6 +1541,18 @@ var ActivitiesSection = () => {
     .act-title-bubble path{fill:#fff;stroke:#1a1a1f;stroke-width:3;stroke-linejoin:round;stroke-linecap:round;}
     .act-title-bubble span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 24px 12px;white-space:nowrap;}
     .act-sub{margin-top:20px;color:#666;font-size:15px;line-height:1.9;max-width:560px;}
+    .act-statbar{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:38px;}
+    .act-stat{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:8px;padding:22px 24px;}
+    .act-stat .n{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:500;color:#1a1a1f;line-height:1;}
+    .act-stat .l{font-size:11px;color:#999;letter-spacing:1px;margin-top:6px;}
+    @media(max-width:900px){.act-statbar{grid-template-columns:repeat(2,1fr);}}
+    .act-focus-cta{margin-top:8px;text-align:right;}
+    .act-signup-btn{display:inline-block;font-size:13px;letter-spacing:2px;padding:11px 30px;border-radius:999px;border:none;background:linear-gradient(135deg,#2568d8,#173f8f);color:#fff;font-weight:600;cursor:pointer;font-family:inherit;transition:filter .2s;}
+    .act-signup-btn:hover{filter:brightness(1.12);}
+    .act-signup-btn:disabled{background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.45);cursor:not-allowed;letter-spacing:1px;}
+    .tl-signup{margin-top:14px;display:inline-block;font-size:11px;letter-spacing:1px;padding:7px 16px;border-radius:999px;border:1px solid #2568d8;color:#2568d8;background:transparent;cursor:pointer;font-family:inherit;transition:background .2s,color .2s;}
+    .tl-signup:hover{background:#2568d8;color:#fff;}
+    .tl-signup:disabled{border-color:#bbb;color:#aaa;cursor:not-allowed;}
     .act-sechead{display:flex;align-items:baseline;gap:14px;margin:60px 0 22px;}
     .act-sectitle{font-family:'Noto Serif SC',serif;font-size:22px;font-weight:500;letter-spacing:2px;}
     .act-secen{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#aaa;}
