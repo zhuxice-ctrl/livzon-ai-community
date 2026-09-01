@@ -2043,12 +2043,19 @@ var CommunitySection = () => {
       n = +n || 0;
       return n > 1048576 ? (n / 1048576).toFixed(1) + "MB" : n > 1024 ? Math.round(n / 1024) + "KB" : n + "B";
     }
-    function mediaHtml(p) {
+    function mediaHtml(p, pid) {
       var h = "";
-      if (p.images && p.images.length) {
-        h += "<div class='com-imgs com-imgs-" + Math.min(p.images.length, 3) + "'>" + p.images.map(function (im) {
-          var u = typeof im === "string" ? im : im.url;
-          return "<img src='" + esc(u) + "' alt='' loading='lazy' onclick=\"window.comViewer&&window.comViewer('" + esc(u).replace(/'/g, "") + "')\">";
+      var imgs = (p.images || []).map(function (im) { return typeof im === "string" ? im : (im.url || ""); }).filter(Boolean);
+      if (imgs.length) {
+        var cols = imgs.length === 1 ? 1 : (imgs.length === 2 ? 2 : 3);
+        var show = imgs.slice(0, 3);
+        var extra = imgs.length - 3;
+        window.__comImgs = window.__comImgs || {};
+        window.__comImgs[pid] = imgs;
+        h += "<div class='com-imgs com-imgs-" + cols + "'>" + show.map(function (u, i) {
+          var extraCls = (extra > 0 && i === 2) ? " com-imgi-extra" : "";
+          var badge = (extra > 0 && i === 2) ? "<span class='com-img-more'>+" + extra + " 张</span>" : "";
+          return "<div class='com-imgi" + extraCls + "' onclick=\"window.comViewer&&window.comViewer('" + String(pid).replace(/'/g, "") + "'," + i + ")\"><img src='" + esc(u) + "' alt='' loading='lazy'>" + badge + "</div>";
         }).join("") + "</div>";
       }
       if (p.attachments && p.attachments.length) {
@@ -2071,7 +2078,7 @@ var CommunitySection = () => {
         "<span class='com-post-time'>" + esc(p.time || "") + "</span></div>" +
         "<p class='com-post-text'>" + esc(p.text || "") + "</p>" +
         workEmbed(p) +
-        mediaHtml(p) +
+        mediaHtml(p, pid) +
         "<div class='com-post-acts'>" +
         "<button class='com-act" + (open ? " on" : "") + "' onclick=\"window.comToggleThread&&window.comToggleThread('" + esc(pid) + "')\">💬 " + cc + "</button>" +
         "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥" : "♡") + " " + (p.likes || 0) + "</button>" +
@@ -2295,11 +2302,43 @@ var CommunitySection = () => {
       renderStage();
     };
     window.comBanner = function (i) { bannerIdx = i; restartBanner(); renderTop(); };
-    window.comViewer = function (u) {
+    window.comViewer = function (pid, idx) {
       var lb = document.getElementById("com-lightbox");
       if (!lb) return;
-      lb.innerHTML = "<img src='" + esc(u) + "' alt=''>";
+      var imgs = (window.__comImgs && window.__comImgs[pid]) || [];
+      if (typeof pid !== "string" || !imgs.length) {
+        // 兼容单图直传 URL 的旧调用
+        lb.innerHTML = "<img src='" + esc(pid) + "' alt=''>";
+        lb.style.display = "flex";
+        return;
+      }
+      idx = +idx || 0;
+      var n = imgs.length;
+      window.__comViewerState = { pid: pid, idx: idx, n: n };
+      lb.innerHTML =
+        "<div class='com-lb-wrap' onclick='event.stopPropagation()'>" +
+        (n > 1 ? "<button class='com-lb-nav com-lb-prev' onclick='window.comViewerNav(-1)'>‹</button>" : "") +
+        "<img src='" + esc(imgs[idx]) + "' alt=''>" +
+        (n > 1 ? "<button class='com-lb-nav com-lb-next' onclick='window.comViewerNav(1)'>›</button>" : "") +
+        (n > 1 ? "<div class='com-lb-count'>" + (idx + 1) + " / " + n + "</div>" : "") +
+        "</div>";
       lb.style.display = "flex";
+    };
+    window.comViewerNav = function (step) {
+      var st = window.__comViewerState;
+      if (!st) return;
+      var imgs = (window.__comImgs && window.__comImgs[st.pid]) || [];
+      if (!imgs.length) return;
+      st.idx = (st.idx + step + st.n) % st.n;
+      var lb = document.getElementById("com-lightbox");
+      if (!lb) return;
+      var w = lb.querySelector(".com-lb-wrap");
+      if (w) {
+        var img = w.querySelector("img");
+        if (img) img.src = esc(imgs[st.idx]);
+        var c = w.querySelector(".com-lb-count");
+        if (c) c.textContent = (st.idx + 1) + " / " + st.n;
+      }
     };
     window.comViewerClose = function () {
       var lb = document.getElementById("com-lightbox");
@@ -2560,6 +2599,9 @@ var CommunitySection = () => {
       delete window.comUnstage;
       delete window.comViewer;
       delete window.comViewerClose;
+      delete window.comViewerNav;
+      delete window.__comImgs;
+      delete window.__comViewerState;
       delete window.comSort;
       delete window.comShowNew;
       delete window.comToggleThread;
@@ -2708,13 +2750,22 @@ var CommunitySection = () => {
     .com-imgs-1{grid-template-columns:1fr;}
     .com-imgs-2{grid-template-columns:1fr 1fr;}
     .com-imgs-3{grid-template-columns:repeat(3,1fr);}
-    .com-imgs img{width:100%;height:110px;object-fit:cover;border-radius:8px;border:1px solid #e4e7eb;cursor:zoom-in;display:block;}
-    .com-imgs-1 img{height:180px;}
+    .com-imgi{position:relative;overflow:hidden;border-radius:8px;border:1px solid #e4e7eb;cursor:zoom-in;background:#f4f6f8;}
+    .com-imgi img{width:100%;height:110px;object-fit:cover;display:block;}
+    .com-imgs-1 .com-imgi img{height:auto;max-height:420px;object-fit:cover;}
+    .com-imgi-extra::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.45);}
+    .com-img-more{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:700;letter-spacing:1px;}
     .com-attach{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#1d6fd1;text-decoration:none;background:#f6f9fd;border:1px solid #e0ecf9;border-radius:6px;padding:6px 10px;}
     .com-attach:hover{background:#eef5ff;}
     .com-attach span{color:#9aa3ad;font-family:'JetBrains Mono',monospace;font-size:10px;margin-left:auto;}
-    #com-lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;}
-    #com-lightbox img{max-width:92vw;max-height:92vh;border-radius:8px;}
+    #com-lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;}
+    #com-lightbox img{max-width:92vw;max-height:90vh;border-radius:8px;box-shadow:0 12px 50px rgba(0,0,0,0.5);}
+    .com-lb-wrap{position:relative;cursor:auto;display:flex;align-items:center;justify-content:center;}
+    .com-lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:none;background:rgba(255,255,255,0.16);color:#fff;font-size:26px;line-height:1;cursor:pointer;transition:background .2s;}
+    .com-lb-nav:hover{background:rgba(255,255,255,0.3);}
+    .com-lb-prev{left:-60px;}
+    .com-lb-next{right:-60px;}
+    .com-lb-count{position:absolute;bottom:-42px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(0,0,0,0.5);padding:4px 12px;border-radius:999px;}
     @media (max-width: 900px){
       .com-body{flex-direction:column;}
       .com-side{position:static;flex:none;display:flex;align-items:center;gap:2px;overflow-x:auto;padding:6px 8px;}
