@@ -65,6 +65,7 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
   const textColor = lightMode ? "#1a1a1f" : "#fff";
   const subColor = lightMode ? "rgba(26,26,31,0.5)" : "rgba(255,255,255,0.5)";
   const [user, setUser] = React.useState(null);
+  const [showMsg, setShowMsg] = React.useState(false);
   React.useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json()).then((j) => {
       if (j && j.authenticated && j.data) {
@@ -75,6 +76,16 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
       }
     }).catch(() => {});
   }, []);
+  React.useEffect(() => {
+    if (!showMsg) return;
+    const onClick = (e) => {
+      const pop = document.getElementById("nav-msg-pop");
+      if (pop && e.target instanceof Node && pop.contains(e.target)) return;
+      setShowMsg(false);
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [showMsg]);
   const isLogged = !!(user && user.userId);
   const navItems = [
     { key: "home", label: "作品巨幕" },
@@ -140,7 +151,33 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
       height: 1,
       background: textColor
     }
-  })))), isLogged ? /* @__PURE__ */ React.createElement("a", {
+  })))), isLogged ? /* @__PURE__ */ React.createElement("div", {
+    style: { display: "flex", alignItems: "center", gap: 10 }
+  }, /* @__PURE__ */ React.createElement("div", {
+    onClick: (e) => { e.stopPropagation(); setShowMsg(true); },
+    style: {
+      position: "relative",
+      width: 36, height: 36, borderRadius: "50%",
+      alignItems: "center", justifyContent: "center",
+      display: "flex", cursor: "pointer",
+      color: textColor,
+      border: `1px solid ${lightMode ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.14)"}`,
+      transition: "all 0.2s ease"
+    },
+    onMouseEnter: (e) => { e.currentTarget.style.background = lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.08)"; },
+    onMouseLeave: (e) => { e.currentTarget.style.background = "transparent"; }
+  }, /* @__PURE__ */ React.createElement("svg", {
+    width: 18, height: 18, viewBox: "0 0 24 24", fill: "none"
+  }, /* @__PURE__ */ React.createElement("path", {
+    d: "M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"
+  }), /* @__PURE__ */ React.createElement("path", {
+    d: "M10.3 21a1.94 1.94 0 0 0 3.4 0", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"
+  })), /* @__PURE__ */ React.createElement("span", {
+    style: {
+      position: "absolute", top: 4, right: 5, width: 7, height: 7,
+      borderRadius: "50%", background: "#e5484d", border: "1px solid transparent"
+    }
+  })), /* @__PURE__ */ React.createElement("a", {
     href: "/#my",
     style: {
       display: "flex",
@@ -170,7 +207,7 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
     }
   }, (user.name || "我").charAt(0)), /* @__PURE__ */ React.createElement("span", {
     style: { fontSize: 13, fontWeight: 500, letterSpacing: 1 }
-  }, "个人中心")) : /* @__PURE__ */ React.createElement("button", {
+  }, "个人中心"))) : /* @__PURE__ */ React.createElement("button", {
     style: {
       background: lightMode ? "#1a1a1f" : "#fff",
       color: lightMode ? "#fff" : "#0a0a0d",
@@ -192,7 +229,35 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
       e.currentTarget.style.boxShadow = "none";
     },
     onClick: () => onNavigate("join")
-  }, "加入社团"));
+  }, "加入社团"), showMsg ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", {
+    id: "nav-msg-pop",
+    onClick: (e) => e.stopPropagation(),
+    style: {
+      position: "fixed", top: 64, right: 40, zIndex: 61,
+      width: 340, maxHeight: 420, overflowY: "auto",
+      background: lightMode ? "#fff" : "#121218",
+      border: `1px solid ${lightMode ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)"}`,
+      borderRadius: 14,
+      boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+      color: textColor,
+      fontFamily: "'Noto Sans SC', sans-serif"
+    }
+  }, /* @__PURE__ */ React.createElement("div", {
+    style: { padding: "16px 20px", borderBottom: `1px solid ${lightMode ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.08)"}`, display: "flex", justifyContent: "space-between", alignItems: "center" }
+  }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 700, letterSpacing: 1 } }, "最近消息"), /* @__PURE__ */ React.createElement("span", {
+    onClick: () => setShowMsg(false),
+    style: { cursor: "pointer", color: subColor, fontSize: 18, lineHeight: 1 }
+  }, "×")), /* @__PURE__ */ React.createElement("div", null,
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 20px", borderBottom: `1px solid ${lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)"}` } },
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, "欢迎加入 AI 社团"),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: subColor, lineHeight: 1.7 } }, "这是你的消息中心，活动通知与作品审核结果会显示在这里。")),
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 20px", borderBottom: `1px solid ${lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)"}` } },
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, "作品「我的测试作品」待审核"),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: subColor, lineHeight: 1.7 } }, "管理员审核通过后将对外展示。")),
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 20px" } },
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, "AI 资源中心已上线"),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: subColor, lineHeight: 1.7 } }, "点击右上角「AI 资源中心」进入申请。")))
+  )) : null);
 };
 var CurvedWall = ({ onWorkClick }) => {
   const [hoverIndex, setHoverIndex] = React.useState(null);
