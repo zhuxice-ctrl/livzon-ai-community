@@ -13,7 +13,7 @@
 - **推荐 / 最新双 tab**：默认「推荐」按互动加权+时间衰减排序，「最新」纯时间序（参考推特 For you / Latest）
 - **自动刷新**：前端每 30s 轮询一次（`after_id` 增量），新帖先收进顶部「有 N 条新帖子」提示条，用户点击才合并上屏——不打断浏览位置与正在输入的草稿
 - 任何人可随时发帖（登录后）；帖子可纯文字，可**内嵌一件作品/Agent**（附「⤓ 导入到我的环境」链接，走作品 source 字段）
-- 评论参考推特：顶层新的在前、回复一层嵌套时间正序、回复的回复拍平到根、帖子作者徽标、点赞
+- 评论参考推特式排版：顶层新的在前、回复树按时间正序、**无限层级嵌套**（每层都有回复按钮，缩进最多到第 8 层防溢出）、帖子作者徽标、点赞
 - 置顶 = 管理员给帖子打标（featured / tutorial / resource），打标帖子从时间线提到置顶区
 
 ## 数据模型（2 张表）
@@ -35,7 +35,7 @@
 
 `comments`（与早期 comments-api.md 的差异：`work_id` 改为 `post_id`）：
 `id` PK、`post_id`（索引）、`parent_id`、`user_id`、`author`/`dept` 快照、`text` ≤500 字、`likes`、`deleted`、`created_at`。
-拍平规则：回复的回复由后端统一挂到根评论 `parent_id`（一层嵌套）。
+嵌套规则（v9）：`parent_id` 可指向**同帖任意评论**（不限层级），前端渲染**无限层级嵌套**回复树；父评论被软删后子链不删，前端把孤儿提升为顶层展示。不再拍平。
 
 ## 接口（挂 `/api/community`，contract.js 的 ok/err 包装）
 
@@ -83,13 +83,13 @@
 
 ### GET /api/community/posts/:id/comments
 
-拉某帖评论（含一层回复），展开评论区时前端调用。无鉴权。query：`limit` / `cursor`。
-排序口径：顶层新的在前、回复时间正序。空列表非错误。
+拉某帖评论（扁平列表，含全部层级，前端自行组树），展开评论区时前端调用。无鉴权。query：`limit` / `cursor`。
+排序口径：前端组树后顶层新的在前、各层回复时间正序。空列表非错误。
 
 ### POST /api/community/posts/:id/comments
 
 发评论/回复。**要求登录**。body：`{ "content": "…", "parent_id": "c3" }`。
-`parent_id` 可选，须为**同帖**的顶层评论 id；回复的回复后端拍平到根再入库。
+`parent_id` 可选，须为**同帖任意未删除评论**的 id（v9：不限层级，直接存原值，不拍平）。
 成功：`{ "ok": true, "data": { "comment": { "id": "c8", "post_id": "p9", "parent_id": null, "author": "我", "dept": "", "text": "…", "time": "09-01 17:30", "likes": 0 } } }`。
 
 ### POST /api/community/posts/:id/like 与 POST /api/community/posts/:id/comments/:cid/like

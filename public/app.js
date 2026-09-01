@@ -1645,54 +1645,57 @@ var CommunitySection = () => {
       return null;
     }
 
-    // ===== 评论规整（推特式：顶层新的在前 + 一层嵌套回复按时间正序） =====
-    function flattenReply(c, byId) {
-      var p = c.parent_id != null ? byId[String(c.parent_id)] : null;
-      if (p && p.parent_id != null) c.parent_id = p.parent_id;
-      return c;
-    }
+    // ===== 评论规整（无限层级嵌套：顶层新的在前 + 各层回复按时间正序） =====
     function normComments(raw) {
       var byId = {};
       (raw || []).forEach(function (c) { byId[String(c.id)] = c; });
-      var tops = [], kids = {}, orphans = [];
+      var kids = {};
       (raw || []).forEach(function (c) {
         if (c.deleted) return;
-        flattenReply(c, byId);
         var parent = c.parent_id != null ? byId[String(c.parent_id)] : null;
-        if (c.parent_id != null && parent && !parent.deleted) {
+        if (parent && !parent.deleted) {
           (kids[String(c.parent_id)] = kids[String(c.parent_id)] || []).push(c);
-        } else if (c.parent_id != null) {
-          c.parent_id = null; orphans.push(c);
         } else {
-          tops.push(c);
+          if (c.parent_id != null) c.parent_id = null; // 父被删/缺失 → 提升为顶层
+          (kids.__root__ = kids.__root__ || []).push(c);
         }
       });
       var ts = function (c) { return String(c.time || c.created_at || ""); };
-      tops.sort(function (a, b) { return ts(b).localeCompare(ts(a)); });
       Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return ts(a).localeCompare(ts(b)); }); });
-      orphans.forEach(function (c) { tops.push(c); });
-      return tops.map(function (c) {
-        c._replies = kids[String(c.id)] || [];
+      var attach = function (c) {
+        c._replies = (kids[String(c.id)] || []).map(function (r) { attach(r); return r; });
         c._likes = c.likes || 0; c._liked = false;
         return c;
-      });
+      };
+      var tops = (kids.__root__ || []).map(function (c) { return attach(c); });
+      tops.sort(function (a, b) { return ts(b).localeCompare(ts(a)); });
+      return tops;
     }
     function commentsToRaw(list) {
       var raw = [];
-      (list || []).forEach(function (t) {
-        raw.push({ id: t.id, parent_id: null, author: t.author, dept: t.dept, text: t.text, time: t.time, likes: t._likes });
-        (t._replies || []).forEach(function (r) {
-          raw.push({ id: r.id, parent_id: t.id, author: r.author, dept: r.dept, text: r.text, time: r.time, likes: r._likes });
+      (function walk(arr, parentId) {
+        (arr || []).forEach(function (c) {
+          raw.push({ id: c.id, parent_id: parentId, author: c.author, dept: c.dept, text: c.text, time: c.time, likes: c._likes });
+          walk(c._replies || [], c.id);
         });
-      });
+      })(list, null);
       return raw;
     }
-    function commentCount(p) {
-      if (p.comments) {
-        var n = 0;
-        p.comments.forEach(function (c) { n += 1 + (c._replies ? c._replies.length : 0); });
-        return n;
+    function countComments(arr) {
+      var n = 0;
+      (arr || []).forEach(function (c) { n += 1 + countComments(c._replies || []); });
+      return n;
+    }
+    function findComment(list, cid) {
+      for (var i = 0; i < (list || []).length; i++) {
+        if (String(list[i].id) === String(cid)) return list[i];
+        var hit = findComment(list[i]._replies || [], cid);
+        if (hit) return hit;
       }
+      return null;
+    }
+    function commentCount(p) {
+      if (p.comments) return countComments(p.comments);
       return p.commentCount || 0;
     }
 
@@ -1776,10 +1779,12 @@ var CommunitySection = () => {
         (w.source ? "<a class='com-embed-import' href='" + esc(w.source) + "' target='_blank' rel='noopener'>⤓ 导入到我的环境</a>" : "<span class='com-embed-nolink'>作者未挂分享链接</span>") +
         "</div>";
     }
-    function cmtHtml(p, c, isReply) {
+    function cmtHtml(p, c, depth) {
+      depth = depth || 0;
       var pid = postKey(p);
       var isAuthor = !!(p.author && c.author && c.author === p.author);
-      return "<div class='com-cmt" + (isReply ? " com-cmt-reply" : "") + "'>" +
+      var replyCls = depth > 0 && depth <= 8 ? " com-cmt-reply" : "";
+      return "<div class='com-cmt" + replyCls + "'>" +
         "<span class='com-avatar com-cmt-av'>" + esc((c.author || "同").slice(0, 1)) + "</span>" +
         "<div class='com-cmt-body'>" +
         "<div class='com-cmt-head'><b>" + esc(c.author || "同学") + "</b>" + (c.dept ? "<i>" + esc(c.dept) + "</i>" : "") +
@@ -1788,13 +1793,13 @@ var CommunitySection = () => {
         "<p class='com-cmt-text'>" + esc(c.text || "") + "</p>" +
         "<div class='com-cmt-acts'>" +
         "<button class='com-act" + (c._liked ? " on" : "") + "' id='clike-" + esc(pid) + "-" + esc(String(c.id)) + "' onclick=\"window.comLikeComment&&window.comLikeComment('" + esc(pid) + "','" + esc(String(c.id)) + "')\">" + (c._liked ? "♥ 已赞" : "♡ 赞") + " " + c._likes + "</button>" +
-        (isReply ? "" : "<button class='com-act' onclick=\"window.comReplyComment&&window.comReplyComment('" + esc(pid) + "','" + esc(String(c.id)) + "','" + esc(String(c.author || "同学")).replace(/'/g, "") + "')\">回复</button>") +
+        "<button class='com-act' onclick=\"window.comReplyComment&&window.comReplyComment('" + esc(pid) + "','" + esc(String(c.id)) + "','" + esc(String(c.author || "同学")).replace(/'/g, "") + "')\">回复</button>" +
         "</div></div></div>" +
-        (c._replies || []).map(function (r) { return cmtHtml(p, r, true); }).join("");
+        (c._replies || []).map(function (r) { return cmtHtml(p, r, depth + 1); }).join("");
     }
     function threadHtml(p) {
       var pid = postKey(p);
-      var list = (p.comments || []).map(function (c) { return cmtHtml(p, c, false); }).join("");
+      var list = (p.comments || []).map(function (c) { return cmtHtml(p, c, 0); }).join("");
       var rs = replyState[pid];
       return "<div class='com-thread'>" +
         (list || "<div class='com-empty'>还没有人评论——说点什么吧。</div>") +
@@ -2259,11 +2264,7 @@ var CommunitySection = () => {
     window.comLikeComment = function (pid, cid) {
       var p = findPost(pid);
       if (!p) return;
-      var hit = null;
-      (p.comments || []).forEach(function (t) {
-        if (String(t.id) === String(cid)) hit = t;
-        (t._replies || []).forEach(function (r) { if (String(r.id) === String(cid)) hit = r; });
-      });
+      var hit = findComment(p.comments || [], cid);
       if (!hit) return;
       var btn = document.getElementById("clike-" + pid + "-" + cid);
       if (!postsApi) {
