@@ -90,9 +90,7 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
   const navItems = [
     { key: "home", label: "作品巨幕" },
     { key: "activities", label: "活动大厅" },
-    { key: "community", label: "社团社区" },
-    { key: "about", label: "关于我们" },
-    { key: "report", label: "数据报表" }
+    { key: "community", label: "社团社区" }
   ];
   return /* @__PURE__ */ React.createElement("nav", {
     className: "site-nav",
@@ -3029,10 +3027,6 @@ var App = () => {
   const [selectedWork, setSelectedWork] = React.useState(null);
   const lightMode = page !== "home";
   const handleNavigate = (target) => {
-    if (target === "report") {
-      window.location.href = "report.html";
-      return;
-    }
     if (target === "join") {
       window.location.href = "login.html";
       return;
@@ -3072,7 +3066,7 @@ var App = () => {
   })), page === "work" && selectedWork !== null && /* @__PURE__ */ React.createElement(WorkDetail, {
     workIdx: selectedWork,
     onBack: () => handleNavigate("home")
-  }), page === "activities" && /* @__PURE__ */ React.createElement(ActivitiesSection, null), page === "my" && /* @__PURE__ */ React.createElement(MySection, null), page === "community" && /* @__PURE__ */ React.createElement(CommunitySection, null), page === "about" && /* @__PURE__ */ React.createElement(AboutSection, null), page === "join" && /* @__PURE__ */ React.createElement(JoinSection, null), /* @__PURE__ */ React.createElement(Footer, null), /* @__PURE__ */ React.createElement("style", null, `
+  }), page === "activities" && /* @__PURE__ */ React.createElement(ActivitiesSection, null), page === "my" && /* @__PURE__ */ React.createElement(MySection, null), page === "community" && /* @__PURE__ */ React.createElement(CommunitySection, null), page === "join" && /* @__PURE__ */ React.createElement(JoinSection, null), /* @__PURE__ */ React.createElement(Footer, null), /* @__PURE__ */ React.createElement("style", null, `
         /* ===== 移动端适配 ===== */
         @media (max-width: 768px) {
           .site-nav {
@@ -3219,9 +3213,7 @@ var HomeEntryRail = ({ onNavigate }) => {
   var entries = [
     { key: "home", number: "01", label: "作品巨幕", note: "28 件获奖作品，持续展映" },
     { key: "activities", number: "02", label: "活动大厅", note: "沙龙、黑客松与创作赛" },
-    { key: "community", number: "03", label: "社团社区", note: "课程、知识库与精选作品" },
-    { key: "about", number: "04", label: "关于我们", note: "了解社团与活动方式" },
-    { key: "report", number: "05", label: "数据报表", note: "查看作品与报名数据" }
+    { key: "community", number: "03", label: "社团社区", note: "课程、知识库与精选作品" }
   ];
   return el("section", {
     className: "entry-rail-section",

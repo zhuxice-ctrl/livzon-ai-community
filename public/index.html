@@ -65,43 +65,12 @@
 
   a { color: inherit; text-decoration: none; }
 
-  /* ========= 作品上传 FAB（注入层） ========= */
-  #pingce-upload-fab {
-    position: fixed;
-    right: 28px;
-    bottom: 100px;
-    z-index: 99999;
-    padding: 10px 16px;
-    border-radius: 24px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.14);
-    color: rgba(255,255,255,0.85);
-    font-size: 12px;
-    letter-spacing: 2px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    backdrop-filter: blur(8px);
-    transition: transform 0.25s ease, background 0.25s ease;
-    font-family: 'Noto Sans SC', sans-serif;
-    text-decoration: none;
-  }
-  #pingce-upload-fab:hover {
-    transform: translateY(-2px);
-    background: rgba(255,255,255,0.14);
-    color: #fff;
-  }
-
 </style>
 </head>
 <body>
 <div id="app-loader"><div class="loader-dot"></div>LOADING…</div>
 <div class="film-grain"></div>
 <div id="root"></div>
-
-<!-- 作品上传入口 -->
-<a id="pingce-upload-fab" href="/upload.html" title="上传作品" role="link">+ 上传作品</a>
 
 <script src="app.js"></script>
 </body>
