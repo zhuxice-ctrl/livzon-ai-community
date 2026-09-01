@@ -66,7 +66,7 @@
       <div class="logged-state" id="loggedState">
         <img id="loggedAvatar" class="avatar" alt="" />
         <p class="sub" id="loggedWelcome" style="color:rgba(255,255,255,0.85);font-size:15px;"></p>
-        <a class="feishu-btn" href="/my.html" style="max-width:320px;margin:0 auto;">进入个人中心</a>
+        <a class="feishu-btn" href="/#my" style="max-width:320px;margin:0 auto;">进入个人中心</a>
         <p class="hint"><a href="/api/auth/logout" style="color:var(--text-faint);text-decoration:underline;">退出当前账号</a></p>
       </div>
     </div>
@@ -77,7 +77,7 @@
   function devLogin() {
     fetch('/api/auth/dev-login?openId=test-dev-openid')
       .then(function (r) { return r.json(); })
-      .then(function (j) { if (j.ok) location.href = '/my.html'; else alert(j.error ? j.error.message : '不可用'); })
+      .then(function (j) { if (j.ok) location.href = '/#my'; else alert(j.error ? j.error.message : '不可用'); })
       .catch(function () { alert('请求失败'); });
   }
   fetch('/api/auth/me').then(function(r){return r.json();}).then(function(j){

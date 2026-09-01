@@ -141,7 +141,7 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
       background: textColor
     }
   })))), isLogged ? /* @__PURE__ */ React.createElement("a", {
-    href: "/my.html",
+    href: "/#my",
     style: {
       display: "flex",
       alignItems: "center",
@@ -151,8 +151,10 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
       border: `1px solid ${lightMode ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.14)"}`,
       textDecoration: "none",
       color: textColor,
-      transition: "all 0.3s ease"
+      transition: "all 0.3s ease",
+      cursor: "pointer"
     },
+    onClick: (e) => { e.preventDefault(); onNavigate("my"); },
     onMouseEnter: (e) => { e.currentTarget.style.background = lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.08)"; },
     onMouseLeave: (e) => { e.currentTarget.style.background = "transparent"; }
   }, user.avatar ? /* @__PURE__ */ React.createElement("img", {
@@ -1624,6 +1626,108 @@ var ActivitiesSection = () => {
   `), React.createElement("div", { ref: ref }), React.createElement("div", { id: "act-modal", style: { position: "fixed", inset: 0, zIndex: 10000, display: "none", alignItems: "center", justifyContent: "center", padding: 24 } }));
 };
 
+var MySection = () => {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
+    const statusLabel = function (s) { return { pending: "待审核", approved: "已通过", rejected: "已驳回" }[s] || s; };
+    const kindLabel = function (k) { return { image: "AI 图像", video: "AI 视频", "3d": "3D 生成", app: "小程序/产品", tool: "工具/插件", skill: "Skill", mcp: "MCP 工具", source: "源码包" }[k] || k; };
+    const fmt = function (s) { return s ? String(s).slice(0, 16).replace("T", " ") : "—"; };
+    Promise.all([
+      fetch("/api/my/profile").then(function (r) { return r.json(); }),
+      fetch("/api/my/registrations").then(function (r) { return r.json(); }),
+      fetch("/api/my/works").then(function (r) { return r.json(); })
+    ]).then(function (rs) {
+      if (cancelled || !ref.current) return;
+      var prof = rs[0], reg = rs[1], wrk = rs[2];
+      if (!prof.ok) {
+        ref.current.innerHTML = "<div class='my-login'><div class='my-login-card'><h2>登录你的 AI 社团账户</h2><p>使用飞书账号登录后，即可查看和管理你的报名、作品与消息。</p><a class='my-login-btn' href='/login.html'>去登录</a></div></div>";
+        return;
+      }
+      var u = prof.data || {};
+      var regs = (reg.ok && reg.data && reg.data.registrations) || [];
+      var works = (wrk.ok && wrk.data && wrk.data.works) || [];
+      var h = "";
+      // 头部
+      h += "<div class='my-head'>" +
+        (u.avatar ? "<img class='my-avatar' src='" + esc(u.avatar) + "' alt=''>" : "<div class='my-avatar my-avatar-ph'>" + esc((u.name || "我").charAt(0)) + "</div>") +
+        "<div class='my-id'><div class='my-name'>" + esc(u.name || "飞书用户") + "</div>" +
+        "<div class='my-sub'>" + esc(u.department || "未标注部门") + " · " + (u.role === "admin" ? "管理员" : "成员") + "</div></div>" +
+        "<a class='my-ai' href='https://ai.livzon.cn/apply' target='_blank' rel='noopener'>AI 资源中心 ↗</a>" +
+        "</div>";
+      // 最近消息入口
+      h += "<div class='my-msg-card'><div class='my-msg-icon'>🔔</div><div class='my-msg-body'><div class='my-msg-t'>最近消息</div><div class='my-msg-d'>平台活动通知、作品审核结果将在此显示</div></div><span class='my-msg-arrow'>›</span></div>";
+      // 统计
+      h += "<div class='my-kpis'><div class='my-kpi'><div class='n'>" + regs.length + "</div><div class='l'>活动报名</div></div><div class='my-kpi'><div class='n'>" + works.length + "</div><div class='l'>我的作品</div></div></div>";
+      // 活动报名
+      h += "<div class='my-sec'><div class='my-sechead'><span class='t'>活动报名</span><span class='e'>MY REGISTRATIONS</span></div>";
+      if (!regs.length) {
+        h += "<div class='my-empty'>暂无报名记录</div>";
+      } else {
+        h += "<table class='my-table'><thead><tr><th>活动</th><th>部门</th><th>分享</th><th>状态</th><th>时间</th></tr></thead><tbody>" +
+          regs.map(function (x) {
+            return "<tr><td>" + esc(x.activity) + "</td><td>" + esc(x.department || "—") + "</td><td>" + (x.will_share ? "愿分享" : "未勾选") + "</td><td><span class='my-status " + x.status + "'>" + statusLabel(x.status) + "</span></td><td class='mono'>" + fmt(x.created_at) + "</td></tr>";
+          }).join("") + "</tbody></table>";
+      }
+      h += "</div>";
+      // 我的作品
+      h += "<div class='my-sec'><div class='my-sechead'><span class='t'>我的作品</span><span class='e'>MY WORKS</span></div>";
+      if (!works.length) {
+        h += "<div class='my-empty'>暂无上传作品</div>";
+      } else {
+        h += "<table class='my-table'><thead><tr><th>标题</th><th>类型</th><th>状态</th><th>发布</th><th>时间</th></tr></thead><tbody>" +
+          works.map(function (x) {
+            return "<tr><td>" + esc(x.title) + "</td><td>" + esc(kindLabel(x.kind)) + "</td><td><span class='my-status " + x.status + "'>" + statusLabel(x.status) + "</span></td><td>" + (x.published ? "已发布" : "未发布") + "</td><td class='mono'>" + fmt(x.created_at) + "</td></tr>";
+          }).join("") + "</tbody></table>";
+      }
+      h += "</div>";
+      ref.current.innerHTML = h;
+    }).catch(function () {});
+    return function () { cancelled = true; };
+  }, []);
+  return React.createElement("section", { className: "page-section", style: { background: "#f8f8f6", color: "#1a1a1f", padding: "140px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
+    .my-head{display:flex;align-items:center;gap:18px;margin-bottom:32px;}
+    .my-avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid rgba(0,0,0,0.08);}
+    .my-avatar-ph{background:linear-gradient(135deg,#2568d8,#173f8f);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;}
+    .my-id .my-name{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:700;letter-spacing:1px;}
+    .my-id .my-sub{font-size:13px;color:#999;margin-top:6px;}
+    .my-ai{margin-left:auto;font-size:13px;letter-spacing:1px;color:#2568d8;border:1px solid rgba(37,104,216,0.4);padding:8px 18px;border-radius:999px;text-decoration:none;transition:all .2s;}
+    .my-ai:hover{background:rgba(37,104,216,0.1);}
+    .my-msg-card{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:10px;padding:14px 20px;margin-bottom:26px;cursor:pointer;transition:all .25s;}
+    .my-msg-card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,0.06);}
+    .my-msg-icon{font-size:22px;}
+    .my-msg-body{flex:1;}
+    .my-msg-t{font-size:14px;font-weight:600;color:#1a1a1f;}
+    .my-msg-d{font-size:12px;color:#999;margin-top:3px;}
+    .my-msg-arrow{font-size:20px;color:#ccc;}
+    .my-kpis{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:40px;}
+    .my-kpi{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:10px;padding:24px;text-align:center;}
+    .my-kpi .n{font-family:'JetBrains Mono',monospace;font-size:40px;font-weight:600;line-height:1;}
+    .my-kpi .l{font-size:12px;color:#999;margin-top:10px;letter-spacing:2px;}
+    .my-sec{margin-bottom:44px;}
+    .my-sechead{display:flex;align-items:baseline;gap:14px;margin-bottom:18px;}
+    .my-sechead .t{font-family:'Noto Serif SC',serif;font-size:22px;font-weight:500;letter-spacing:2px;}
+    .my-sechead .e{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#aaa;}
+    .my-table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:10px;overflow:hidden;}
+    .my-table thead th{text-align:left;font-weight:500;font-size:11px;letter-spacing:2px;color:#aaa;padding:14px 18px;background:rgba(0,0,0,0.02);border-bottom:1px solid rgba(0,0,0,0.06);}
+    .my-table tbody td{padding:13px 18px;border-bottom:1px solid rgba(0,0,0,0.04);color:rgba(0,0,0,0.8);}
+    .my-table tbody tr:last-child td{border-bottom:none;}
+    .my-table .mono{font-family:'JetBrains Mono',monospace;font-size:12px;color:#999;}
+    .my-status{font-size:11px;padding:3px 10px;border-radius:12px;letter-spacing:1px;}
+    .my-status.pending{background:rgba(255,180,60,0.15);color:#c98a1b;}
+    .my-status.approved{background:rgba(90,200,140,0.15);color:#2a9d63;}
+    .my-status.rejected{background:rgba(255,90,90,0.15);color:#c94b4b;}
+    .my-login{display:flex;align-items:center;justify-content:center;min-height:50vh;}
+    .my-login-card{text-align:center;max-width:380px;padding:48px 40px;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:16px;}
+    .my-login-card h2{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:700;letter-spacing:2px;margin-bottom:10px;}
+    .my-login-card p{font-size:13px;color:#666;line-height:1.9;margin-bottom:26px;}
+    .my-login-btn{display:inline-block;font-size:14px;letter-spacing:2px;padding:12px 34px;border-radius:999px;background:linear-gradient(135deg,#2568d8,#173f8f);color:#fff;font-weight:600;text-decoration:none;transition:all .2s;}
+    .my-login-btn:hover{filter:brightness(1.12);}
+    .my-empty{color:#999;font-size:13px;padding:30px;text-align:center;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:10px;}
+  `), React.createElement("div", { ref: ref }));
+};
+
 var CommunitySection = () => {
   const sections = [
     {
@@ -2866,6 +2970,10 @@ var App = () => {
     window.addEventListener("navWork", handler);
     return () => window.removeEventListener("navWork", handler);
   }, []);
+  React.useEffect(() => {
+    const h = window.location.hash;
+    if (h === "#my") setPage("my");
+  }, []);
   return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(Nav, {
     onNavigate: handleNavigate,
     currentPage: page,
@@ -2879,7 +2987,7 @@ var App = () => {
   })), page === "work" && selectedWork !== null && /* @__PURE__ */ React.createElement(WorkDetail, {
     workIdx: selectedWork,
     onBack: () => handleNavigate("home")
-  }), page === "activities" && /* @__PURE__ */ React.createElement(ActivitiesSection, null), page === "community" && /* @__PURE__ */ React.createElement(CommunitySection, null), page === "about" && /* @__PURE__ */ React.createElement(AboutSection, null), page === "join" && /* @__PURE__ */ React.createElement(JoinSection, null), /* @__PURE__ */ React.createElement(Footer, null), /* @__PURE__ */ React.createElement("style", null, `
+  }), page === "activities" && /* @__PURE__ */ React.createElement(ActivitiesSection, null), page === "my" && /* @__PURE__ */ React.createElement(MySection, null), page === "community" && /* @__PURE__ */ React.createElement(CommunitySection, null), page === "about" && /* @__PURE__ */ React.createElement(AboutSection, null), page === "join" && /* @__PURE__ */ React.createElement(JoinSection, null), /* @__PURE__ */ React.createElement(Footer, null), /* @__PURE__ */ React.createElement("style", null, `
         /* ===== 移动端适配 ===== */
         @media (max-width: 768px) {
           .site-nav {

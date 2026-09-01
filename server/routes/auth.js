@@ -37,7 +37,7 @@ router.get('/callback', async (req, res) => {
     req.session.role = user.role;
     req.session.name = user.name;
     req.session.save(() => {
-      res.redirect('/my.html');
+      res.redirect('/#my');
     });
   } catch (e) {
     console.error('[auth.callback]', e.message);
