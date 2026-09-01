@@ -64,6 +64,18 @@ var WORKS_INFO = [
 var Nav = ({ onNavigate, currentPage, lightMode }) => {
   const textColor = lightMode ? "#1a1a1f" : "#fff";
   const subColor = lightMode ? "rgba(26,26,31,0.5)" : "rgba(255,255,255,0.5)";
+  const [user, setUser] = React.useState(null);
+  React.useEffect(() => {
+    fetch("/api/auth/me").then((r) => r.json()).then((j) => {
+      if (j && j.authenticated && j.data) {
+        setUser(j.data);
+        fetch("/api/my/profile").then((r) => r.json()).then((p) => {
+          if (p && p.ok && p.data) setUser({ ...j.data, avatar: p.data.avatar || "" });
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
+  const isLogged = !!(user && user.userId);
   const navItems = [
     { key: "home", label: "作品巨幕" },
     { key: "activities", label: "活动大厅" },
@@ -128,7 +140,35 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
       height: 1,
       background: textColor
     }
-  })))), /* @__PURE__ */ React.createElement("button", {
+  })))), isLogged ? /* @__PURE__ */ React.createElement("a", {
+    href: "/my.html",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "4px 6px 4px 12px",
+      borderRadius: 24,
+      border: `1px solid ${lightMode ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.14)"}`,
+      textDecoration: "none",
+      color: textColor,
+      transition: "all 0.3s ease"
+    },
+    onMouseEnter: (e) => { e.currentTarget.style.background = lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.08)"; },
+    onMouseLeave: (e) => { e.currentTarget.style.background = "transparent"; }
+  }, user.avatar ? /* @__PURE__ */ React.createElement("img", {
+    src: user.avatar,
+    alt: user.name || "我",
+    style: { width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }
+  }) : /* @__PURE__ */ React.createElement("div", {
+    style: {
+      width: 30, height: 30, borderRadius: "50%",
+      background: "linear-gradient(135deg,#2568d8,#173f8f)",
+      color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 14, fontWeight: 600
+    }
+  }, (user.name || "我").charAt(0)), /* @__PURE__ */ React.createElement("span", {
+    style: { fontSize: 13, fontWeight: 500, letterSpacing: 1 }
+  }, "个人中心")) : /* @__PURE__ */ React.createElement("button", {
     style: {
       background: lightMode ? "#1a1a1f" : "#fff",
       color: lightMode ? "#fff" : "#0a0a0d",

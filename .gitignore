@@ -5,3 +5,4 @@ logs/
 HANDOFF-CODEX.md
 .DS_Store
 *.bak
+.worktrees/

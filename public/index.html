@@ -117,44 +117,6 @@
     color: #fff;
   }
 
-  /* ========= 登录 / 个人中心入口 ========= */
-  #pingce-login-fab {
-    position: fixed;
-    right: 28px;
-    bottom: 28px;
-    z-index: 99999;
-    padding: 9px 16px;
-    border-radius: 24px;
-    background: linear-gradient(135deg, #2568d8 0%, #173f8f 100%);
-    border: none;
-    color: #fff;
-    font-size: 12px;
-    letter-spacing: 2px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 8px 24px rgba(37, 104, 216, 0.4);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-    font-family: 'Noto Sans SC', sans-serif;
-    text-decoration: none;
-  }
-  #pingce-login-fab:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 32px rgba(37, 104, 216, 0.55);
-  }
-  #pingce-login-fab.member {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.14);
-    box-shadow: none;
-    color: rgba(255,255,255,0.85);
-  }
-  #pingce-login-fab.member:hover { background: rgba(255,255,255,0.14); color: #fff; }
-
-  /* ========= 报名 Modal CSS removed — 使用独立登录页 ========== */
-
-  @media (max-width: 600px) {
-    #pingce-login-fab { right: 16px; bottom: 16px; }
-    #pingce-upload-fab, #pingce-admin-fab { right: 16px; }
-  }
 </style>
 </head>
 <body>
@@ -168,25 +130,6 @@
 <!-- 管理后台入口 -->
 <a id="pingce-admin-fab" href="/admin.html" title="管理后台" role="link">管理后台</a>
 
-<!-- 登录 / 个人中心入口 -->
-<a id="pingce-login-fab" href="/login.html" title="登录 / 个人中心" role="link">登录</a>
-
 <script src="app.js"></script>
-<script>
-  // ===== 登录态：未登录显示「登录」，已登录显示「个人中心」 =====
-  (function () {
-    var fab = document.getElementById('pingce-login-fab');
-    if (!fab) return;
-    fetch('/api/auth/me').then(function (r) { return r.json(); }).then(function (j) {
-      if (j && j.authenticated) {
-        fab.href = '/my.html';
-        fab.className = 'member';
-        fab.textContent = '个人中心';
-        fab.title = '进入我的中心';
-      }
-      // 未登录保持默认「登录」，href 已指向 /login.html
-    }).catch(function () {});
-  })();
-</script>
 </body>
 </html>
