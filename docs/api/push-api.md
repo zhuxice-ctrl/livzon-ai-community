@@ -1,111 +1,132 @@
-# 社区飞书推送与嵌入契约（push-api.md）
+# 丽珠 AI 社区 — 飞书集成契约（内网约束版 v2）
 
-> 版本：v1（2026-09-01）｜分支 `feat/community-page`
-> 前置阅读：[posts-api.md](./posts-api.md)（帖子/评论/点赞接口与数据模型）
-> 定位：**后端合并时的集成契约**——飞书侧「快速跳转入口 + 精华文章推送 + 互动通知」。
-> 现状底座：`server/lark-client.js` 已实现 tenant_access_token 缓存（env：LARK_APP_ID / LARK_APP_SECRET），
-> 报名链路已在用同一凭据，本契约在其上扩展，**不新增飞书应用**。
+> 读者：后端（Codex）合并 `feat/community-page` 后实施。
+> 前置：先把 `docs/api/posts-api.md`（数据接口）与 `docs/api/announce-upload-api.md`（公告与上传）落地。
+> **硬约束（v2 变更原因）：站点只在企业内网运行，不公网部署。飞书云端（妙搭 / 机器人 / OpenAPI 回调）无法入向访问站点。所有集成都改为「内网 → 飞书云」的出向数据推送。**
 
-## 一、总体链路
+## 0. 总体链路（v2）
 
 ```
-社区后端(Express) ── 精华帖/互动事件 ──> PushService ──> 飞书群/个人
-                                                     │
-浏览器 iframe 嵌入 <── 站点(#community) ──┘           └── 卡片按钮「进入社区」──> 妙搭应用 / 站点链接
+┌─ 企业内网 ─────────────────────┐        ┌─ 飞书云 ────────────────┐
+│  社区站点 (Node/Express)        │ 出向    │  Base 镜像表（帖子数据）  │
+│    ├─ sync-mirror 定时同步 ─────┼───────▶│    ↑                    │
+│    └─ PushService 事件推送 ─────┼───────▶│  妙搭应用（读 Base）     │
+│         (精华/摘要 → 群卡片)     │ 出向    │  机器人（发卡片/菜单）   │
+└────────────────────────────────┘        └─────────────────────────┘
+        用户在内网点击卡片链接 → 直达内网站点（hash 深链）
+        用户不在内网 → 点妙搭链接看 Base 镜像（只读）
 ```
 
-三种消费形态共用一个站点：
+- 原则：**数据出内网，站点不出内网**。云上只有一个只读数据镜像（Base）和消息卡片。
+- 「飞书自动轮询拿数据」由**内网侧定时推送**实现同等效果（云端无法轮询内网，方向必须反过来）。同步频率即"轮询周期"，默认 10 分钟，可配置。
 
-| 形态 | 入口 | 说明 |
-|---|---|---|
-| 网页嵌入 | `<iframe src="https://站点/#community">` | hash 直达社区 tab，已在前端实现 |
-| 妙搭应用 | 飞书内点开应用即社区页 | 站点公网部署后可实时拉 API；过渡期用静态预览版 |
-| 机器人推送 | 消息卡片按钮 | 点开拉起站点/妙搭，落在对应帖子 |
+## 1. Base 镜像表（新增，v2 核心）
 
-## 二、嵌入（前端已完成，后端无需改动）
+在飞书多维表格建镜像表（建议与报名表分开的独立 app），表 `posts`：
 
-- **前端已支持**：`index.html#community` 直达社区分区（`HASH_PAGES` 白名单：home / activities / community / about；非法 hash 回落 home）。iframe 示例：
-  ```html
-  <iframe src="https://站点域名/#community"
-          style="width:100%;height:100vh;border:0" title="社团社区"></iframe>
-  ```
-- **响应头**：当前 server 未设 `X-Frame-Options` / CSP `frame-ancestors`，静态页可被任意来源 iframe 嵌入，无需后端改动。
-- **限制（Phase 2 一行配置）**：跨站 iframe 内**登录态**受 SameSite=Lax 影响（浏览、看帖不受影响；发帖/点赞需登录）。如需在跨站 iframe 内登录，express-session cookie 增加 `sameSite: "none", secure: true`（要求 HTTPS）。
-- **深链（可选扩展）**：帖子级直达 `#community?post=<pid>`——前端展开对应评论串；本次未实现，需要时前端加 10 行。
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| post_id | 文本 | 站内帖子 ID，**唯一**，作为 upsert 主键 |
+| author | 文本 | 作者姓名 |
+| dept | 文本 | 部门 |
+| content | 文本 | 正文纯文本（图片附件不入镜像，只存 `images` JSON 数组字符串） |
+| section | 单选 | resource / tutorial / qa / chat |
+| tag | 文本 | 公告 / 活动 / 精华（可空） |
+| pinned | 复选 | 是否置顶 |
+| likes | 数字 | 点赞数 |
+| comment_count | 数字 | 评论总数（嵌套全计） |
+| images | 文本 | 图片文件名 JSON 数组，如 `["u-a1.png"]` |
+| created_at | 日期 | 发布时间（毫秒） |
+| updated_at | 日期 | 最后变更（毫秒） |
+| deleted | 复选 | 站内已删除（镜像保留墓碑，妙搭侧过滤） |
+| sync_at | 日期 | 本次同步时间（毫秒） |
 
-## 三、PushService（后端新增模块 `server/push.js`）
+说明：评论全文不镜像（量大、增量复杂），只镜像 `comment_count`；需要看评论的用户点链接回内网站点。
 
-### 环境变量
+## 2. 同步契约（内网 → Base，定时）
 
-| env | 必填 | 说明 |
-|---|---|---|
-| `LARK_APP_ID` / `LARK_APP_SECRET` | 是（已有） | 复用现有飞书应用凭据 |
-| `LARK_PUSH_WEBHOOK_URL` | 二选一 | **自定义机器人 webhook**（群内添加机器人即得；最简路径，无需应用权限） |
-| `LARK_PUSH_CHAT_ID` | 二选一 | **自建应用机器人** `oc_xxx` 群 chat_id（走 im/v1/messages，可 @人、可私发，需开 `im:message` 权限） |
+`server/push/sync-mirror.js`，node-cron 定时执行：
 
-两者都配置时优先 webhook（群广播）；互动通知（发给个人）必须走应用机器人。
+- env `MIRROR_SYNC_CRON`，默认 `0 */10 * * * *`（每 10 分钟）；服务启动后立即先跑一轮全量。
+- 增量游标：本地持久化 `logs/mirror_cursor.json`（`{"last_sync_ts": <ms>}`）。每轮取 `updated_at > last_sync_ts` 的帖子（含 deleted 墓碑），逐条 **upsert**：按 `post_id` 检索镜像表——存在则 update，不存在则 create；同步成功才把游标推到本轮最大 `updated_at`。失败保留游标，下轮重试（幂等）。
+- 删除传播：站内删除 → 镜像记录 `deleted=true`（不物理删，避免误删历史推送上下文）。
+- 复用 `server/lark-client.js`：tenant_access_token 缓存与获取逻辑照用；写失败同样落 `logs/mirror_fallback.jsonl` 兜底。
+- 需要的 OpenAPI：`bitable.app_table_record.search`（按 post_id 查）/ `batch_create` / `batch_update`（应用需开通 Base 读写权限并授权该表）。
 
-### 接口（模块内部函数，非 HTTP API）
+## 3. 推送契约（内网 → 群卡片，事件驱动）
 
-```js
-// 1) 精华速递（定时 digest）：拉 since 之后新打精华标的帖子
-PushService.sendFeaturedDigest({ since /* ISO 时间，默认近 7 天 */ })
-// 数据源：GET posts（同进程直查 DB）where tag='featured' and pinned and created_at > since
-// 无新帖时静默跳过（不发空卡片）
+`server/push/PushService.js`，复用 LarkClient。env：
 
-// 2) 新精华即时推（管理员打标那一刻）
-PushService.pushFeatured(post)   // 单帖卡片，同下文格式
+- `LARK_APP_ID` / `LARK_APP_SECRET`（已有）
+- `LARK_MIRROR_APP_TOKEN`（镜像 Base app token）
+- `LARK_PUSH_WEBHOOK_URL`（自定义机器人 webhook，**优先**）或 `LARK_PUSH_CHAT_ID`（应用机器人，备选）——二选一
+- `SITE_INTRANET_URL`（内网地址，如 `http://ai-community.livzon.local:8080`）
+- `MIAODA_APP_URL`（妙搭应用链接，云端兜底入口）
 
-// 3) 互动通知（Phase 2，发给帖主）
-PushService.notifyInteraction({ post, actor, type /* 'comment' | 'like' */ })
-```
+### 3.1 sendFeaturedDigest()
 
-### 触发点埋设（routes 里调用）
+- cron `0 0 10 * * 1`（每周一 10:00）；收集近 7 天 `tag=精华` 的帖子；空则跳过；卡片同 3.2 多行版。
 
-| 事件 | 位置 | 动作 |
-|---|---|---|
-| 管理员给帖子打精华标 | `PUT /api/community/posts/:id/tag`（admin 鉴权） | `pushFeatured(post)` |
-| 新评论 | `POST /api/community/posts/:id/comments` | `notifyInteraction({type:'comment'})`（帖主 ≠ 评论人时才发） |
-| 新点赞 | `POST /api/community/posts/:id/like` | `notifyInteraction({type:'like'})`（同上，且仅「从未赞过→赞」方向发） |
-| 定时 digest | `node-cron`（建议 `0 0 10 * * 1` 每周一 10:00，env `PUSH_DIGEST_CRON` 可配） | `sendFeaturedDigest({since: 上次运行时间})` |
+### 3.2 pushFeatured(post)
 
-### 卡片格式（interactive card，两种通道通用 JSON）
+卡片 elements：作者+部门、正文（截 200 字）、`[公告]`/`[精华]` 标记、点赞/评论数、发布时间。
+actions **双按钮**（v2 变更）：
 
 ```json
-{
-  "title": "社区精选 · 本周 N 篇",
-  "elements": [
-    { "author": "老周", "summary": "RAG 选型实测：20 轮评测里只挂了 2 次…", "likes": 12,
-      "url": "https://站点域名/#community" }
-  ],
-  "button": { "text": "进入社区", "url": "https://站点域名/#community", "fallback": "https://妙搭应用链接" }
-}
+"actions": [
+  { "tag": "button", "text": { "tag": "plain_text", "content": "进入社区（内网）" },
+    "type": "primary", "url": "http://ai-community.livzon.local:8080/#community" },
+  { "tag": "button", "text": { "tag": "plain_text", "content": "手机查看" },
+    "type": "default", "url": "<MIAODA_APP_URL>" }
+]
 ```
 
-- `url` 落在站点（公网部署后）；按钮 `fallback` 指向妙搭应用链接（站点不可达时的兜底）。
-- webhook 通道注意：飞书自定义机器人可选「签名校验」（env `LARK_PUSH_WEBHOOK_SECRET`），payload 加 `timestamp + sign` 字段；**webhook URL 与 secret 一律走 env，不入库不入日志**。
-- 发送失败降级：写 `logs/push_fallback.jsonl`（沿用 LarkClient 的 fallback 模式），不阻塞主请求。
+- 内网用户点第一个直达站点；移动端/外网用户点第二个看妙搭镜像。
 
-### 频率与防打扰
+### 3.3 notifyInteraction(toUserOpenId, kind, post)
 
-- digest 默认每周一次；即时精华推送仅 admin 打标触发（量可控）。
-- 互动通知 Phase 2 再上，需要帖主→飞书用户的映射（依赖账号打通，见下）。
+- 管理员打精华 → 应用机器人发单聊卡片；`SITE_INTRANET_URL` 为空则跳过。
+- 依赖账号打通（Phase 2）；打通前不启用。
 
-## 四、账号打通（Phase 2，仅发互动通知时需要）
+### 3.4 触发点
 
-- 方案 A（轻）：帖主注册时绑定飞书 user_id（`users` 表加 `lark_user_id` 列，登录页提供一次性绑定链接）。
-- 方案 B（重）：整站接飞书 OAuth 免登（妙搭/飞书内进入时直接知道「你是谁」）。
-- 只做精华推送（群广播）**不需要**任何账号打通。
+| 事件 | 调用 |
+| --- | --- |
+| 管理员打/改精华标 | `pushFeatured(post)` + 即时 upsert 镜像（不等定时） |
+| 帖子增删改 | 由 sync-mirror 定时同步 |
+| 每周一 10:00 | `sendFeaturedDigest()` |
 
-## 五、妙搭应用入口（无后端依赖，站点部署前后都可用）
+## 4. 嵌入网页（限定：嵌入方与站点同内网）
 
-- 过渡期：妙搭静态预览版（seed 数据）即是飞书内入口，机器人卡片可直挂该链接。
-- 站点公网部署后（CORS 已是 `*`）：妙搭应用把 seed fetch 换成 `https://站点域名/api/community/posts` 即为实时数据入口；或改为全屏 iframe 壳嵌 `https://站点域名/#community`（二选一，前者体验更好）。
+- 嵌入方系统也在企业内网 → iframe 直嵌，站点无需任何改造（无 X-Frame-Options 限制）：
+  `<iframe src="http://ai-community.livzon.local:8080/#community" style="width:100%;height:800px;border:0"></iframe>`
+- hash 深链直达各页：`#home` `#activities` `#community` `#about`（前端已实现）。
+- 帖子级深链（建议）：`#community?post=<pid>` —— 前端在 `hashchange` 时读取 `post` 参数滚动定位到对应卡片。前端可选扩展，后端无工作。
+- 嵌入方是公网系统 → **不可嵌入**（站点不可达），用妙搭应用代替。
 
-## 六、实施顺序建议
+## 5. 妙搭应用（数据源 = Base 镜像）
 
-1. ✅ 前端 hash 直达（本次已提交）
-2. 站点公网部署（HTTPS + 域名）——嵌入与推送的 URL 依赖它
-3. 群里加自定义机器人 → 配 `LARK_PUSH_WEBHOOK_URL` → 后端实现 `pushFeatured` + 打标触发（最小可用精华推送）
-4. node-cron digest（每周精选）
-5. Phase 2：互动通知 + 账号打通 + 跨站 iframe 登录（sameSite 配置）
+- 推荐**妙搭 + 多维表格数据源（连接器）**：直接绑定 `posts` 镜像表，做精华列表 / 分区浏览 / 搜索；按 `deleted=false` 过滤、按 `pinned` + `created_at` 排序。零代码、纯只读、天然公网可达。
+- 需要更定制交互时用妙搭全栈函数读 Base（同样只读）。
+- 原 v1 方案「妙搭全栈函数拉站点 API」**作废**——云端够不到内网。若未来站点开放公网再启用。
+- 妙搭侧互动按钮（点赞/评论）不回写内网，统一引导：「互动请在内网打开社区站点」+ `SITE_INTRANET_URL` 链接。
+
+## 6. 机器人快速跳转
+
+- 机器人简介/菜单放两个入口：内网站点链接（附「需内网」说明）+ 妙搭应用链接（云端兜底）。
+- 精华/digest 卡片即 3.2 双按钮格式。
+
+## 7. 账号打通（Phase 2，不变）
+
+- 登录后：站内账号绑定 open_id（OAuth 或绑定码）；打通后启用 3.3 单聊互动通知。
+- 未打通阶段：所有通知走群 webhook/群消息。
+
+## 8. 实施顺序（v2）
+
+1. ✅ hash 直达（前端已完成）
+2. Base 镜像表 + `sync-mirror.js` 定时同步（**新第一步**，妙搭和机器人都依赖它）
+3. webhook/机器人 + `pushFeatured`（精华即时推送，顺带即时 upsert 镜像）
+4. `sendFeaturedDigest` 周报
+5. 妙搭应用接 Base 数据源，配置机器人菜单
+6. （可选）帖子级深链 `#community?post=`
+7. Phase 2：账号打通 + 单聊通知
