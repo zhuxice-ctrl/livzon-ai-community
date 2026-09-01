@@ -1590,99 +1590,32 @@ var CommunitySection = () => {
     let cancelled = false;
     const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
     const KIND_LABEL = { image: "图像", video: "视频", "3d": "3D", tool: "工具", app: "应用", skill: "Skill", mcp: "MCP", source: "源码" };
-    const ACTION_LABEL = { work: "发布了作品", skill: "解锁了 Skill", event: "参加了活动", review: "写了复盘", "chat": "冒了个泡" };
+    const TAG_LABEL = { featured: "精华", tutorial: "教程", resource: "资源" };
+    // 布局口径：社交优先——顶部发帖框 + 管理员置顶（精华/教程/资源）+ 时间线。
+    // 数据契约见 docs/api/posts-api.md：
+    // 时间线优先 GET /api/community/posts（登录后 POST 发帖/评论/点赞），
+    // 接口未上线时回落 /data/community.json 的 posts 种子（SEED 标记，本地内存交互）。
 
-    // 动态：优先 /api/community/moments（契约见 docs/api/community-api.md，合并时后端接入），
-    // 接口未上线时回落静态 /data/community.json —— 前端零后端依赖即可跑
-    function loadMoments(cb) {
-      fetch("/api/community/moments").then(function (r) {
-        if (!r.ok) return Promise.reject(r.status);
-        return r.json();
-      }).then(function (j) {
-        if (cancelled) return;
-        var m = (j && j.ok && j.data && j.data.moments) ? j.data.moments : null;
-        cb(m, true);
-      }).catch(function () {
-        fetch("/data/community.json").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (d) {
-          if (cancelled) return;
-          cb((d && d.moments) || [], false);
-        }).catch(function () { if (!cancelled) cb([], false); });
-      });
-    }
-
-    function loadStatic(cb) {
-      fetch("/data/community.json").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (d) {
-        if (!cancelled) cb(d || {});
-      }).catch(function () { if (!cancelled) cb({}); });
-    }
-
-    function loadWorks(cb) {
-      fetch("/api/works").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (j) {
-        if (!cancelled) cb((j && j.works) || []);
-      }).catch(function () { if (!cancelled) cb([]); });
-    }
-
-    function momentCard(m, i) {
-      var a = esc(m.author || "同学");
-      var act = ACTION_LABEL[m.action] || esc(m.action || "冒了个泡");
-      var initial = esc((m.author || "同").slice(0, 1));
-      var rot = (i % 3) - 1;
-      return "<div class='com-moment' style='--rot:" + rot + "deg'>" +
-        "<div class='com-mo-head'><span class='com-avatar'>" + initial + "</span><span class='com-mo-who'><b>" + a + "</b><i>" + esc(m.dept || "") + "</i></span><span class='com-mo-act'>" + act + "</span></div>" +
-        "<p class='com-mo-text'>" + esc(m.text || "") + "</p>" +
-        "<div class='com-mo-time'>" + esc(m.time || "") + "</div>" +
-        "</div>";
-    }
-
-    function workCard(w, i) {
-      var k = KIND_LABEL[w.kind] || esc(w.kind || "作品");
-      return "<div class='com-work' onclick=\"window.comOpenWork&&window.comOpenWork(" + i + ")\">" +
-        "<span class='com-wk-kind'>" + k + "</span>" +
-        "<div class='com-wk-title'>" + esc(w.title || "未命名作品") + "</div>" +
-        "<div class='com-wk-author'>" + esc(w.author || "匿名") + (w.category ? " · " + esc(w.category) : "") + "</div>" +
-        "<span class='com-wk-more'>看详情 →</span>" +
-        "</div>";
-    }
-
-    function courseRow(c) {
-      return "<div class='com-course'>" +
-        "<span class='com-cs-no'>No." + esc(String(c.no).padStart(2, "0")) + "</span>" +
-        "<div class='com-cs-main'><div class='com-cs-theme'>" + esc(c.theme || "") + "</div><div class='com-cs-meta'>" + esc(c.speaker || "") + (c.minutes ? " · " + c.minutes + " 分钟" : "") + "</div></div>" +
-        (c.video ? "<a class='com-cs-link' href='" + esc(c.video) + "' target='_blank' rel='noopener'>看录屏 ↗</a>" : "<span class='com-cs-link com-cs-off'>整理中</span>") +
-        "</div>";
-    }
-
-    function resourceCard(r) {
-      return "<div class='com-res'>" +
-        "<div class='com-res-name'>" + esc(r.title || "") + "</div>" +
-        "<p class='com-res-desc'>" + esc(r.desc || "") + "</p>" +
-        "<div class='com-res-items'>" + (r.items || []).map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div>" +
-        "</div>";
-    }
-
-    // ===== 评论区（推特式：顶层时间线新的在前 + 一层嵌套回复按时间正序） =====
-    // 契约见 docs/api/comments-api.md：优先 GET /api/works/:id/comments（登录后 POST 发布），
-    // 接口未上线时回落 community.json 的 comments 种子（DEMO 标记，本地内存交互）。
-    var commentsByWork = {};   // workKey -> {list:[], demo:true, loaded:false}
-    var demoComments = null;   // community.json 里的 comments 种子
-    var modalWork = null;      // 当前打开详情弹窗的作品
-    var replyTarget = null;    // 当前回复目标（顶层评论 id，null=直接评论作品）
+    var postsCache = [];
+    var postsApi = false;
     var localSeq = 0;
+    var replyState = {};   // pid -> {cid, name}
+    var threadOpen = {};   // pid -> true
 
-    function commentStore(w) {
-      var key = String(w && (w.id != null ? w.id : w.title));
-      if (!commentsByWork[key]) commentsByWork[key] = { list: [], demo: true, loaded: false };
-      return commentsByWork[key];
+    function postKey(p) { return String(p.id != null ? p.id : (p.time || Math.random())); }
+
+    function findPost(pid) {
+      for (var i = 0; i < postsCache.length; i++) if (postKey(postsCache[i]) === String(pid)) return postsCache[i];
+      return null;
     }
 
+    // ===== 评论规整（推特式：顶层新的在前 + 一层嵌套回复按时间正序） =====
     function flattenReply(c, byId) {
-      // 推特式一层嵌套：回复的回复挂回根评论下
       var p = c.parent_id != null ? byId[String(c.parent_id)] : null;
-      if (p && p.parent_id != null) c.parent_id = p.parent_id;
+      if (p && p.parent_id != null) c.parent_id = p.parent_id; // 回复的回复挂回根评论
       return c;
     }
-
-    function normalizeComments(raw) {
+    function normComments(raw) {
       var byId = {};
       (raw || []).forEach(function (c) { byId[String(c.id)] = c; });
       var tops = [], kids = {}, orphans = [];
@@ -1693,14 +1626,14 @@ var CommunitySection = () => {
         if (c.parent_id != null && parent && !parent.deleted) {
           (kids[String(c.parent_id)] = kids[String(c.parent_id)] || []).push(c);
         } else if (c.parent_id != null) {
-          c.parent_id = null; orphans.push(c); // 父被删：降为顶层，避免丢内容
+          c.parent_id = null; orphans.push(c);
         } else {
           tops.push(c);
         }
       });
       var ts = function (c) { return String(c.time || c.created_at || ""); };
-      tops.sort(function (a, b) { return ts(b).localeCompare(ts(a)); });            // 顶层新的在前
-      Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return ts(a).localeCompare(ts(b)); }); }); // 回复时间正序
+      tops.sort(function (a, b) { return ts(b).localeCompare(ts(a)); });
+      Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return ts(a).localeCompare(ts(b)); }); });
       orphans.forEach(function (c) { tops.push(c); });
       return tops.map(function (c) {
         c._replies = kids[String(c.id)] || [];
@@ -1708,61 +1641,9 @@ var CommunitySection = () => {
         return c;
       });
     }
-
-    function loadComments(w, cb) {
-      var store = commentStore(w);
-      if (store.loaded) { cb && cb(); return; }
-      fetch("/api/works/" + encodeURIComponent(String(w.id)) + "/comments")
-        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-        .then(function (j) {
-          if (!j || !j.ok || !j.data || !j.data.comments) throw 0;
-          store.list = normalizeComments(j.data.comments);
-          store.demo = false; store.loaded = true; cb && cb();
-        })
-        .catch(function () {
-          store.list = normalizeComments(demoComments || []);
-          store.demo = true; store.loaded = true; cb && cb();
-        });
-    }
-
-    function commentCount(store) {
-      var n = 0;
-      (store.list || []).forEach(function (c) { n += 1 + (c._replies ? c._replies.length : 0); });
-      return n;
-    }
-
-    function commentHtml(c, w, isReply) {
-      var isAuthor = !!(w && c.author && w.author && c.author === w.author);
-      return "<div class='com-cmt" + (isReply ? " com-cmt-reply" : "") + "' id='cmt-" + esc(String(c.id)) + "'>" +
-        "<span class='com-avatar com-cmt-av'>" + esc((c.author || "同").slice(0, 1)) + "</span>" +
-        "<div class='com-cmt-body'>" +
-        "<div class='com-cmt-head'><b>" + esc(c.author || "同学") + "</b>" + (c.dept ? "<i>" + esc(c.dept) + "</i>" : "") +
-        (isAuthor ? "<span class='com-badge-author'>作者</span>" : "") +
-        "<span class='com-cmt-time'>" + esc(c.time || "") + "</span></div>" +
-        "<p class='com-cmt-text'>" + esc(c.text || "") + "</p>" +
-        "<div class='com-cmt-acts'>" +
-        "<button class='com-act' id='like-" + esc(String(c.id)) + "' onclick=\"window.comLike&&window.comLike('" + esc(String(c.id)) + "')\">" + (c._liked ? "♥ 已赞" : "♡ 赞") + " " + c._likes + "</button>" +
-        (isReply ? "" : "<button class='com-act' onclick=\"window.comReply&&window.comReply('" + esc(String(c.id)) + "','" + esc(String(c.author || "同学")).replace(/'/g, "") + "')\">回复</button>") +
-        "</div></div></div>" +
-        (c._replies || []).map(function (r) { return commentHtml(r, w, true); }).join("");
-    }
-
-    function renderCommentList() {
-      if (!modalWork) return;
-      var store = commentStore(modalWork);
-      var listEl = document.getElementById("com-cmt-list");
-      var cntEl = document.getElementById("com-cmt-count");
-      var seedEl = document.getElementById("com-cmt-seed");
-      if (cntEl) cntEl.textContent = "回复与建议 · " + commentCount(store) + " 条";
-      if (seedEl) seedEl.style.display = store.demo ? "inline-block" : "none";
-      if (!listEl) return;
-      if (!store.list.length) { listEl.innerHTML = "<div class='com-empty'>还没有人说话——第一条建议由你来写。</div>"; return; }
-      listEl.innerHTML = store.list.map(function (c) { return commentHtml(c, modalWork, false); }).join("");
-    }
-
-    function storeToRaw(store) {
+    function commentsToRaw(list) {
       var raw = [];
-      (store.list || []).forEach(function (t) {
+      (list || []).forEach(function (t) {
         raw.push({ id: t.id, parent_id: null, author: t.author, dept: t.dept, text: t.text, time: t.time, likes: t._likes });
         (t._replies || []).forEach(function (r) {
           raw.push({ id: r.id, parent_id: t.id, author: r.author, dept: r.dept, text: r.text, time: r.time, likes: r._likes });
@@ -1770,28 +1651,200 @@ var CommunitySection = () => {
       });
       return raw;
     }
+    function commentCount(p) {
+      var n = 0;
+      (p.comments || []).forEach(function (c) { n += 1 + (c._replies ? c._replies.length : 0); });
+      return n;
+    }
 
-    function sendComment() {
-      if (!modalWork) return;
-      var input = document.getElementById("com-cmt-input");
-      var hint = document.getElementById("com-cmt-loginhint");
+    // ===== 数据装载 =====
+    function loadPosts(cb) {
+      fetch("/api/community/posts")
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok || !j.data || !j.data.posts) throw 0;
+          cb(j.data.posts, true);
+        })
+        .catch(function () {
+          fetch("/data/community.json")
+            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+            .then(function (j) { cb((j && j.posts) || [], false); })
+            .catch(function () { cb([], false); });
+        });
+    }
+    function loadComments(p, cb) {
+      if (p._commentsLoaded) { cb && cb(); return; }
+      p._commentsLoaded = true;
+      if (!postsApi) { p.comments = normComments(p.comments || []); cb && cb(); return; }
+      fetch("/api/community/posts/" + encodeURIComponent(postKey(p)) + "/comments")
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok || !j.data || !j.data.comments) throw 0;
+          p.comments = normComments(j.data.comments); cb && cb();
+        })
+        .catch(function () { p.comments = normComments(p.comments || []); cb && cb(); });
+    }
+
+    // ===== 渲染 =====
+    function workEmbed(p) {
+      var w = p.work;
+      if (!w) return "";
+      var k = KIND_LABEL[w.kind] || esc(w.kind || "作品");
+      return "<div class='com-embed'>" +
+        "<span class='com-wk-kind'>" + k + "</span>" +
+        "<div class='com-embed-title'>" + esc(w.title || "未命名作品") + "</div>" +
+        (w.description ? "<div class='com-embed-desc'>" + esc(w.description) + "</div>" : "") +
+        (w.source ? "<a class='com-import-btn com-embed-import' href='" + esc(w.source) + "' target='_blank' rel='noopener'>⤓ 导入到我的环境</a>" : "<div class='com-import-hint'>作者还没挂分享链接</div>") +
+        "</div>";
+    }
+    function cmtHtml(p, c, isReply) {
+      var pid = postKey(p);
+      var isAuthor = !!(p.author && c.author && c.author === p.author);
+      return "<div class='com-cmt" + (isReply ? " com-cmt-reply" : "") + "'>" +
+        "<span class='com-avatar com-cmt-av'>" + esc((c.author || "同").slice(0, 1)) + "</span>" +
+        "<div class='com-cmt-body'>" +
+        "<div class='com-cmt-head'><b>" + esc(c.author || "同学") + "</b>" + (c.dept ? "<i>" + esc(c.dept) + "</i>" : "") +
+        (isAuthor ? "<span class='com-badge-author'>作者</span>" : "") +
+        "<span class='com-cmt-time'>" + esc(c.time || "") + "</span></div>" +
+        "<p class='com-cmt-text'>" + esc(c.text || "") + "</p>" +
+        "<div class='com-cmt-acts'>" +
+        "<button class='com-act" + (c._liked ? " on" : "") + "' id='clike-" + esc(pid) + "-" + esc(String(c.id)) + "' onclick=\"window.comLikeComment&&window.comLikeComment('" + esc(pid) + "','" + esc(String(c.id)) + "')\">" + (c._liked ? "♥ 已赞" : "♡ 赞") + " " + c._likes + "</button>" +
+        (isReply ? "" : "<button class='com-act' onclick=\"window.comReplyComment&&window.comReplyComment('" + esc(pid) + "','" + esc(String(c.id)) + "','" + esc(String(c.author || "同学")).replace(/'/g, "") + "')\">回复</button>") +
+        "</div></div></div>" +
+        (c._replies || []).map(function (r) { return cmtHtml(p, r, true); }).join("");
+    }
+    function threadHtml(p) {
+      var pid = postKey(p);
+      var list = (p.comments || []).map(function (c) { return cmtHtml(p, c, false); }).join("");
+      var rs = replyState[pid];
+      return "<div class='com-thread'>" +
+        (list || "<div class='com-empty'>还没有人评论——说点什么吧。</div>") +
+        "<div class='com-cmt-box com-thread-box'>" +
+        "<span class='com-avatar com-cmt-av'>我</span>" +
+        "<div class='com-cmt-inputwrap'>" +
+        (rs ? "<div class='com-reply-chip' style='display:inline-block'>回复 @" + esc(rs.name || "") + " <button class='com-act' onclick=\"window.comCancelReply&&window.comCancelReply('" + esc(pid) + "')\">取消</button></div>" : "") +
+        "<textarea id='cmt-input-" + esc(pid) + "' rows='2' placeholder='" + (rs ? "回复 @" + esc(rs.name || "") + "…" : "写下你的评论…") + "'></textarea>" +
+        "<div class='com-cmt-foot'><span id='loginhint-" + esc(pid) + "' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span><button class='com-send' onclick=\"window.comSendComment&&window.comSendComment('" + esc(pid) + "')\">发送</button></div>" +
+        "</div></div></div>";
+    }
+    function postHtml(p) {
+      var pid = postKey(p);
+      var open = !!threadOpen[pid];
+      var tag = (p.pinned && p.tag) ? "<span class='com-pin-tag com-tag-" + esc(p.tag) + "'>📌 " + esc(TAG_LABEL[p.tag] || p.tag) + "</span>" : "";
+      return "<div class='com-post" + (p.pinned ? " com-post-pinned" : "") + "'>" +
+        "<span class='com-avatar'>" + esc((p.author || "同").slice(0, 1)) + "</span>" +
+        "<div class='com-post-main'>" +
+        "<div class='com-post-head'><b>" + esc(p.author || "同学") + "</b>" + (p.dept ? "<i>" + esc(p.dept) + "</i>" : "") + tag +
+        "<span class='com-post-time'>" + esc(p.time || "") + "</span></div>" +
+        "<p class='com-post-text'>" + esc(p.text || "") + "</p>" +
+        workEmbed(p) +
+        "<div class='com-post-acts'>" +
+        "<button class='com-act" + (open ? " on" : "") + "' onclick=\"window.comToggleThread&&window.comToggleThread('" + esc(pid) + "')\">💬 " + commentCount(p) + (open ? " · 收起" : " 评论") + "</button>" +
+        "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥ 已赞" : "♡ 赞") + " " + (p.likes || 0) + "</button>" +
+        "</div>" +
+        (open ? threadHtml(p) : "") +
+        "</div></div>";
+    }
+    function renderFeed() {
+      if (cancelled) return;
+      var feedEl = document.getElementById("com-feed");
+      if (!feedEl) return;
+      var pinned = postsCache.filter(function (p) { return p.pinned; });
+      var rest = postsCache.filter(function (p) { return !p.pinned; });
+      var h = "";
+      if (pinned.length) {
+        h += "<div class='com-sechead com-pinhead'><span class='com-sectitle'>置顶 · 精华 / 教程 / 资源</span><span class='com-secen'>PINNED</span></div>";
+        h += "<div class='com-feed'>" + pinned.map(postHtml).join("") + "</div>";
+      }
+      h += "<div class='com-sechead'><span class='com-sectitle'>时间线</span><span class='com-secen'>TIMELINE" + (postsApi ? "" : " · SEED") + "</span></div>";
+      h += rest.length ? "<div class='com-feed'>" + rest.map(postHtml).join("") + "</div>" : "<div class='com-empty-block'>还没有帖子——第一条由你来发。</div>";
+      feedEl.innerHTML = h;
+    }
+    function renderShell() {
+      if (cancelled || !ref.current) return;
+      ref.current.innerHTML =
+        "<div class='com-wrap'>" +
+        "<div class='com-hero'><div class='com-eyebrow'>COMMUNITY · 社团社区</div><h1 class='com-title-lg'>今天，大家在聊什么</h1>" +
+        "<p class='com-sub'>作品、问题、碎碎念都能发——<b>不内卷、不汇报、不答辩</b>，就是一群人一起玩 AI。</p></div>" +
+        "<div class='com-compose'>" +
+        "<span class='com-avatar com-cmt-av'>我</span>" +
+        "<div class='com-cmt-inputwrap'>" +
+        "<textarea id='com-compose-input' rows='2' placeholder='分享点什么…作品、问题、碎碎念都行'></textarea>" +
+        "<div class='com-cmt-foot'><span id='com-compose-hint' class='com-cmt-loginhint' style='display:none'>登录后才能发帖（线上接口启用时生效）</span><button class='com-send' onclick='window.comPost&&window.comPost()'>发布</button></div>" +
+        "</div></div>" +
+        "<div id='com-feed'><div class='com-empty'>加载帖子中…</div></div>" +
+        "</div>";
+    }
+
+    // ===== 交互 =====
+    window.comPost = function () {
+      var input = document.getElementById("com-compose-input");
+      var hint = document.getElementById("com-compose-hint");
       var text = (input && input.value || "").trim();
       if (!text) { if (input) input.focus(); return; }
-      var store = commentStore(modalWork);
-      var parentId = replyTarget;
-      var done = function (c) {
-        store.list = normalizeComments(storeToRaw(store).concat([c]));
-        replyTarget = null; cancelReply();
-        renderCommentList();
-        if (input) input.value = "";
-      };
-      if (store.demo) {
-        // 接口未上线：本地内存发布（仅预览体验，刷新即失）
+      if (!postsApi) {
         localSeq += 1;
-        done({ id: "local-" + localSeq, parent_id: parentId, author: "我", dept: "", text: text, time: "刚刚", likes: 0 });
+        postsCache.unshift({ id: "local-p" + localSeq, author: "我", dept: "", text: text, time: "刚刚", likes: 0, comments: [], _commentsLoaded: true });
+        if (input) input.value = "";
+        renderFeed();
         return;
       }
-      fetch("/api/works/" + encodeURIComponent(String(modalWork.id)) + "/comments", {
+      fetch("/api/community/posts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text })
+      }).then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+        .then(function (res) {
+          if (res.status === 401) { if (hint) hint.style.display = "inline-block"; return; }
+          if (!res.j || !res.j.ok || !res.j.data || !res.j.data.post) throw 0;
+          var p = res.j.data.post; p.comments = []; p._commentsLoaded = true;
+          postsCache.unshift(p);
+          if (input) input.value = "";
+          renderFeed();
+        })
+        .catch(function () { if (hint) hint.style.display = "inline-block"; });
+    };
+    window.comToggleThread = function (pid) {
+      var p = findPost(pid);
+      if (!p) return;
+      threadOpen[pid] = !threadOpen[pid];
+      if (threadOpen[pid]) { loadComments(p, renderFeed); }
+      renderFeed();
+    };
+    window.comLikePost = function (pid) {
+      var p = findPost(pid);
+      if (!p) return;
+      var btn = document.getElementById("plike-" + pid);
+      if (!postsApi) {
+        p._liked = !p._liked; p.likes = (p.likes || 0) + (p._liked ? 1 : -1);
+        if (btn) { btn.innerHTML = (p._liked ? "♥ 已赞" : "♡ 赞") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); }
+        return;
+      }
+      fetch("/api/community/posts/" + encodeURIComponent(String(pid)) + "/like", { method: "POST" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (j && j.ok && j.data) { p.likes = j.data.likes; p._liked = !!j.data.liked; if (btn) { btn.innerHTML = (p._liked ? "♥ 已赞" : "♡ 赞") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); } }
+        }).catch(function () {});
+    };
+    window.comSendComment = function (pid) {
+      var p = findPost(pid);
+      if (!p) return;
+      var input = document.getElementById("cmt-input-" + pid);
+      var hint = document.getElementById("loginhint-" + pid);
+      var text = (input && input.value || "").trim();
+      if (!text) { if (input) input.focus(); return; }
+      var rs = replyState[pid];
+      var parentId = rs ? rs.cid : null;
+      var done = function (c) {
+        p.comments = normComments(commentsToRaw(p.comments).concat([c]));
+        delete replyState[pid];
+        renderFeed();
+      };
+      if (!postsApi) {
+        localSeq += 1;
+        done({ id: "local-c" + localSeq, parent_id: parentId, author: "我", dept: "", text: text, time: "刚刚", likes: 0 });
+        return;
+      }
+      fetch("/api/community/posts/" + encodeURIComponent(String(pid)) + "/comments", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text, parent_id: parentId })
       }).then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
@@ -1801,231 +1854,107 @@ var CommunitySection = () => {
           done(res.j.data.comment);
         })
         .catch(function () { if (hint) hint.style.display = "inline-block"; });
-    }
-
-    function cancelReply() {
-      replyTarget = null;
-      var chip = document.getElementById("com-reply-chip");
-      if (chip) chip.style.display = "none";
-      var input = document.getElementById("com-cmt-input");
-      if (input) input.placeholder = "说点什么…（对作品本身或使用建议都行）";
-    }
-
-    window.comSend = sendComment;
-    window.comReply = function (cid, name) {
-      replyTarget = cid;
-      var chip = document.getElementById("com-reply-chip");
-      if (chip) chip.style.display = "inline-block";
-      var chipName = document.getElementById("com-reply-name");
-      if (chipName) chipName.textContent = "@" + (name || "");
-      var input = document.getElementById("com-cmt-input");
-      if (input) { input.placeholder = "回复 @" + (name || "") + "…"; input.focus(); }
     };
-    window.comCancelReply = cancelReply;
-    window.comLike = function (cid) {
-      if (!modalWork) return;
-      var store = commentStore(modalWork);
+    window.comReplyComment = function (pid, cid, name) {
+      replyState[pid] = { cid: cid, name: name };
+      threadOpen[pid] = true;
+      renderFeed();
+      var input = document.getElementById("cmt-input-" + pid);
+      if (input) input.focus();
+    };
+    window.comCancelReply = function (pid) {
+      delete replyState[pid];
+      renderFeed();
+    };
+    window.comLikeComment = function (pid, cid) {
+      var p = findPost(pid);
+      if (!p) return;
       var hit = null;
-      store.list.forEach(function (t) {
+      (p.comments || []).forEach(function (t) {
         if (String(t.id) === String(cid)) hit = t;
         (t._replies || []).forEach(function (r) { if (String(r.id) === String(cid)) hit = r; });
       });
       if (!hit) return;
-      var btn = document.getElementById("like-" + cid);
-      if (store.demo) {
+      var btn = document.getElementById("clike-" + pid + "-" + cid);
+      if (!postsApi) {
         hit._liked = !hit._liked; hit._likes += hit._liked ? 1 : -1;
         if (btn) { btn.innerHTML = (hit._liked ? "♥ 已赞" : "♡ 赞") + " " + hit._likes; if (btn.classList) btn.classList.toggle("on", hit._liked); }
         return;
       }
-      fetch("/api/works/" + encodeURIComponent(String(modalWork.id)) + "/comments/" + encodeURIComponent(String(cid)) + "/like", { method: "POST" })
+      fetch("/api/community/posts/" + encodeURIComponent(String(pid)) + "/comments/" + encodeURIComponent(String(cid)) + "/like", { method: "POST" })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
           if (j && j.ok && j.data) { hit._likes = j.data.likes; hit._liked = !!j.data.liked; if (btn) { btn.innerHTML = (hit._liked ? "♥ 已赞" : "♡ 赞") + " " + hit._likes; if (btn.classList) btn.classList.toggle("on", hit._liked); } }
         }).catch(function () {});
     };
 
-    function openWorkModal(works) {
-      return function (i) {
-        var w = works[i];
-        if (!w) return;
-        var el = document.getElementById("com-modal");
-        if (!el) return;
-        modalWork = w;
-        replyTarget = null;
-        var k = KIND_LABEL[w.kind] || esc(w.kind || "作品");
-        el.innerHTML = "<div class='com-modal-mask' onclick='window.comClose()'></div><div class='com-modal-card'>" +
-          "<button class='com-close' onclick='window.comClose()'>×</button>" +
-          "<span class='com-wk-kind'>" + k + "</span>" +
-          "<div class='com-modal-title'>" + esc(w.title || "未命名作品") + "</div>" +
-          "<div class='com-modal-meta'>" + esc(w.author || "匿名") + (w.category ? " · " + esc(w.category) : "") + (w.created_at ? " · " + esc(String(w.created_at).slice(0, 10)) : "") + "</div>" +
-          (w.description ? "<p class='com-modal-desc'>" + esc(w.description) + "</p>" : "<p class='com-modal-desc com-empty'>暂无简介</p>") +
-          (w.source ? "<a class='com-import-btn' href='" + esc(w.source) + "' target='_blank' rel='noopener'>⤓ 导入到我的环境</a><div class='com-import-hint'>通过分享链接，把 Ta 的 Agent / 作品装进你自己的工作台或群里直接用</div>" : "<div class='com-import-hint'>作者还没挂分享链接——可以在评论区喊 Ta 补一个</div>") +
-          "<div class='com-cmt-head2'><span id='com-cmt-count'>回复与建议</span><span id='com-cmt-seed' class='com-cmt-seed' style='display:none'>DEMO</span></div>" +
-          "<div id='com-cmt-list'><div class='com-empty'>加载评论中…</div></div>" +
-          "<div class='com-cmt-box'>" +
-          "<span class='com-avatar com-cmt-av'>我</span>" +
-          "<div class='com-cmt-inputwrap'>" +
-          "<div id='com-reply-chip' class='com-reply-chip' style='display:none'>回复 <span id='com-reply-name'></span> <button class='com-act' onclick='window.comCancelReply()'>取消</button></div>" +
-          "<textarea id='com-cmt-input' rows='2' placeholder=\"说点什么…（对作品本身或使用建议都行）\"></textarea>" +
-          "<div class='com-cmt-foot'><span id='com-cmt-loginhint' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span><button class='com-send' onclick='window.comSend()'>发送</button></div>" +
-          "</div></div>" +
-          "<div class='com-modal-tip'>完整团队与制作过程，见首页「作品墙」。</div>" +
-          "</div>";
-        el.style.display = "flex";
-        var input = document.getElementById("com-cmt-input");
-        if (input) input.addEventListener("keydown", function (e) { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendComment(); });
-        loadComments(w, renderCommentList);
-      };
-    }
-
-    window.comClose = function () { var el = document.getElementById("com-modal"); if (el) el.style.display = "none"; };
-
-    var worksCache = [];
-
-    function renderAll(moments, momentsFromApi, cfg, works) {
-      if (cancelled || !ref.current) return;
-      worksCache = works;
-      var courses = cfg.courses || [];
-      var resources = cfg.resources || [];
-      var partner = cfg.partner || null;
-
-      var h = "";
-      h += "<div class='com-wrap'>";
-      // Hero
-      h += "<div class='com-hero'><div class='com-eyebrow'>COMMUNITY · 社团社区</div><h1 class='com-title-lg'>一群爱玩的人<br/>凑成了这一面墙</h1><p class='com-sub'>高效上班、不耽误下班。以兴趣为纽带、以分享为乐趣——<b>不内卷、不汇报、不答辩</b>，就是一群人一起玩 AI。</p><div class='com-stickers'><span>不内卷</span><span>不汇报</span><span>不答辩</span><span>只管玩</span></div></div>";
-
-      // 社区动态
-      h += "<div class='com-sechead'><span class='com-sectitle'>社区动态</span><span class='com-secen'>MOMENTS" + (momentsFromApi ? "" : " · SEED") + "</span></div>";
-      if (moments.length) {
-        h += "<div class='com-moments'>" + moments.map(function (m, i) { return momentCard(m, i); }).join("") + "</div>";
-      } else {
-        h += "<div class='com-empty-block'>还没有动态——第一场活动之后，这里会热闹起来。</div>";
-      }
-
-      // 精选作品
-      h += "<div class='com-sechead'><span class='com-sectitle'>精选作品</span><span class='com-secen'>FEATURED WORKS</span></div>";
-      if (works.length) {
-        h += "<div class='com-works'>" + works.slice(0, 8).map(function (w, i) { return workCard(w, i); }).join("") + "</div>";
-      } else {
-        h += "<div class='com-empty-block'>作品墙还在等第一件作品——去首页上传，或等活动结束统一放送。</div>";
-      }
-
-      // 课程目录
-      if (courses.length) {
-        h += "<div class='com-sechead'><span class='com-sectitle'>课程目录</span><span class='com-secen'>COURSE INDEX</span></div>";
-        h += "<div class='com-courses'>" + courses.map(function (c) { return courseRow(c); }).join("") + "</div>";
-      }
-
-      // 知识库与共学
-      if (resources.length) {
-        h += "<div class='com-sechead'><span class='com-sectitle'>知识库与共学</span><span class='com-secen'>ARCHIVE</span></div>";
-        h += "<div class='com-resources'>" + resources.map(function (r) { return resourceCard(r); }).join("") + "</div>";
-      }
-
-      // 高校联合
-      if (partner) {
-        h += "<div class='com-partner'><div class='com-partner-in'><span class='com-partner-tag'>高校联合</span><div class='com-partner-title'>" + esc(partner.title || "") + "</div><p class='com-partner-desc'>" + esc(partner.desc || "") + "</p><div class='com-res-items'>" + (partner.items || []).map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div></div></div>";
-      }
-      h += "</div>";
-
-      ref.current.innerHTML = h;
-      window.comOpenWork = openWorkModal(worksCache);
-    }
-
-    // 数据装载：静态配置 + 动态(moments) + 作品(works) 并行取齐后一次性渲染
-    var cfgCache = {}, momentsCache = [], momentsApi = false, worksDone = false, momentsDone = false, cfgDone = false;
-    function tryRender() {
-      if (cancelled || !cfgDone || !momentsDone || !worksDone) return;
-      renderAll(momentsCache, momentsApi, cfgCache, worksCache);
-    }
-    loadStatic(function (d) { cfgCache = d; demoComments = (d && d.comments) || null; cfgDone = true; tryRender(); });
-    loadMoments(function (m, fromApi) { momentsCache = m || []; momentsApi = !!fromApi; momentsDone = true; tryRender(); });
-    loadWorks(function (ws) { worksCache = ws; worksDone = true; tryRender(); });
+    // ===== 启动 =====
+    renderShell();
+    loadPosts(function (posts, fromApi) {
+      postsCache = posts || [];
+      postsApi = !!fromApi;
+      renderFeed();
+    });
 
     return function () {
       cancelled = true;
-      delete window.comOpenWork;
-      delete window.comClose;
-      delete window.comSend;
-      delete window.comReply;
+      delete window.comPost;
+      delete window.comToggleThread;
+      delete window.comLikePost;
+      delete window.comSendComment;
+      delete window.comReplyComment;
       delete window.comCancelReply;
-      delete window.comLike;
+      delete window.comLikeComment;
     };
   }, []);
-  return React.createElement("section", { className: "page-section", style: { background: "#faf9f5", color: "#1c1d20", padding: "140px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
-    .com-wrap{max-width:1080px;margin:0 auto;}
-    .com-hero{text-align:center;padding:8px 0 26px;}
-    .com-eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:4px;color:#b8434e;margin-bottom:18px;}
-    .com-title-lg{font-family:'Noto Serif SC',serif;font-size:56px;font-weight:600;letter-spacing:2px;line-height:1.25;margin:0 0 18px;color:#1c1d20;}
-    .com-sub{font-size:15px;color:#666;line-height:1.9;max-width:560px;margin:0 auto;}
-    .com-sub b{color:#1c1d20;}
-    .com-stickers{display:flex;justify-content:center;gap:10px;margin-top:26px;flex-wrap:wrap;}
-    .com-stickers span{font-size:12px;font-weight:700;padding:4px 14px;border:2px solid #1c1d20;border-radius:999px;background:#fff;box-shadow:2px 2px 0 rgba(28,29,32,0.18);transform:rotate(-2deg);}
-    .com-stickers span:nth-child(2n){transform:rotate(1.5deg);background:#fdf3d8;}
-    .com-stickers span:nth-child(3n){transform:rotate(-1deg);background:#e8f0e4;}
-    .com-sechead{display:flex;align-items:baseline;gap:14px;margin:72px 0 26px;border-bottom:1px solid rgba(28,29,32,0.12);padding-bottom:10px;}
-    .com-sectitle{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:600;color:#1c1d20;}
-    .com-secen{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#b0aca4;}
-    .com-moments{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
-    .com-moment{background:#fff;border:2px solid #1c1d20;border-radius:8px;padding:18px 18px 14px;box-shadow:4px 4px 0 rgba(28,29,32,0.15);transform:rotate(var(--rot,0deg));transition:transform .25s cubic-bezier(.2,1.2,.4,1),box-shadow .25s;}
-    .com-moment:hover{transform:rotate(0deg) translateY(-4px);box-shadow:6px 8px 0 rgba(28,29,32,0.2);}
-    .com-mo-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-    .com-avatar{width:34px;height:34px;border-radius:50%;background:#1c1d20;color:#faf9f5;font-family:'Noto Serif SC',serif;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:0 0 34px;}
-    .com-mo-who{line-height:1.2;min-width:0;}
-    .com-mo-who b{display:block;font-size:13px;color:#1c1d20;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .com-mo-who i{font-style:normal;font-size:10px;color:#b0aca4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:120px;}
-    .com-mo-act{margin-left:auto;flex:0 0 auto;font-size:10px;font-weight:700;color:#b8434e;border:1.5px solid #b8434e;border-radius:999px;padding:2px 9px;background:rgba(184,67,78,0.06);}
-    .com-mo-text{font-size:13px;color:#444;line-height:1.8;margin:0 0 10px;}
-    .com-mo-time{font-family:'JetBrains Mono',monospace;font-size:10px;color:#c3bfb7;}
-    .com-works{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
-    .com-work{position:relative;background:#fff;border:2px solid #1c1d20;border-radius:8px;padding:20px 16px 16px;box-shadow:3px 3px 0 rgba(28,29,32,0.12);cursor:pointer;transition:transform .22s,box-shadow .22s;overflow:hidden;}
-    .com-work:hover{transform:translateY(-4px);box-shadow:5px 7px 0 rgba(28,29,32,0.18);}
-    .com-wk-kind{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:#1c1d20;border-radius:3px;padding:2px 8px;margin-bottom:12px;letter-spacing:1px;}
-    .com-wk-title{font-family:'Noto Serif SC',serif;font-size:16px;font-weight:600;line-height:1.5;color:#1c1d20;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:48px;}
-    .com-wk-author{font-size:11px;color:#888;margin-bottom:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .com-wk-more{font-size:11px;color:#b8434e;font-weight:700;opacity:0;transition:opacity .2s;}
-    .com-work:hover .com-wk-more{opacity:1;}
-    .com-courses{display:flex;flex-direction:column;gap:0;}
-    .com-course{display:flex;align-items:center;gap:18px;padding:16px 6px;border-bottom:1px dashed rgba(28,29,32,0.25);transition:background .2s;}
-    .com-course:hover{background:rgba(255,255,255,0.7);}
-    .com-cs-no{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#b8434e;flex:0 0 52px;}
-    .com-cs-main{min-width:0;flex:1;}
-    .com-cs-theme{font-family:'Noto Serif SC',serif;font-size:17px;font-weight:600;color:#1c1d20;margin-bottom:4px;}
-    .com-cs-meta{font-size:12px;color:#999;}
-    .com-cs-link{flex:0 0 auto;font-size:12px;font-weight:700;color:#1c1d20;text-decoration:none;border:1.5px solid #1c1d20;border-radius:999px;padding:4px 13px;transition:all .2s;}
-    .com-cs-link:hover{background:#1c1d20;color:#faf9f5;}
-    .com-cs-off{color:#c3bfb7;border-color:#d8d4cc;cursor:default;}
-    .com-cs-off:hover{background:transparent;color:#c3bfb7;}
-    .com-resources{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
-    .com-res{background:#fff;border:1.5px solid rgba(28,29,32,0.14);border-radius:8px;padding:22px 18px;transition:transform .22s,box-shadow .22s,border-color .22s;}
-    .com-res:hover{transform:translateY(-4px);box-shadow:4px 6px 0 rgba(28,29,32,0.1);border-color:#1c1d20;}
-    .com-res-name{font-family:'Noto Serif SC',serif;font-size:16px;font-weight:600;color:#1c1d20;margin-bottom:8px;}
-    .com-res-desc{font-size:12px;color:#888;line-height:1.8;margin:0 0 12px;}
-    .com-res-items{display:flex;flex-wrap:wrap;gap:6px;}
-    .com-res-items span{font-size:10px;color:#666;border:1px solid rgba(28,29,32,0.2);border-radius:3px;padding:2px 7px;background:rgba(28,29,32,0.03);}
-    .com-partner{margin-top:72px;background:#1c1d20;border-radius:10px;padding:34px 34px 30px;color:#faf9f5;box-shadow:6px 6px 0 rgba(184,67,78,0.5);}
-    .com-partner-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:2px;color:#1c1d20;background:#f2c94c;border-radius:3px;padding:3px 10px;margin-bottom:12px;}
-    .com-partner-title{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:600;margin-bottom:10px;}
-    .com-partner-desc{font-size:13px;color:rgba(250,249,245,0.75);line-height:1.9;max-width:640px;margin:0 0 16px;}
-    .com-partner .com-res-items span{color:rgba(250,249,245,0.85);border-color:rgba(250,249,245,0.3);background:rgba(250,249,245,0.06);}
-    .com-empty-block{background:#fff;border:1.5px dashed rgba(28,29,32,0.3);border-radius:8px;padding:36px 24px;text-align:center;color:#999;font-size:13px;}
-    #com-modal{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:24px;}
-    .com-modal-mask{position:absolute;inset:0;background:rgba(26,26,31,0.7);backdrop-filter:blur(4px);}
-    .com-modal-card{position:relative;width:100%;max-width:560px;background:#fff;border:2px solid #1c1d20;border-radius:10px;padding:36px;max-height:82vh;overflow:auto;box-shadow:8px 8px 0 rgba(28,29,32,0.25);}
-    .com-close{position:absolute;top:18px;right:18px;cursor:pointer;color:#aaa;font-size:22px;background:none;border:none;}
-    .com-modal-title{font-family:'Noto Serif SC',serif;font-size:26px;font-weight:500;margin:14px 0 8px;}
-    .com-modal-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:#999;margin-bottom:14px;}
-    .com-modal-desc{font-size:14px;color:#555;line-height:1.9;}
-    .com-empty{color:#bbb;}
-    .com-modal-tip{margin-top:20px;padding-top:14px;border-top:1px dashed rgba(28,29,32,0.2);font-size:12px;color:#b8434e;font-weight:700;}
-
-    .com-import-btn{display:inline-block;margin:16px 0 4px;padding:10px 18px;background:#b8434e;color:#fff;border:2px solid #1c1d20;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;box-shadow:3px 3px 0 rgba(28,29,32,0.2);}
+  return React.createElement("section", { className: "page-section", style: { background: "#faf9f5", color: "#1c1d20", padding: "120px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
+    .com-wrap{max-width:760px;margin:0 auto;}
+    .com-hero{text-align:left;padding:8px 0 22px;}
+    .com-eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:4px;color:#b8434e;margin-bottom:14px;}
+    .com-title-lg{font-family:'Noto Serif SC',serif;font-size:42px;font-weight:600;letter-spacing:2px;line-height:1.25;margin:0 0 12px;color:#1c1d20;}
+    .com-sub{font-size:15px;color:#666;line-height:1.8;max-width:560px;}
+    .com-sub b{color:#b8434e;}
+    .com-avatar{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#1c1d20;color:#faf9f5;font-size:15px;font-weight:700;flex:0 0 38px;}
+    .com-compose{display:flex;gap:12px;align-items:flex-start;background:#fff;border:2px solid #1c1d20;border-radius:12px;padding:18px;margin:6px 0 8px;box-shadow:4px 4px 0 rgba(28,29,32,0.15);}
+    .com-cmt-inputwrap{flex:1;min-width:0;}
+    .com-compose textarea,#com-cmt-input,.com-thread textarea{width:100%;box-sizing:border-box;border:2px solid rgba(28,29,32,0.35);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:vertical;min-height:44px;background:#fffdf8;color:#1c1d20;}
+    .com-compose textarea:focus,.com-thread textarea:focus{outline:none;border-color:#b8434e;}
+    .com-cmt-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+    .com-cmt-loginhint{font-size:12px;color:#b8434e;}
+    .com-send{background:#1c1d20;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;}
+    .com-send:hover{background:#b8434e;}
+    .com-sechead{display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 12px;}
+    .com-pinhead{margin-top:22px;}
+    .com-sectitle{font-family:'Noto Serif SC',serif;font-size:19px;font-weight:600;letter-spacing:1px;color:#1c1d20;}
+    .com-secen{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;color:#b8434e;}
+    .com-feed{display:flex;flex-direction:column;gap:14px;}
+    .com-post{display:flex;gap:12px;background:#fff;border:2px solid #1c1d20;border-radius:12px;padding:18px;box-shadow:4px 4px 0 rgba(28,29,32,0.12);}
+    .com-post-pinned{background:#fffdf3;border-color:#b8434e;box-shadow:4px 4px 0 rgba(184,67,78,0.25);}
+    .com-post-main{flex:1;min-width:0;}
+    .com-post-head{display:flex;align-items:center;gap:8px;font-size:12px;color:#999;flex-wrap:wrap;}
+    .com-post-head b{color:#1c1d20;font-size:14px;}
+    .com-post-head i{font-style:normal;}
+    .com-pin-tag{font-size:10px;font-weight:700;border-radius:99px;padding:2px 8px;letter-spacing:1px;}
+    .com-tag-featured{background:#1c1d20;color:#ffd97a;}
+    .com-tag-tutorial{background:#e8f0fe;color:#1c1d20;}
+    .com-tag-resource{background:#fdeae8;color:#b8434e;}
+    .com-post-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;}
+    .com-post-text{font-size:15px;color:#333;line-height:1.8;margin:8px 0 0;white-space:pre-wrap;}
+    .com-embed{margin-top:10px;border:2px solid rgba(28,29,32,0.35);border-radius:10px;padding:14px 16px;background:#faf9f5;}
+    .com-wk-kind{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:#b8434e;border-radius:4px;padding:2px 7px;}
+    .com-embed-title{font-family:'Noto Serif SC',serif;font-size:17px;font-weight:600;margin:8px 0 4px;color:#1c1d20;}
+    .com-embed-desc{font-size:13px;color:#666;line-height:1.7;}
+    .com-import-btn{display:inline-block;margin:10px 0 0;padding:7px 14px;background:#b8434e;color:#fff;border:2px solid #1c1d20;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;box-shadow:3px 3px 0 rgba(28,29,32,0.2);}
     .com-import-btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 rgba(28,29,32,0.3);color:#fff;}
-    .com-import-hint{font-size:12px;color:#999;margin:4px 0 6px;}
-    .com-cmt-head2{display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:2px solid #1c1d20;font-weight:700;font-size:14px;}
-    .com-cmt-seed{font-family:'JetBrains Mono',monospace;font-size:10px;color:#b8434e;border:1px solid #b8434e;border-radius:99px;padding:1px 8px;font-weight:400;}
-    #com-cmt-list{margin-top:2px;}
-    .com-cmt{display:flex;gap:10px;padding:12px 0;border-bottom:1px dashed rgba(28,29,32,0.12);}
+    .com-import-hint{font-size:12px;color:#999;margin-top:8px;}
+    .com-post-acts{display:flex;gap:16px;margin-top:10px;}
+    .com-act{background:none;border:none;font-size:12px;color:#888;cursor:pointer;padding:2px 4px;font-family:inherit;}
+    .com-act:hover{color:#b8434e;}
+    .com-act.on{color:#b8434e;font-weight:700;}
+    .com-thread{margin-top:12px;padding-top:4px;border-top:1px dashed rgba(28,29,32,0.2);}
+    .com-thread-box{margin:12px 0 2px;}
+    .com-cmt{display:flex;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(28,29,32,0.1);}
+    .com-cmt:last-of-type{border-bottom:none;}
     .com-cmt-reply{margin:0 0 0 6px;border-left:2px solid rgba(184,67,78,0.35);padding-left:12px;border-bottom:none;}
     .com-cmt-av{flex:0 0 30px;width:30px;height:30px;font-size:13px;}
     .com-cmt-body{flex:1;min-width:0;}
@@ -2036,32 +1965,17 @@ var CommunitySection = () => {
     .com-cmt-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;}
     .com-cmt-text{font-size:14px;color:#333;line-height:1.7;margin:4px 0;}
     .com-cmt-acts{display:flex;gap:14px;}
-    .com-act{background:none;border:none;font-size:12px;color:#888;cursor:pointer;padding:2px 4px;font-family:inherit;}
-    .com-act:hover{color:#b8434e;}
-    .com-act.on{color:#b8434e;font-weight:700;}
-    .com-cmt-box{display:flex;gap:10px;align-items:flex-start;margin:14px 0 4px;padding-top:14px;border-top:2px solid #1c1d20;}
-    .com-cmt-inputwrap{flex:1;min-width:0;}
     .com-reply-chip{display:inline-block;font-size:12px;color:#b8434e;background:rgba(184,67,78,0.08);border:1px dashed #b8434e;border-radius:99px;padding:2px 10px;margin-bottom:6px;}
-    #com-cmt-input{width:100%;box-sizing:border-box;border:2px solid rgba(28,29,32,0.35);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:vertical;min-height:44px;background:#fffdf8;color:#1c1d20;}
-    #com-cmt-input:focus{outline:none;border-color:#b8434e;}
-    .com-cmt-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
-    .com-cmt-loginhint{font-size:12px;color:#b8434e;}
-    .com-send{background:#1c1d20;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;}
-    .com-send:hover{background:#b8434e;}
+    .com-empty{padding:16px;text-align:center;color:#999;font-size:13px;}
+    .com-empty-block{padding:26px;text-align:center;color:#999;font-size:14px;border:2px dashed rgba(28,29,32,0.25);border-radius:12px;}
     @media (max-width: 900px){
-      .com-moments{grid-template-columns:repeat(2,1fr);}
-      .com-works{grid-template-columns:repeat(2,1fr);}
-      .com-resources{grid-template-columns:repeat(2,1fr);}
+      .com-title-lg{font-size:32px;}
     }
     @media (max-width: 600px){
-      .com-title-lg{font-size:36px;}
-      .com-moments{grid-template-columns:1fr;}
-      .com-works{grid-template-columns:1fr;}
-      .com-resources{grid-template-columns:1fr;}
-      .com-course{flex-wrap:wrap;}
-      .com-cs-link{margin-left:52px;}
+      .com-title-lg{font-size:26px;}
+      .com-post,.com-compose{padding:14px;}
     }
-  `), React.createElement("div", { ref: ref }), React.createElement("div", { id: "com-modal", style: { position: "fixed", inset: 0, zIndex: 10000, display: "none", alignItems: "center", justifyContent: "center", padding: 24 } }));
+  `), React.createElement("div", { ref: ref }));
 };
 
 var AboutSection = () => {
