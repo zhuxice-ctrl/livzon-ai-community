@@ -3457,8 +3457,12 @@ var Footer = () => {
     style: { fontFamily: "'JetBrains Mono', monospace", opacity: 0.6 }
   }, "v1.0 · CURVED SCREEN"))));
 };
+var HASH_PAGES = { home: 1, activities: 1, community: 1, about: 1 };
 var App = () => {
-  const [page, setPage] = React.useState("home");
+  const [page, setPage] = React.useState(function () {
+    var h = String(window.location.hash || "").replace(/^#/, "");
+    return HASH_PAGES[h] ? h : "home";
+  });
   const [selectedWork, setSelectedWork] = React.useState(null);
   const lightMode = page !== "home";
   const handleNavigate = (target) => {
