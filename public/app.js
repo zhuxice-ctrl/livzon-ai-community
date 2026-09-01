@@ -1606,6 +1606,11 @@ var CommunitySection = () => {
     var pendingNew = [];     // 轮询发现的新帖（未合并）
     var POLL_MS = 30000;
     var pollTimer = null;
+    var cfgData = null;        // 公告 / 图文轮播（GET /api/community/config，回落 community.json）
+    var bannerIdx = 0;
+    var bannerTimer = null;
+    var stageImages = [];      // 发帖暂存图片（{name,url,file}）
+    var stageFiles = [];       // 发帖暂存附件（{name,size,url,file}）
 
     function postKey(p) { return String(p.id != null ? p.id : (p.time || Math.random())); }
     function findPost(pid) {
@@ -1775,6 +1780,25 @@ var CommunitySection = () => {
         "<span id='loginhint-" + esc(pid) + "' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span>" +
         "</div></div>";
     }
+    function fmtSize(n) {
+      n = +n || 0;
+      return n > 1048576 ? (n / 1048576).toFixed(1) + "MB" : n > 1024 ? Math.round(n / 1024) + "KB" : n + "B";
+    }
+    function mediaHtml(p) {
+      var h = "";
+      if (p.images && p.images.length) {
+        h += "<div class='com-imgs com-imgs-" + Math.min(p.images.length, 3) + "'>" + p.images.map(function (im) {
+          var u = typeof im === "string" ? im : im.url;
+          return "<img src='" + esc(u) + "' alt='' loading='lazy' onclick=\"window.comViewer&&window.comViewer('" + esc(u).replace(/'/g, "") + "')\">";
+        }).join("") + "</div>";
+      }
+      if (p.attachments && p.attachments.length) {
+        h += p.attachments.map(function (a) {
+          return "<a class='com-attach' href='" + esc(a.url || "#") + "' target='_blank' rel='noopener'>📎 " + esc(a.name || "附件") + (a.size ? "<span>" + fmtSize(a.size) + "</span>" : "") + "</a>";
+        }).join("");
+      }
+      return h;
+    }
     function postHtml(p) {
       var pid = postKey(p);
       var open = !!threadOpen[pid];
@@ -1787,6 +1811,7 @@ var CommunitySection = () => {
         "<span class='com-post-time'>" + esc(p.time || "") + "</span></div>" +
         "<p class='com-post-text'>" + esc(p.text || "") + "</p>" +
         workEmbed(p) +
+        mediaHtml(p) +
         "<div class='com-post-acts'>" +
         "<button class='com-act" + (open ? " on" : "") + "' onclick=\"window.comToggleThread&&window.comToggleThread('" + esc(pid) + "')\">💬 " + cc + "</button>" +
         "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥" : "♡") + " " + (p.likes || 0) + "</button>" +
@@ -1839,17 +1864,124 @@ var CommunitySection = () => {
         "<div class='com-headtitle'>社团社区</div>" +
         "<div class='com-headsub'>作品 · 问题 · 碎碎念，都在这</div>" +
         "</div>" +
+        "<div id='com-top'></div>" +
         "<div class='com-compose'>" +
         "<span class='com-avatar com-cmt-av'>我</span>" +
         "<div class='com-compose-main'>" +
-        "<textarea id='com-compose-input' rows='2' placeholder='分享点什么…作品、问题、碎碎念都行'></textarea>" +
+        "<textarea id='com-compose-input' rows='2' placeholder='分享点什么…文字、图片、附件都行'></textarea>" +
+        "<div id='com-stage'></div>" +
         "<div class='com-compose-foot'>" +
+        "<div class='com-compose-tools'>" +
+        "<button class='com-tool' onclick=\"document.getElementById('com-img-input').click()\">📷 图片</button>" +
+        "<button class='com-tool' onclick=\"document.getElementById('com-file-input').click()\">📎 附件</button>" +
+        "<input type='file' id='com-img-input' accept='image/*' multiple style='display:none' onchange='window.comStageImg&&window.comStageImg(this)'>" +
+        "<input type='file' id='com-file-input' multiple style='display:none' onchange='window.comStageFile&&window.comStageFile(this)'>" +
+        "</div>" +
         "<span id='com-compose-hint' class='com-cmt-loginhint' style='display:none'>登录后才能发帖（线上接口启用时生效）</span>" +
         "<button class='com-send' onclick='window.comPost&&window.comPost()'>发布</button>" +
         "</div></div></div>" +
         "<div id='com-feed'><div class='com-empty'>加载帖子中…</div></div>" +
+        "<div id='com-lightbox' onclick='window.comViewerClose&&window.comViewerClose()'></div>" +
         "</div>";
     }
+
+    // ===== 顶部：公告 + 图文轮播 =====
+    function loadCfg(cb) {
+      fetch("/api/community/config")
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok || !j.data) throw 0;
+          cb(j.data);
+        })
+        .catch(function () {
+          fetch("/data/community.json")
+            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+            .then(function (j) { cb({ announcement: j.announcement || null, banners: j.banners || [] }); })
+            .catch(function () { cb({ announcement: null, banners: [] }); });
+        });
+    }
+    function renderTop() {
+      var el = document.getElementById("com-top");
+      if (!el || !cfgData) return;
+      var h = "";
+      var a = cfgData.announcement;
+      if (a && a.text) {
+        h += "<div class='com-notice'><span class='com-notice-tag'>📢 公告</span><span class='com-notice-text'>" + esc(a.text) + "</span><span class='com-notice-meta'>" + esc(a.author || "") + (a.time ? " · " + esc(a.time) : "") + "</span></div>";
+      }
+      var bs = cfgData.banners || [];
+      if (bs.length) {
+        h += "<div class='com-banner'>";
+        h += bs.map(function (b, i) {
+          return "<div class='com-banner-slide" + (i === bannerIdx ? " on" : "") + "'>" +
+            "<img src='" + esc(b.image) + "' alt='' loading='lazy'>" +
+            (b.title ? "<div class='com-banner-cap'><b>" + esc(b.title) + "</b>" + (b.caption ? "<span>" + esc(b.caption) + "</span>" : "") + "</div>" : "") +
+            "</div>";
+        }).join("");
+        if (bs.length > 1) {
+          h += "<div class='com-banner-dots'>" + bs.map(function (b, i) {
+            return "<button class='com-dot" + (i === bannerIdx ? " on" : "") + "' onclick=\"window.comBanner&&window.comBanner(" + i + ")\"></button>";
+          }).join("") + "</div>";
+        }
+        h += "</div>";
+      }
+      el.innerHTML = h;
+    }
+    function restartBanner() {
+      if (bannerTimer) clearInterval(bannerTimer);
+      var bs = (cfgData && cfgData.banners) || [];
+      if (bs.length > 1) {
+        bannerTimer = setInterval(function () {
+          bannerIdx = (bannerIdx + 1) % bs.length;
+          renderTop();
+        }, 5000);
+      }
+    }
+
+    // ===== 发帖媒体暂存 =====
+    function renderStage() {
+      var el = document.getElementById("com-stage");
+      if (!el) return;
+      if (!stageImages.length && !stageFiles.length) { el.innerHTML = ""; return; }
+      var h = "<div class='com-stage-row'>";
+      h += stageImages.map(function (f, i) {
+        return "<div class='com-stage-thumb'><img src='" + esc(f.url) + "' alt=''><button class='com-stage-x' onclick=\"window.comUnstage&&window.comUnstage('img'," + i + ")\">×</button></div>";
+      }).join("");
+      h += stageFiles.map(function (f, i) {
+        return "<div class='com-stage-file'>📎 " + esc(f.name) + "<button class='com-stage-x' onclick=\"window.comUnstage&&window.comUnstage('file'," + i + ")\">×</button></div>";
+      }).join("");
+      el.innerHTML = h + "</div>";
+    }
+    window.comStageImg = function (input) {
+      var files = input.files || [];
+      for (var i = 0; i < files.length && stageImages.length < 9; i++) {
+        stageImages.push({ name: files[i].name, url: URL.createObjectURL(files[i]), file: files[i] });
+      }
+      input.value = "";
+      renderStage();
+    };
+    window.comStageFile = function (input) {
+      var files = input.files || [];
+      for (var i = 0; i < files.length && stageFiles.length < 5; i++) {
+        stageFiles.push({ name: files[i].name, size: files[i].size, url: URL.createObjectURL(files[i]), file: files[i] });
+      }
+      input.value = "";
+      renderStage();
+    };
+    window.comUnstage = function (kind, i) {
+      (kind === "img" ? stageImages : stageFiles).splice(i, 1);
+      renderStage();
+    };
+    window.comBanner = function (i) { bannerIdx = i; restartBanner(); renderTop(); };
+    window.comViewer = function (u) {
+      var lb = document.getElementById("com-lightbox");
+      if (!lb) return;
+      lb.innerHTML = "<img src='" + esc(u) + "' alt=''>";
+      lb.style.display = "flex";
+    };
+    window.comViewerClose = function () {
+      var lb = document.getElementById("com-lightbox");
+      if (lb) lb.style.display = "none";
+    };
 
     // ===== 交互 =====
     window.comSort = function (mode) {
@@ -1871,31 +2003,47 @@ var CommunitySection = () => {
       var feed = document.getElementById("com-feed");
       if (feed && feed.scrollIntoView) feed.scrollIntoView({ behavior: "smooth", block: "start" });
     };
+    function uploadOne(f) {
+      var fd = new FormData();
+      fd.append("file", f.file);
+      return fetch("/api/community/upload", { method: "POST", body: fd })
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) { if (!j || !j.ok || !j.data || !j.data.url) throw 0; return j.data; });
+    }
     window.comPost = function () {
       var input = document.getElementById("com-compose-input");
       var hint = document.getElementById("com-compose-hint");
       var text = (input && input.value || "").trim();
-      if (!text) { if (input) input.focus(); return; }
+      if (!text && !stageImages.length && !stageFiles.length) { if (input) input.focus(); return; }
       if (!postsApi) {
         localSeq += 1;
-        postsCache.unshift({ id: "local-p" + localSeq, author: "我", dept: "", text: text, time: "刚刚", likes: 0, comments: [], _commentsLoaded: true });
+        postsCache.unshift({
+          id: "local-p" + localSeq, author: "我", dept: "", text: text, time: "刚刚", likes: 0,
+          images: stageImages.map(function (f) { return { url: f.url, name: f.name }; }),
+          attachments: stageFiles.map(function (f) { return { name: f.name, url: f.url, size: f.size }; }),
+          comments: [], _commentsLoaded: true
+        });
+        stageImages = []; stageFiles = []; renderStage();
         if (input) input.value = "";
         renderFeed(snapshotDrafts());
         return;
       }
-      fetch("/api/community/posts", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text })
-      }).then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
-        .then(function (res) {
-          if (res.status === 401) { if (hint) hint.style.display = "inline-block"; return; }
-          if (!res.j || !res.j.ok || !res.j.data || !res.j.data.post) throw 0;
-          var p = res.j.data.post; p.comments = []; p._commentsLoaded = true;
-          postsCache.unshift(p);
-          if (input) input.value = "";
-          renderFeed(snapshotDrafts());
-        })
-        .catch(function () { if (hint) hint.style.display = "inline-block"; });
+      var ups = stageImages.map(function (f) { return uploadOne(f).then(function (d) { return { url: d.url, name: f.name }; }); });
+      var ats = stageFiles.map(function (f) { return uploadOne(f).then(function (d) { return { name: f.name, url: d.url, size: f.size }; }); });
+      Promise.all([Promise.all(ups), Promise.all(ats)]).then(function (rs) {
+        return fetch("/api/community/posts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: text, images: rs[0], attachments: rs[1] })
+        }).then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); });
+      }).then(function (res) {
+        if (res.status === 401) { if (hint) hint.style.display = "inline-block"; return; }
+        if (!res.j || !res.j.ok || !res.j.data || !res.j.data.post) throw 0;
+        var p = res.j.data.post; p.comments = []; p._commentsLoaded = true;
+        postsCache.unshift(p);
+        stageImages = []; stageFiles = []; renderStage();
+        if (input) input.value = "";
+        renderFeed(snapshotDrafts());
+      }).catch(function () { if (hint) hint.style.display = "inline-block"; });
     };
     window.comToggleThread = function (pid) {
       var p = findPost(pid);
@@ -1984,6 +2132,11 @@ var CommunitySection = () => {
 
     // ===== 启动 =====
     renderShell();
+    loadCfg(function (cfg) {
+      cfgData = cfg || {};
+      renderTop();
+      restartBanner();
+    });
     loadPostsAndStart();
     function loadPostsAndStart() {
       fetchPostsRaw(sortMode).then(function (res) {
@@ -2011,7 +2164,14 @@ var CommunitySection = () => {
     return function () {
       cancelled = true;
       if (pollTimer) clearInterval(pollTimer);
+      if (bannerTimer) clearInterval(bannerTimer);
       delete window.comPost;
+      delete window.comBanner;
+      delete window.comStageImg;
+      delete window.comStageFile;
+      delete window.comUnstage;
+      delete window.comViewer;
+      delete window.comViewerClose;
       delete window.comSort;
       delete window.comShowNew;
       delete window.comToggleThread;
@@ -2088,6 +2248,40 @@ var CommunitySection = () => {
     .com-cmt-acts{display:flex;gap:14px;}
     .com-reply-chip{display:inline-block;font-size:11px;color:#1d6fd1;background:#eef5ff;border-radius:99px;padding:2px 10px;margin-bottom:4px;}
     .com-empty{padding:18px;text-align:center;color:#9aa3ad;font-size:13px;}
+    .com-notice{display:flex;align-items:center;gap:8px;background:#fdf2f0;border:1px solid #f5d5d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;}
+    .com-notice-tag{color:#b8434e;font-weight:700;flex:0 0 auto;}
+    .com-notice-text{color:#1f2933;flex:1;min-width:0;line-height:1.5;}
+    .com-notice-meta{color:#9aa3ad;font-family:'JetBrains Mono',monospace;font-size:10px;flex:0 0 auto;}
+    .com-banner{position:relative;border-radius:10px;overflow:hidden;margin-bottom:12px;background:#0f1419;}
+    .com-banner-slide{display:none;position:relative;height:150px;}
+    .com-banner-slide.on{display:block;}
+    .com-banner-slide img{width:100%;height:150px;object-fit:cover;display:block;}
+    .com-banner-cap{position:absolute;left:0;right:0;bottom:0;padding:18px 14px 8px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;display:flex;align-items:baseline;gap:10px;}
+    .com-banner-cap b{font-size:14px;font-weight:700;}
+    .com-banner-cap span{font-size:11px;opacity:0.85;}
+    .com-banner-dots{position:absolute;right:12px;bottom:10px;display:flex;gap:5px;}
+    .com-dot{width:6px;height:6px;border-radius:50%;border:none;background:rgba(255,255,255,0.45);cursor:pointer;padding:0;}
+    .com-dot.on{background:#fff;}
+    .com-compose-tools{display:flex;gap:4px;}
+    .com-tool{background:none;border:1px solid #e4e7eb;border-radius:6px;font-size:12px;color:#6b7280;cursor:pointer;padding:4px 10px;font-family:inherit;}
+    .com-tool:hover{border-color:#1d6fd1;color:#1d6fd1;}
+    .com-stage-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+    .com-stage-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid #e4e7eb;}
+    .com-stage-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+    .com-stage-x{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;border:none;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;}
+    .com-stage-file{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1f2933;background:#f2f4f6;border-radius:6px;padding:5px 8px;position:relative;}
+    .com-stage-file .com-stage-x{position:static;background:#d0d5db;color:#0f1419;}
+    .com-imgs{display:grid;gap:6px;margin-top:8px;}
+    .com-imgs-1{grid-template-columns:1fr;}
+    .com-imgs-2{grid-template-columns:1fr 1fr;}
+    .com-imgs-3{grid-template-columns:repeat(3,1fr);}
+    .com-imgs img{width:100%;height:110px;object-fit:cover;border-radius:8px;border:1px solid #e4e7eb;cursor:zoom-in;display:block;}
+    .com-imgs-1 img{height:180px;}
+    .com-attach{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#1d6fd1;text-decoration:none;background:#f6f9fd;border:1px solid #e0ecf9;border-radius:6px;padding:6px 10px;}
+    .com-attach:hover{background:#eef5ff;}
+    .com-attach span{color:#9aa3ad;font-family:'JetBrains Mono',monospace;font-size:10px;margin-left:auto;}
+    #com-lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;}
+    #com-lightbox img{max-width:92vw;max-height:92vh;border-radius:8px;}
     @media (max-width: 600px){
       .com-post{padding:10px 12px;}
       .com-headtitle{font-size:18px;}

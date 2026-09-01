@@ -105,6 +105,46 @@
 
 置顶/取消置顶。body：`{ "pinned": true, "tag": "featured" }`（tag ∈ featured/tutorial/resource；取消置顶传 `pinned:false`）。走现有 admin 鉴权。返回 `{ "ok": true, "data": { "post": { … } } }`。
 
+### GET /api/community/config（新增 v5）
+
+返回顶部公告 + 图文轮播配置。响应：
+
+```json
+{ "ok": true, "data": {
+  "announcement": { "text": "公告正文", "author": "管理员", "time": "09-01 09:00" },
+  "banners": [
+    { "image": "https://…/banner.jpg", "title": "标题", "caption": "副标题" }
+  ]
+} }
+```
+
+- `announcement` 可为 null（不渲染公告条）；`banners` 可为空数组（不渲染轮播）。
+- banner 图片为可公网访问的 URL（CDN / 静态目录均可）；标题/副标题可省略。
+- 失败回落：前端回落 `/data/community.json` 顶层的 `announcement` / `banners` 字段（SEED 模式）。
+
+### POST /api/community/upload（新增 v5）
+
+发帖媒体上传。`multipart/form-data`，文件字段名 `file`。响应：
+
+```json
+{ "ok": true, "data": { "url": "/uploads/community/xxx.jpg", "name": "原始文件名.jpg", "size": 204800 } }
+```
+
+建议限制（对齐 works 现有上传中间件，可调）：图片 ≤ 5MB / 9 张，附件 ≤ 20MB / 5 个；图片类型 jpg/png/gif/webp，附件白名单 pdf/xlsx/docx/zip/pptx/txt/md。返回的 `url` 直接进 posts 的 `images[].url` / `attachments[].url`。
+
+### 帖子数据结构变更（v5）
+
+`posts` 表与 GET posts 返回的 post 对象新增两个可选字段：
+
+```json
+{
+  "images": [ { "url": "https://…/a.jpg", "name": "配图说明" } ],
+  "attachments": [ { "name": "检查清单.xlsx", "url": "/files/xxx.xlsx", "size": 38912 } ]
+}
+```
+
+`POST /api/community/posts` body 同步扩展：`{ "text": "...", "images": [...], "attachments": [...] }`（均可省略）。评论暂不支持媒体（保持轻量）。
+
 ## 前端调用点（合并时定位用）
 
 `public/app.js` → `CommunitySection`：
@@ -115,6 +155,10 @@
 - `window.comPost`：发帖（DEMO 本地内存；401 → 发帖框下登录提示）
 - `window.comToggleThread`：展开/收起行内评论串；首次展开 `loadComments(p)` GET comments
 - `window.comSendComment` / `comReplyComment` / `comCancelReply` / `comLikeComment` / `comLikePost`：评论与点赞（DEMO 本地切换；API 模式 POST 后以服务端返回覆盖）
+- `loadCfg()`：GET config → 回落 community.json 的 announcement/banners；`renderTop()` 渲染公告条 + 5s 自动轮播（`window.comBanner(i)` 手动切换）
+- `stageImages`/`stageFiles`（`window.comStageImg` / `comStageFile` / `comUnstage`）：发帖前本地暂存（图片≤9、附件≤5，URL.createObjectURL 预览）
+- `window.comPost`（v5）：API 模式先 `uploadOne()` 逐个 POST upload，全部成功后再 POST posts；DEMO 模式直接带本地 blob 链接发帖
+- `mediaHtml(p)`：帖子图片九宫格（1-3 列布局）+ 附件条；`window.comViewer(u)` 大图查看器（#com-lightbox）
 - 「导入到我的环境」按钮：`post.work.source` 外链，**无需新接口**
 
 ## 后端接入建议（合并时做，本分支不做）
@@ -122,6 +166,7 @@
 1. 新建 `server/routes/community.js`，风格对齐 works.js（contract + validate）；建 posts / comments 两表。
 2. `server/server.js` 挂载 `app.use('/api/community', communityRouter)`；admin 置顶子路由走现有 admin 鉴权中间件。
 3. 发帖/评论/点赞一律 `req.session.userId`（与 works 上传同口径）。
+4. upload 复用 works 的 multer/静态目录方案（建议独立子目录 `uploads/community/`）；config 可先做成读 env / 管理后台可写的简单表，或直接返回固定 JSON。
 4. 上线后前端零改动自动切换（回落只在接口失败时生效）；种子数据可删可留。
 
 ## 兼容性说明

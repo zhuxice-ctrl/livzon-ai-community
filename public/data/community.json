@@ -1,5 +1,27 @@
 {
   "updatedAt": "2026-09-01",
+  "announcement": {
+    "text": "社区规约 v2 上线：禁止裸贴密钥与内部数据；分享 Agent 请附使用说明与适用范围。违规帖将被管理员移除。",
+    "author": "管理员",
+    "time": "09-01 09:00"
+  },
+  "banners": [
+    {
+      "image": "https://p3-doubao-search-sign.byteimg.com/labis/image/19b2bf3781cc6420bc8998b70bf13c4f~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789791&x-signature=taIhGxOWnGagD%2BtRCLf9hkORs94%3D",
+      "title": "Livzon AI 共创季",
+      "caption": "9 月 Agent 大赛报名通道已开启，冠军团队直通年度创新评审"
+    },
+    {
+      "image": "https://p11-doubao-search-sign.byteimg.com/labis/image/87a497ee01475edd7b9987a055876137~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=fVapuHhGk3YoHFMDiuQIhBdzDt8%3D",
+      "title": "Agent 工坊第二期",
+      "caption": "生产部 × 研发中心 联合实战：把巡检 Agent 落到产线"
+    },
+    {
+      "image": "https://p3-doubao-search-sign.byteimg.com/labis/image/e114dcdca70c4dc81c7f8e74af31da44~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=RnSkKB02gcOnqhbVkFcjbbZ0aYc%3D",
+      "title": "每周模型评测",
+      "caption": "本周新增 3 个模型进入评测池，完整榜单见置顶资源帖"
+    }
+  ],
   "intro": "丽珠 AI 社团社区",
   "posts": [
     {
@@ -34,6 +56,16 @@
           "text": "加了退避重试，20 轮里只挂了 2 次",
           "time": "09-01 18:02",
           "likes": 3
+        }
+      ],
+      "images": [
+        {
+          "url": "https://p11-doubao-search-sign.byteimg.com/labis/image/43ebf6c351b6c9d6c0c238685f4ea06e~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=3EsDJvagSMlhcTdk1EP96XAgxW0%3D",
+          "name": "评测配图"
+        },
+        {
+          "url": "https://p3-doubao-search-sign.byteimg.com/labis/image/1adeb986fe656369aa66ee41871a863a~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1803789790&x-signature=hXP8rH6DB9c6U8p162fgHun%2BgpQ%3D",
+          "name": "胜率对比"
         }
       ]
     },
@@ -85,6 +117,13 @@
           "text": "这条建议加精",
           "time": "08-30 11:40",
           "likes": 4
+        }
+      ],
+      "attachments": [
+        {
+          "name": "产线参数变更检查清单.xlsx",
+          "url": "/files/agent-checklist.xlsx",
+          "size": 38912
         }
       ]
     },
