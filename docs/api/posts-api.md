@@ -1,7 +1,7 @@
 # 社团社区 · 社交 Feed 接口契约（v3，当前有效）
 
 > 分支：`feat/community-page`（自 main 拉出）
-> 前端实现：`public/app.js` 的 `CommunitySection`（发帖框 / 置顶区 / 时间线 / 行内评论串）
+> 前端实现：`public/app.js` 的 `CommunitySection`（v4：高密度信息流 + 推荐/最新双 tab + 30s 自动刷新）
 > **本文档是社区页数据接口的唯一现行契约**。早期两份文档已废止：
 > - `docs/api/community-api.md`（moments 动态流）→ 被 posts 取代
 > - `docs/api/comments-api.md`（works 维度评论）→ 评论改挂在 posts 维度
@@ -9,7 +9,9 @@
 
 ## 产品口径
 
-- **一进来就是帖子**：顶部发帖框 + 管理员置顶（精华/教程/资源）+ 时间线（新的在前），以社交为主
+- **一进来就是帖子**：顶部发帖框 + 管理员置顶（精华/教程/资源）+ 高密度信息流，以社交为主
+- **推荐 / 最新双 tab**：默认「推荐」按互动加权+时间衰减排序，「最新」纯时间序（参考推特 For you / Latest）
+- **自动刷新**：前端每 30s 轮询一次（`after_id` 增量），新帖先收进顶部「有 N 条新帖子」提示条，用户点击才合并上屏——不打断浏览位置与正在输入的草稿
 - 任何人可随时发帖（登录后）；帖子可纯文字，可**内嵌一件作品/Agent**（附「⤓ 导入到我的环境」链接，走作品 source 字段）
 - 评论参考推特：顶层新的在前、回复一层嵌套时间正序、回复的回复拍平到根、帖子作者徽标、点赞
 - 置顶 = 管理员给帖子打标（featured / tutorial / resource），打标帖子从时间线提到置顶区
@@ -41,8 +43,15 @@
 
 时间线（含置顶）。无鉴权。
 
-- 可选 query：`limit`（默认 30，上限 100）、`cursor`（游标向下翻页）。
-- 排序：置顶在前（置顶内部新的在前），其余新的在前。
+- 可选 query：
+  - `sort`：`top`（默认，推荐排序）或 `new`（纯时间倒序）
+  - `limit`（默认 30，上限 100）、`cursor`（游标向下翻页）
+  - `after_id`：增量拉取——只返回 id 晚于该值的新帖（**自动刷新用**，见下）
+- 排序：
+  - `sort=top`：置顶在前，其余按**推荐分**降序。推荐分（服务端权威公式，前端演示版同构）：
+    `score = (1 + likes + 2 × commentCount) × exp(-ageHours / 36)`
+    即互动加权（评论权重 2 倍于赞）× 36 小时半衰式时间衰减。置顶不参与打分。
+  - `sort=new`：置顶在前，其余纯时间倒序。
 
 ```json
 {
@@ -99,7 +108,10 @@
 ## 前端调用点（合并时定位用）
 
 `public/app.js` → `CommunitySection`：
-- `loadPosts()`：GET posts，失败回落 `/data/community.json` 的 `posts`（SEED 标记）
+- `loadPosts()`（`fetchPostsRaw(sort)`）：GET posts?sort=top|new，失败回落 `/data/community.json` 的 `posts`（SEED 标记；回落模式下推荐分由前端同构公式计算）
+- `poll()`（30s `setInterval`）：拉增量更新点赞/评论数（静默刷新），新帖进 `pendingNew`；`window.comShowNew` 点击合并
+- `window.comSort(mode)`：切 推荐/最新 tab（API 模式重新拉取服务端排序结果）
+- `snapshotDrafts()/restoreDrafts()`：重渲染前保存/恢复所有输入框草稿，自动刷新不丢内容
 - `window.comPost`：发帖（DEMO 本地内存；401 → 发帖框下登录提示）
 - `window.comToggleThread`：展开/收起行内评论串；首次展开 `loadComments(p)` GET comments
 - `window.comSendComment` / `comReplyComment` / `comCancelReply` / `comLikeComment` / `comLikePost`：评论与点赞（DEMO 本地切换；API 模式 POST 后以服务端返回覆盖）

@@ -1591,19 +1591,23 @@ var CommunitySection = () => {
     const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
     const KIND_LABEL = { image: "图像", video: "视频", "3d": "3D", tool: "工具", app: "应用", skill: "Skill", mcp: "MCP", source: "源码" };
     const TAG_LABEL = { featured: "精华", tutorial: "教程", resource: "资源" };
-    // 布局口径：社交优先——顶部发帖框 + 管理员置顶（精华/教程/资源）+ 时间线。
-    // 数据契约见 docs/api/posts-api.md：
-    // 时间线优先 GET /api/community/posts（登录后 POST 发帖/评论/点赞），
-    // 接口未上线时回落 /data/community.json 的 posts 种子（SEED 标记，本地内存交互）。
+    // v4 口径：高密度单列信息流（参考推特 / Linux.do），成熟扁平视觉。
+    // 双 tab：推荐（互动加权 + 时间衰减）/ 最新（纯时间序）。
+    // 自动刷新：30s 轮询，新帖收进顶部提示条（点击合并，不打断浏览与输入）。
+    // 数据契约见 docs/api/posts-api.md：优先 GET /api/community/posts?sort=top|new，
+    // 未上线回落 /data/community.json 的 posts 种子（SEED 标记，本地内存交互 + 45s 模拟新帖演示）。
 
     var postsCache = [];
     var postsApi = false;
     var localSeq = 0;
-    var replyState = {};   // pid -> {cid, name}
-    var threadOpen = {};   // pid -> true
+    var replyState = {};     // pid -> {cid, name}
+    var threadOpen = {};     // pid -> true
+    var sortMode = "top";    // top=推荐 new=最新
+    var pendingNew = [];     // 轮询发现的新帖（未合并）
+    var POLL_MS = 30000;
+    var pollTimer = null;
 
     function postKey(p) { return String(p.id != null ? p.id : (p.time || Math.random())); }
-
     function findPost(pid) {
       for (var i = 0; i < postsCache.length; i++) if (postKey(postsCache[i]) === String(pid)) return postsCache[i];
       return null;
@@ -1612,7 +1616,7 @@ var CommunitySection = () => {
     // ===== 评论规整（推特式：顶层新的在前 + 一层嵌套回复按时间正序） =====
     function flattenReply(c, byId) {
       var p = c.parent_id != null ? byId[String(c.parent_id)] : null;
-      if (p && p.parent_id != null) c.parent_id = p.parent_id; // 回复的回复挂回根评论
+      if (p && p.parent_id != null) c.parent_id = p.parent_id;
       return c;
     }
     function normComments(raw) {
@@ -1652,24 +1656,44 @@ var CommunitySection = () => {
       return raw;
     }
     function commentCount(p) {
-      var n = 0;
-      (p.comments || []).forEach(function (c) { n += 1 + (c._replies ? c._replies.length : 0); });
-      return n;
+      if (p.comments) {
+        var n = 0;
+        p.comments.forEach(function (c) { n += 1 + (c._replies ? c._replies.length : 0); });
+        return n;
+      }
+      return p.commentCount || 0;
     }
 
-    // ===== 数据装载 =====
-    function loadPosts(cb) {
-      fetch("/api/community/posts")
+    // ===== 排序（推荐算法：互动加权 × 时间衰减；契约与 server 公式见 posts-api.md） =====
+    function timeHours(p) {
+      var t = String(p.time || "");
+      if (t === "刚刚" || !t) return 0.1;
+      var m = t.match(/^(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+      if (!m) return 1;
+      var now = new Date();
+      var d = new Date(now.getFullYear(), parseInt(m[1], 10) - 1, parseInt(m[2], 10), parseInt(m[3], 10), parseInt(m[4], 10));
+      var h = (now - d) / 3600000;
+      if (h < 0) h = 0;
+      return Math.max(h, 0.1);
+    }
+    function score(p) {
+      var base = 1 + (p.likes || 0) + 2 * commentCount(p);
+      return base * Math.exp(-timeHours(p) / 36);
+    }
+
+    // ===== 数据装载 / 自动刷新 =====
+    function fetchPostsRaw(sort) {
+      return fetch("/api/community/posts?sort=" + (sort || "top"))
         .then(function (r) { if (!r.ok) throw 0; return r.json(); })
         .then(function (j) {
           if (!j || !j.ok || !j.data || !j.data.posts) throw 0;
-          cb(j.data.posts, true);
+          return { posts: j.data.posts, api: true };
         })
         .catch(function () {
-          fetch("/data/community.json")
+          return fetch("/data/community.json")
             .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-            .then(function (j) { cb((j && j.posts) || [], false); })
-            .catch(function () { cb([], false); });
+            .then(function (j) { return { posts: (j && j.posts) || [], api: false }; })
+            .catch(function () { return { posts: [], api: false }; });
         });
     }
     function loadComments(p, cb) {
@@ -1684,6 +1708,30 @@ var CommunitySection = () => {
         })
         .catch(function () { p.comments = normComments(p.comments || []); cb && cb(); });
     }
+    function poll() {
+      fetchPostsRaw(sortMode).then(function (res) {
+        if (cancelled) return;
+        var known = {};
+        postsCache.forEach(function (p) { known[postKey(p)] = 1; });
+        var byId = {};
+        res.posts.forEach(function (p) { byId[postKey(p)] = p; });
+        var changed = false;
+        postsCache.forEach(function (p) {
+          var n = byId[postKey(p)];
+          if (n && (n.likes !== p.likes || (n.commentCount != null && n.commentCount !== p.commentCount))) {
+            p.likes = n.likes; if (n.commentCount != null) p.commentCount = n.commentCount;
+            changed = true;
+          }
+        });
+        var fresh = res.posts.filter(function (p) { return !known[postKey(p)]; });
+        if (fresh.length) { pendingNew = fresh.concat(pendingNew); changed = true; }
+        if (changed) renderFeed(snapshotDrafts());
+      });
+    }
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(poll, POLL_MS);
+    }
 
     // ===== 渲染 =====
     function workEmbed(p) {
@@ -1691,10 +1739,9 @@ var CommunitySection = () => {
       if (!w) return "";
       var k = KIND_LABEL[w.kind] || esc(w.kind || "作品");
       return "<div class='com-embed'>" +
-        "<span class='com-wk-kind'>" + k + "</span>" +
-        "<div class='com-embed-title'>" + esc(w.title || "未命名作品") + "</div>" +
+        "<div class='com-embed-head'><span class='com-wk-kind'>" + k + "</span><span class='com-embed-title'>" + esc(w.title || "未命名作品") + "</span></div>" +
         (w.description ? "<div class='com-embed-desc'>" + esc(w.description) + "</div>" : "") +
-        (w.source ? "<a class='com-import-btn com-embed-import' href='" + esc(w.source) + "' target='_blank' rel='noopener'>⤓ 导入到我的环境</a>" : "<div class='com-import-hint'>作者还没挂分享链接</div>") +
+        (w.source ? "<a class='com-embed-import' href='" + esc(w.source) + "' target='_blank' rel='noopener'>⤓ 导入到我的环境</a>" : "<span class='com-embed-nolink'>作者未挂分享链接</span>") +
         "</div>";
     }
     function cmtHtml(p, c, isReply) {
@@ -1719,18 +1766,20 @@ var CommunitySection = () => {
       var rs = replyState[pid];
       return "<div class='com-thread'>" +
         (list || "<div class='com-empty'>还没有人评论——说点什么吧。</div>") +
-        "<div class='com-cmt-box com-thread-box'>" +
-        "<span class='com-avatar com-cmt-av'>我</span>" +
-        "<div class='com-cmt-inputwrap'>" +
-        (rs ? "<div class='com-reply-chip' style='display:inline-block'>回复 @" + esc(rs.name || "") + " <button class='com-act' onclick=\"window.comCancelReply&&window.comCancelReply('" + esc(pid) + "')\">取消</button></div>" : "") +
+        "<div class='com-thread-box'>" +
+        (rs ? "<div class='com-reply-chip'>回复 @" + esc(rs.name || "") + " <button class='com-act' onclick=\"window.comCancelReply&&window.comCancelReply('" + esc(pid) + "')\">取消</button></div>" : "") +
+        "<div class='com-thread-input'>" +
         "<textarea id='cmt-input-" + esc(pid) + "' rows='2' placeholder='" + (rs ? "回复 @" + esc(rs.name || "") + "…" : "写下你的评论…") + "'></textarea>" +
-        "<div class='com-cmt-foot'><span id='loginhint-" + esc(pid) + "' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span><button class='com-send' onclick=\"window.comSendComment&&window.comSendComment('" + esc(pid) + "')\">发送</button></div>" +
-        "</div></div></div>";
+        "<button class='com-send' onclick=\"window.comSendComment&&window.comSendComment('" + esc(pid) + "')\">发送</button>" +
+        "</div>" +
+        "<span id='loginhint-" + esc(pid) + "' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span>" +
+        "</div></div>";
     }
     function postHtml(p) {
       var pid = postKey(p);
       var open = !!threadOpen[pid];
       var tag = (p.pinned && p.tag) ? "<span class='com-pin-tag com-tag-" + esc(p.tag) + "'>📌 " + esc(TAG_LABEL[p.tag] || p.tag) + "</span>" : "";
+      var cc = commentCount(p);
       return "<div class='com-post" + (p.pinned ? " com-post-pinned" : "") + "'>" +
         "<span class='com-avatar'>" + esc((p.author || "同").slice(0, 1)) + "</span>" +
         "<div class='com-post-main'>" +
@@ -1739,44 +1788,89 @@ var CommunitySection = () => {
         "<p class='com-post-text'>" + esc(p.text || "") + "</p>" +
         workEmbed(p) +
         "<div class='com-post-acts'>" +
-        "<button class='com-act" + (open ? " on" : "") + "' onclick=\"window.comToggleThread&&window.comToggleThread('" + esc(pid) + "')\">💬 " + commentCount(p) + (open ? " · 收起" : " 评论") + "</button>" +
-        "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥ 已赞" : "♡ 赞") + " " + (p.likes || 0) + "</button>" +
+        "<button class='com-act" + (open ? " on" : "") + "' onclick=\"window.comToggleThread&&window.comToggleThread('" + esc(pid) + "')\">💬 " + cc + "</button>" +
+        "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥" : "♡") + " " + (p.likes || 0) + "</button>" +
         "</div>" +
         (open ? threadHtml(p) : "") +
         "</div></div>";
     }
-    function renderFeed() {
+    function snapshotDrafts() {
+      var d = {};
+      var ta = document.querySelectorAll("#com-feed textarea");
+      for (var i = 0; i < ta.length; i++) if (ta[i].id) d[ta[i].id] = ta[i].value;
+      return d;
+    }
+    function restoreDrafts(d) {
+      if (!d) return;
+      Object.keys(d).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.value = d[id];
+      });
+    }
+    function renderFeed(drafts) {
       if (cancelled) return;
       var feedEl = document.getElementById("com-feed");
       if (!feedEl) return;
+      var h = "";
+      if (pendingNew.length) {
+        h += "<button class='com-newpill' onclick='window.comShowNew&&window.comShowNew()'>↑ 有 " + pendingNew.length + " 条新帖子，点击查看</button>";
+      }
+      h += "<div class='com-tabs'>" +
+        "<button class='com-tab" + (sortMode === "top" ? " on" : "") + "' onclick=\"window.comSort&&window.comSort('top')\">推荐</button>" +
+        "<button class='com-tab" + (sortMode === "new" ? " on" : "") + "' onclick=\"window.comSort&&window.comSort('new')\">最新</button>" +
+        "<span class='com-tab-hint'>" + (postsApi ? "" : "SEED · ") + "每 30s 自动刷新</span>" +
+        "</div>";
       var pinned = postsCache.filter(function (p) { return p.pinned; });
       var rest = postsCache.filter(function (p) { return !p.pinned; });
-      var h = "";
-      if (pinned.length) {
-        h += "<div class='com-sechead com-pinhead'><span class='com-sectitle'>置顶 · 精华 / 教程 / 资源</span><span class='com-secen'>PINNED</span></div>";
-        h += "<div class='com-feed'>" + pinned.map(postHtml).join("") + "</div>";
-      }
-      h += "<div class='com-sechead'><span class='com-sectitle'>时间线</span><span class='com-secen'>TIMELINE" + (postsApi ? "" : " · SEED") + "</span></div>";
-      h += rest.length ? "<div class='com-feed'>" + rest.map(postHtml).join("") + "</div>" : "<div class='com-empty-block'>还没有帖子——第一条由你来发。</div>";
+      if (sortMode === "new") rest.sort(function (a, b) { return timeHours(a) - timeHours(b); });
+      else rest.sort(function (a, b) { return score(b) - score(a); });
+      h += "<div class='com-feedbox'>";
+      h += pinned.map(postHtml).join("");
+      h += rest.length ? rest.map(postHtml).join("") : "<div class='com-empty'>还没有帖子——第一条由你来发。</div>";
+      h += "</div>";
       feedEl.innerHTML = h;
+      restoreDrafts(drafts);
     }
     function renderShell() {
       if (cancelled || !ref.current) return;
       ref.current.innerHTML =
         "<div class='com-wrap'>" +
-        "<div class='com-hero'><div class='com-eyebrow'>COMMUNITY · 社团社区</div><h1 class='com-title-lg'>今天，大家在聊什么</h1>" +
-        "<p class='com-sub'>作品、问题、碎碎念都能发——<b>不内卷、不汇报、不答辩</b>，就是一群人一起玩 AI。</p></div>" +
+        "<div class='com-headrow'>" +
+        "<div class='com-headtitle'>社团社区</div>" +
+        "<div class='com-headsub'>作品 · 问题 · 碎碎念，都在这</div>" +
+        "</div>" +
         "<div class='com-compose'>" +
         "<span class='com-avatar com-cmt-av'>我</span>" +
-        "<div class='com-cmt-inputwrap'>" +
+        "<div class='com-compose-main'>" +
         "<textarea id='com-compose-input' rows='2' placeholder='分享点什么…作品、问题、碎碎念都行'></textarea>" +
-        "<div class='com-cmt-foot'><span id='com-compose-hint' class='com-cmt-loginhint' style='display:none'>登录后才能发帖（线上接口启用时生效）</span><button class='com-send' onclick='window.comPost&&window.comPost()'>发布</button></div>" +
-        "</div></div>" +
+        "<div class='com-compose-foot'>" +
+        "<span id='com-compose-hint' class='com-cmt-loginhint' style='display:none'>登录后才能发帖（线上接口启用时生效）</span>" +
+        "<button class='com-send' onclick='window.comPost&&window.comPost()'>发布</button>" +
+        "</div></div></div>" +
         "<div id='com-feed'><div class='com-empty'>加载帖子中…</div></div>" +
         "</div>";
     }
 
     // ===== 交互 =====
+    window.comSort = function (mode) {
+      sortMode = mode === "new" ? "new" : "top";
+      if (postsApi) {
+        // 服务端排序：切 tab 重新拉取
+        fetchPostsRaw(sortMode).then(function (res) {
+          if (cancelled || !res.api) return;
+          postsCache = res.posts;
+          renderFeed(snapshotDrafts());
+        });
+      }
+      renderFeed(snapshotDrafts());
+    };
+    window.comShowNew = function () {
+      postsCache = pendingNew.concat(postsCache);
+      pendingNew = [];
+      renderFeed();
+      var feed = document.getElementById("com-feed");
+      if (feed && feed.scrollIntoView) feed.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
     window.comPost = function () {
       var input = document.getElementById("com-compose-input");
       var hint = document.getElementById("com-compose-hint");
@@ -1786,7 +1880,7 @@ var CommunitySection = () => {
         localSeq += 1;
         postsCache.unshift({ id: "local-p" + localSeq, author: "我", dept: "", text: text, time: "刚刚", likes: 0, comments: [], _commentsLoaded: true });
         if (input) input.value = "";
-        renderFeed();
+        renderFeed(snapshotDrafts());
         return;
       }
       fetch("/api/community/posts", {
@@ -1799,7 +1893,7 @@ var CommunitySection = () => {
           var p = res.j.data.post; p.comments = []; p._commentsLoaded = true;
           postsCache.unshift(p);
           if (input) input.value = "";
-          renderFeed();
+          renderFeed(snapshotDrafts());
         })
         .catch(function () { if (hint) hint.style.display = "inline-block"; });
     };
@@ -1807,8 +1901,8 @@ var CommunitySection = () => {
       var p = findPost(pid);
       if (!p) return;
       threadOpen[pid] = !threadOpen[pid];
-      if (threadOpen[pid]) { loadComments(p, renderFeed); }
-      renderFeed();
+      if (threadOpen[pid]) { loadComments(p, function () { renderFeed(snapshotDrafts()); }); }
+      renderFeed(snapshotDrafts());
     };
     window.comLikePost = function (pid) {
       var p = findPost(pid);
@@ -1816,13 +1910,13 @@ var CommunitySection = () => {
       var btn = document.getElementById("plike-" + pid);
       if (!postsApi) {
         p._liked = !p._liked; p.likes = (p.likes || 0) + (p._liked ? 1 : -1);
-        if (btn) { btn.innerHTML = (p._liked ? "♥ 已赞" : "♡ 赞") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); }
+        if (btn) { btn.innerHTML = (p._liked ? "♥" : "♡") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); }
         return;
       }
       fetch("/api/community/posts/" + encodeURIComponent(String(pid)) + "/like", { method: "POST" })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
-          if (j && j.ok && j.data) { p.likes = j.data.likes; p._liked = !!j.data.liked; if (btn) { btn.innerHTML = (p._liked ? "♥ 已赞" : "♡ 赞") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); } }
+          if (j && j.ok && j.data) { p.likes = j.data.likes; p._liked = !!j.data.liked; if (btn) { btn.innerHTML = (p._liked ? "♥" : "♡") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); } }
         }).catch(function () {});
     };
     window.comSendComment = function (pid) {
@@ -1837,7 +1931,7 @@ var CommunitySection = () => {
       var done = function (c) {
         p.comments = normComments(commentsToRaw(p.comments).concat([c]));
         delete replyState[pid];
-        renderFeed();
+        renderFeed(snapshotDrafts());
       };
       if (!postsApi) {
         localSeq += 1;
@@ -1858,13 +1952,13 @@ var CommunitySection = () => {
     window.comReplyComment = function (pid, cid, name) {
       replyState[pid] = { cid: cid, name: name };
       threadOpen[pid] = true;
-      renderFeed();
+      renderFeed(snapshotDrafts());
       var input = document.getElementById("cmt-input-" + pid);
       if (input) input.focus();
     };
     window.comCancelReply = function (pid) {
       delete replyState[pid];
-      renderFeed();
+      renderFeed(snapshotDrafts());
     };
     window.comLikeComment = function (pid, cid) {
       var p = findPost(pid);
@@ -1890,15 +1984,36 @@ var CommunitySection = () => {
 
     // ===== 启动 =====
     renderShell();
-    loadPosts(function (posts, fromApi) {
-      postsCache = posts || [];
-      postsApi = !!fromApi;
-      renderFeed();
-    });
+    loadPostsAndStart();
+    function loadPostsAndStart() {
+      fetchPostsRaw(sortMode).then(function (res) {
+        if (cancelled) return;
+        postsCache = res.posts;
+        postsApi = !!res.api;
+        renderFeed();
+        startPolling();
+        if (!postsApi) {
+          // DEMO 模式演示自动刷新：45s 后模拟一条新帖进入提示条
+          setTimeout(function () {
+            if (cancelled || postsApi) return;
+            localSeq += 1;
+            pendingNew.push({
+              id: "sim-p" + localSeq, author: "K", dept: "信息部",
+              text: "新帖演示：会议纪要转待办的模板刚挂上仓库，这条是自动刷新推上来的（点击上方提示条并入）。",
+              time: "刚刚", likes: 0, comments: [], _commentsLoaded: true
+            });
+            renderFeed(snapshotDrafts());
+          }, 45000);
+        }
+      });
+    }
 
     return function () {
       cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
       delete window.comPost;
+      delete window.comSort;
+      delete window.comShowNew;
       delete window.comToggleThread;
       delete window.comLikePost;
       delete window.comSendComment;
@@ -1907,73 +2022,75 @@ var CommunitySection = () => {
       delete window.comLikeComment;
     };
   }, []);
-  return React.createElement("section", { className: "page-section", style: { background: "#faf9f5", color: "#1c1d20", padding: "120px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
-    .com-wrap{max-width:760px;margin:0 auto;}
-    .com-hero{text-align:left;padding:8px 0 22px;}
-    .com-eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:4px;color:#b8434e;margin-bottom:14px;}
-    .com-title-lg{font-family:'Noto Serif SC',serif;font-size:42px;font-weight:600;letter-spacing:2px;line-height:1.25;margin:0 0 12px;color:#1c1d20;}
-    .com-sub{font-size:15px;color:#666;line-height:1.8;max-width:560px;}
-    .com-sub b{color:#b8434e;}
-    .com-avatar{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#1c1d20;color:#faf9f5;font-size:15px;font-weight:700;flex:0 0 38px;}
-    .com-compose{display:flex;gap:12px;align-items:flex-start;background:#fff;border:2px solid #1c1d20;border-radius:12px;padding:18px;margin:6px 0 8px;box-shadow:4px 4px 0 rgba(28,29,32,0.15);}
-    .com-cmt-inputwrap{flex:1;min-width:0;}
-    .com-compose textarea,#com-cmt-input,.com-thread textarea{width:100%;box-sizing:border-box;border:2px solid rgba(28,29,32,0.35);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:vertical;min-height:44px;background:#fffdf8;color:#1c1d20;}
-    .com-compose textarea:focus,.com-thread textarea:focus{outline:none;border-color:#b8434e;}
-    .com-cmt-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+  return React.createElement("section", { className: "page-section", style: { background: "#f6f7f8", color: "#0f1419", padding: "96px 16px 80px", minHeight: "100vh" } }, React.createElement("style", null, `
+    .com-wrap{max-width:680px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;}
+    .com-headrow{display:flex;align-items:baseline;gap:12px;padding:10px 14px 12px;}
+    .com-headtitle{font-family:'Noto Serif SC',serif;font-size:20px;font-weight:600;letter-spacing:1px;color:#0f1419;}
+    .com-headsub{font-size:12px;color:#6b7280;}
+    .com-avatar{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#0f1419;color:#fff;font-size:13px;font-weight:700;flex:0 0 32px;}
+    .com-compose{display:flex;gap:10px;background:#fff;border:1px solid #e4e7eb;border-radius:10px;padding:12px 14px;margin-bottom:12px;}
+    .com-compose-main{flex:1;min-width:0;}
+    .com-compose textarea,.com-thread textarea{width:100%;box-sizing:border-box;border:1px solid #e4e7eb;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;min-height:40px;background:#fafbfc;color:#0f1419;line-height:1.6;}
+    .com-compose textarea:focus,.com-thread textarea:focus{outline:none;border-color:#1d6fd1;background:#fff;}
+    .com-compose-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
     .com-cmt-loginhint{font-size:12px;color:#b8434e;}
-    .com-send{background:#1c1d20;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;}
-    .com-send:hover{background:#b8434e;}
-    .com-sechead{display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 12px;}
-    .com-pinhead{margin-top:22px;}
-    .com-sectitle{font-family:'Noto Serif SC',serif;font-size:19px;font-weight:600;letter-spacing:1px;color:#1c1d20;}
-    .com-secen{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;color:#b8434e;}
-    .com-feed{display:flex;flex-direction:column;gap:14px;}
-    .com-post{display:flex;gap:12px;background:#fff;border:2px solid #1c1d20;border-radius:12px;padding:18px;box-shadow:4px 4px 0 rgba(28,29,32,0.12);}
-    .com-post-pinned{background:#fffdf3;border-color:#b8434e;box-shadow:4px 4px 0 rgba(184,67,78,0.25);}
+    .com-send{background:#1d6fd1;color:#fff;border:none;border-radius:99px;padding:6px 18px;font-weight:600;cursor:pointer;font-size:12px;font-family:inherit;}
+    .com-send:hover{background:#155bb0;}
+    .com-newpill{display:block;width:100%;margin:0 0 10px;padding:8px;border:1px solid #cfe0f5;background:#eef5ff;color:#1d6fd1;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+    .com-newpill:hover{background:#e0edff;}
+    .com-tabs{display:flex;align-items:center;gap:2px;margin:0 0 8px;border-bottom:1px solid #e4e7eb;padding:0 4px;}
+    .com-tab{background:none;border:none;padding:8px 14px;font-size:13px;color:#6b7280;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-1px;}
+    .com-tab:hover{color:#0f1419;}
+    .com-tab.on{color:#0f1419;font-weight:700;border-bottom-color:#1d6fd1;}
+    .com-tab-hint{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:#9aa3ad;letter-spacing:1px;}
+    .com-feedbox{background:#fff;border:1px solid #e4e7eb;border-radius:10px;overflow:hidden;}
+    .com-post{display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid #eef0f2;}
+    .com-post:last-child{border-bottom:none;}
+    .com-post-pinned{background:#fdf9ee;}
     .com-post-main{flex:1;min-width:0;}
-    .com-post-head{display:flex;align-items:center;gap:8px;font-size:12px;color:#999;flex-wrap:wrap;}
-    .com-post-head b{color:#1c1d20;font-size:14px;}
+    .com-post-head{display:flex;align-items:center;gap:6px;font-size:12px;color:#6b7280;flex-wrap:wrap;}
+    .com-post-head b{color:#0f1419;font-size:13px;}
     .com-post-head i{font-style:normal;}
-    .com-pin-tag{font-size:10px;font-weight:700;border-radius:99px;padding:2px 8px;letter-spacing:1px;}
-    .com-tag-featured{background:#1c1d20;color:#ffd97a;}
-    .com-tag-tutorial{background:#e8f0fe;color:#1c1d20;}
+    .com-pin-tag{font-size:10px;font-weight:600;border-radius:4px;padding:1px 6px;letter-spacing:1px;}
+    .com-tag-featured{background:#0f1419;color:#ffd97a;}
+    .com-tag-tutorial{background:#e8f0fe;color:#155bb0;}
     .com-tag-resource{background:#fdeae8;color:#b8434e;}
-    .com-post-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;}
-    .com-post-text{font-size:15px;color:#333;line-height:1.8;margin:8px 0 0;white-space:pre-wrap;}
-    .com-embed{margin-top:10px;border:2px solid rgba(28,29,32,0.35);border-radius:10px;padding:14px 16px;background:#faf9f5;}
-    .com-wk-kind{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:#b8434e;border-radius:4px;padding:2px 7px;}
-    .com-embed-title{font-family:'Noto Serif SC',serif;font-size:17px;font-weight:600;margin:8px 0 4px;color:#1c1d20;}
-    .com-embed-desc{font-size:13px;color:#666;line-height:1.7;}
-    .com-import-btn{display:inline-block;margin:10px 0 0;padding:7px 14px;background:#b8434e;color:#fff;border:2px solid #1c1d20;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;box-shadow:3px 3px 0 rgba(28,29,32,0.2);}
-    .com-import-btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 rgba(28,29,32,0.3);color:#fff;}
-    .com-import-hint{font-size:12px;color:#999;margin-top:8px;}
-    .com-post-acts{display:flex;gap:16px;margin-top:10px;}
-    .com-act{background:none;border:none;font-size:12px;color:#888;cursor:pointer;padding:2px 4px;font-family:inherit;}
-    .com-act:hover{color:#b8434e;}
+    .com-post-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:#9aa3ad;}
+    .com-post-text{font-size:14px;color:#1f2933;line-height:1.7;margin:5px 0 0;white-space:pre-wrap;}
+    .com-embed{margin-top:8px;border:1px solid #e4e7eb;border-radius:8px;padding:10px 12px;background:#fafbfc;}
+    .com-embed-head{display:flex;align-items:center;gap:8px;}
+    .com-wk-kind{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:#fff;background:#0f1419;border-radius:4px;padding:2px 6px;flex:0 0 auto;}
+    .com-embed-title{font-size:13px;font-weight:700;color:#0f1419;}
+    .com-embed-desc{font-size:12px;color:#6b7280;line-height:1.6;margin-top:4px;}
+    .com-embed-import{display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:#1d6fd1;text-decoration:none;}
+    .com-embed-import:hover{text-decoration:underline;}
+    .com-embed-nolink{display:inline-block;margin-top:8px;font-size:11px;color:#9aa3ad;}
+    .com-post-acts{display:flex;gap:18px;margin-top:8px;}
+    .com-act{background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;padding:2px 0;font-family:inherit;}
+    .com-act:hover{color:#1d6fd1;}
     .com-act.on{color:#b8434e;font-weight:700;}
-    .com-thread{margin-top:12px;padding-top:4px;border-top:1px dashed rgba(28,29,32,0.2);}
-    .com-thread-box{margin:12px 0 2px;}
-    .com-cmt{display:flex;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(28,29,32,0.1);}
+    .com-thread{margin-top:10px;padding-top:8px;border-top:1px solid #eef0f2;}
+    .com-thread-box{margin-top:8px;}
+    .com-thread-input{display:flex;gap:8px;align-items:flex-start;margin-top:6px;}
+    .com-thread-input textarea{flex:1;}
+    .com-thread-input .com-send{margin-top:2px;}
+    .com-cmt{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #f2f4f6;}
     .com-cmt:last-of-type{border-bottom:none;}
-    .com-cmt-reply{margin:0 0 0 6px;border-left:2px solid rgba(184,67,78,0.35);padding-left:12px;border-bottom:none;}
-    .com-cmt-av{flex:0 0 30px;width:30px;height:30px;font-size:13px;}
+    .com-cmt-reply{margin:0 0 0 4px;border-left:2px solid #e4e7eb;padding-left:10px;border-bottom:none;}
+    .com-cmt-av{flex:0 0 26px;width:26px;height:26px;font-size:11px;}
     .com-cmt-body{flex:1;min-width:0;}
-    .com-cmt-head{display:flex;align-items:center;gap:6px;font-size:12px;color:#999;flex-wrap:wrap;}
-    .com-cmt-head b{color:#1c1d20;font-size:13px;}
+    .com-cmt-head{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;flex-wrap:wrap;}
+    .com-cmt-head b{color:#0f1419;font-size:12px;}
     .com-cmt-head i{font-style:normal;}
-    .com-badge-author{background:#1c1d20;color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;font-weight:700;letter-spacing:1px;}
-    .com-cmt-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;}
-    .com-cmt-text{font-size:14px;color:#333;line-height:1.7;margin:4px 0;}
+    .com-badge-author{background:#0f1419;color:#fff;font-size:10px;padding:0 5px;border-radius:4px;font-weight:600;letter-spacing:1px;}
+    .com-cmt-time{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:#9aa3ad;}
+    .com-cmt-text{font-size:13px;color:#1f2933;line-height:1.65;margin:3px 0;}
     .com-cmt-acts{display:flex;gap:14px;}
-    .com-reply-chip{display:inline-block;font-size:12px;color:#b8434e;background:rgba(184,67,78,0.08);border:1px dashed #b8434e;border-radius:99px;padding:2px 10px;margin-bottom:6px;}
-    .com-empty{padding:16px;text-align:center;color:#999;font-size:13px;}
-    .com-empty-block{padding:26px;text-align:center;color:#999;font-size:14px;border:2px dashed rgba(28,29,32,0.25);border-radius:12px;}
-    @media (max-width: 900px){
-      .com-title-lg{font-size:32px;}
-    }
+    .com-reply-chip{display:inline-block;font-size:11px;color:#1d6fd1;background:#eef5ff;border-radius:99px;padding:2px 10px;margin-bottom:4px;}
+    .com-empty{padding:18px;text-align:center;color:#9aa3ad;font-size:13px;}
     @media (max-width: 600px){
-      .com-title-lg{font-size:26px;}
-      .com-post,.com-compose{padding:14px;}
+      .com-post{padding:10px 12px;}
+      .com-headtitle{font-size:18px;}
     }
   `), React.createElement("div", { ref: ref }));
 };

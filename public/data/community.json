@@ -3,6 +3,116 @@
   "intro": "丽珠 AI 社团社区",
   "posts": [
     {
+      "id": "p11",
+      "author": "阿禾",
+      "dept": "研发中心",
+      "time": "09-01 17:20",
+      "likes": 6,
+      "text": "本地跑了个 prompt 压力测试：同一任务 8 个模型并发跑 20 轮，胜率最高的那个居然不是最贵的。结果表放共享盘了。",
+      "comments": [
+        {
+          "id": "p11c1",
+          "author": "K",
+          "dept": "信息部",
+          "text": "求表，正好要选型",
+          "time": "09-01 17:35",
+          "likes": 2
+        },
+        {
+          "id": "p11c2",
+          "author": "老周",
+          "dept": "质量部",
+          "text": "并发跑会有限流问题吧？",
+          "time": "09-01 17:50",
+          "likes": 1
+        },
+        {
+          "id": "p11c3",
+          "parent_id": "p11c2",
+          "author": "阿禾",
+          "dept": "研发中心",
+          "text": "加了退避重试，20 轮里只挂了 2 次",
+          "time": "09-01 18:02",
+          "likes": 3
+        }
+      ]
+    },
+    {
+      "id": "p12",
+      "author": "Momo",
+      "dept": "市场部",
+      "time": "09-01 13:55",
+      "likes": 4,
+      "text": "刚试了用 Agent 批量改商品图背景色，200 张十分钟。以前这活儿我外包要等两天。",
+      "work": {
+        "kind": "image",
+        "title": "商品图换背景批处理",
+        "description": "原图+新色号，自动出图并打包下载",
+        "source": "https://example.com/agent/bg-batch"
+      },
+      "comments": []
+    },
+    {
+      "id": "p13",
+      "author": "小北",
+      "dept": "国际业务",
+      "time": "09-01 09:30",
+      "likes": 8,
+      "text": "英文会议纪要直接转中文摘要再转待办，全链路一个 Agent 搞定。今天试了三场会，省下的时间够写日报了。",
+      "comments": [
+        {
+          "id": "p13c1",
+          "author": "Nina",
+          "dept": "人力行政",
+          "text": "求流程，下周全组推",
+          "time": "09-01 10:05",
+          "likes": 2
+        }
+      ]
+    },
+    {
+      "id": "p14",
+      "author": "大树",
+      "dept": "生产部",
+      "time": "08-30 11:15",
+      "likes": 3,
+      "text": "踩坑分享：让 Agent 直接改产线参数千万别上生产环境，先在测试环境跑一个月。血泪教训，细节回帖。",
+      "comments": [
+        {
+          "id": "p14c1",
+          "author": "阿禾",
+          "dept": "研发中心",
+          "text": "这条建议加精",
+          "time": "08-30 11:40",
+          "likes": 4
+        }
+      ]
+    },
+    {
+      "id": "p15",
+      "author": "小鹿",
+      "dept": "供应链",
+      "time": "08-29 15:40",
+      "likes": 5,
+      "text": "第一次在社团群里发东西，紧张。放个库存对账的小工具，谁要拿走，不谢。",
+      "work": {
+        "kind": "tool",
+        "title": "库存对账小工具",
+        "description": "两表差异一键标记，支持导出",
+        "source": "https://example.com/tool/stock-diff"
+      },
+      "comments": [
+        {
+          "id": "p15c1",
+          "author": "K",
+          "dept": "信息部",
+          "text": "已拿，好用，等你模板",
+          "time": "08-29 16:10",
+          "likes": 2
+        }
+      ]
+    },
+    {
       "id": "pp1",
       "pinned": true,
       "tag": "featured",
