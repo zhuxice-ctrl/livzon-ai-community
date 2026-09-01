@@ -1637,10 +1637,11 @@ var MySection = () => {
     Promise.all([
       fetch("/api/my/profile").then(function (r) { return r.json(); }),
       fetch("/api/my/registrations").then(function (r) { return r.json(); }),
-      fetch("/api/my/works").then(function (r) { return r.json(); })
+      fetch("/api/my/works").then(function (r) { return r.json(); }),
+      fetch("/api/my/level").then(function (r) { return r.json(); })
     ]).then(function (rs) {
       if (cancelled || !ref.current) return;
-      var prof = rs[0], reg = rs[1], wrk = rs[2];
+      var prof = rs[0], reg = rs[1], wrk = rs[2], lvl = rs[3];
       if (!prof.ok) {
         ref.current.innerHTML = "<div class='my-login'><div class='my-login-card'><h2>登录你的 AI 社团账户</h2><p>使用飞书账号登录后，即可查看和管理你的报名、作品与消息。</p><a class='my-login-btn' href='/login.html'>去登录</a></div></div>";
         return;
@@ -1648,14 +1649,21 @@ var MySection = () => {
       var u = prof.data || {};
       var regs = (reg.ok && reg.data && reg.data.registrations) || [];
       var works = (wrk.ok && wrk.data && wrk.data.works) || [];
+      var L = (lvl.ok && lvl.data) || { points: 0, level: 1, levelName: "新星社员", levelMin: 0, nextLevelMin: 50, progress: 0, tasks: [] };
       var h = "";
-      // 头部
+      // 头部（含 LV + 升级条）
       h += "<div class='my-head'>" +
         (u.avatar ? "<img class='my-avatar' src='" + esc(u.avatar) + "' alt=''>" : "<div class='my-avatar my-avatar-ph'>" + esc((u.name || "我").charAt(0)) + "</div>") +
-        "<div class='my-id'><div class='my-name'>" + esc(u.name || "飞书用户") + "</div>" +
-        "<div class='my-sub'>" + esc(u.department || "未标注部门") + " · " + (u.role === "admin" ? "管理员" : "成员") + "</div></div>" +
+        "<div class='my-id'><div class='my-name'>" + esc(u.name || "飞书用户") + " <span class='my-lv'>LV." + L.level + "</span><span class='my-lv-name'>" + esc(L.levelName || "") + "</span></div>" +
+        "<div class='my-sub'>" + esc(u.department || "未标注部门") + " · " + (u.role === "admin" ? "管理员" : "成员") + "</div>" +
+        "<div class='my-xp'><div class='my-xp-bar'><div class='my-xp-fill' style='width:" + L.progress + "%'></div></div><div class='my-xp-num'>" + L.points + " XP · 距 LV." + (L.nextLevelMin ? (L.level + 1) : "MAX") + "</div></div></div>" +
         "<a class='my-ai' href='https://ai.livzon.cn/apply' target='_blank' rel='noopener'>AI 资源中心 ↗</a>" +
         "</div>";
+      // 基础任务表
+      h += "<div class='my-sec'><div class='my-sechead'><span class='t'>基础任务</span><span class='e'>BASIC TASKS · 升级指南</span></div>" +
+        "<div class='my-tasks'>" + (L.tasks || []).map(function (t) {
+          return "<div class='my-task" + (t.done ? " done" : "") + "'><span class='my-task-dot'>" + (t.done ? "✓" : "") + "</span><span class='my-task-label'>" + esc(t.label) + "</span><span class='my-task-pts'>+" + t.points + " XP</span></div>";
+        }).join("") + "</div></div>";
       // 最近消息入口
       h += "<div class='my-msg-card'><div class='my-msg-icon'>🔔</div><div class='my-msg-body'><div class='my-msg-t'>最近消息</div><div class='my-msg-d'>平台活动通知、作品审核结果将在此显示</div></div><span class='my-msg-arrow'>›</span></div>";
       // 统计
@@ -1692,6 +1700,18 @@ var MySection = () => {
     .my-avatar-ph{background:linear-gradient(135deg,#2568d8,#173f8f);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;}
     .my-id .my-name{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:700;letter-spacing:1px;}
     .my-id .my-sub{font-size:13px;color:#999;margin-top:6px;}
+    .my-lv{display:inline-block;vertical-align:middle;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#2568d8,#173f8f);padding:2px 10px;border-radius:999px;margin-left:10px;letter-spacing:1px;}
+    .my-lv-name{font-size:12px;color:#2568d8;margin-left:8px;letter-spacing:1px;font-weight:500;}
+    .my-xp{margin-top:10px;display:flex;align-items:center;gap:12px;}
+    .my-xp-bar{flex:0 0 220px;height:8px;border-radius:999px;background:rgba(0,0,0,0.08);overflow:hidden;}
+    .my-xp-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#173f8f,#5b8cff);transition:width .6s ease;}
+    .my-xp-num{font-family:'JetBrains Mono',monospace;font-size:11px;color:#999;letter-spacing:1px;}
+    .my-tasks{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+    .my-task{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:10px;padding:14px 18px;}
+    .my-task-dot{width:22px;height:22px;border-radius:50%;border:2px solid #ccc;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;flex:0 0 22px;}
+    .my-task.done .my-task-dot{background:#2a9d63;border-color:#2a9d63;}
+    .my-task-label{font-size:13px;color:#1a1a1f;flex:1;}
+    .my-task-pts{font-family:'JetBrains Mono',monospace;font-size:11px;color:#2568d8;letter-spacing:1px;}
     .my-ai{margin-left:auto;font-size:13px;letter-spacing:1px;color:#2568d8;border:1px solid rgba(37,104,216,0.4);padding:8px 18px;border-radius:999px;text-decoration:none;transition:all .2s;}
     .my-ai:hover{background:rgba(37,104,216,0.1);}
     .my-msg-card{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:10px;padding:14px 20px;margin-bottom:26px;cursor:pointer;transition:all .25s;}
