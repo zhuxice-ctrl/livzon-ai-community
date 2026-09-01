@@ -1616,6 +1616,7 @@ var CommunitySection = () => {
     var pubSection = "chat";   // 发布页选中的分区
     var pubDraft = "";         // 发布页草稿（跨渲染保留）
     var searchQ = "";          // 信息流搜索关键词
+    var MIAODA_URL = "https://dcniaqwtmoca.feishu.cn/page/DTEmm85LHdrKnVa6CmRcHHm3nWe"; // 云端妙搭入口；部署时替换为正式妙搭应用链接，留空则隐藏入口
 
     var SECTIONS = [
       { key: "all", label: "首页", icon: "◈", desc: "全部动态" },
@@ -1969,6 +1970,7 @@ var CommunitySection = () => {
         "<div class='com-navbar'>" +
         "<div class='com-nav-left'><img class='com-nav-logo-img' src='" + LOGO + "' alt='丽珠' /><b>社团社区</b><span class='com-nav-sub'>LIVZON COMMUNITY</span></div>" +
         "<div class='com-nav-right'>" +
+        (MIAODA_URL ? "<a class='com-nav-cloud' href='" + MIAODA_URL + "' target='_blank' rel='noopener' title='在内网外也可查看的云端镜像版'>☁ 云端版</a>" : "") +
         "<button class='com-nav-pub' onclick='window.comOpenPublish&&window.comOpenPublish()'>✏️ 发布</button>" +
         "<span class='com-nav-me' title='个人中心'><span class='com-avatar'>我</span></span>" +
         "</div>" +
@@ -2352,6 +2354,8 @@ var CommunitySection = () => {
     .com-nav-sub{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:#9aa3ad;}
     .com-nav-right{display:flex;align-items:center;gap:10px;}
     .com-nav-pub{background:#1d6fd1;color:#fff;border:none;border-radius:99px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .2s;}
+    .com-nav-cloud{display:inline-flex;align-items:center;gap:4px;color:#1d6fd1;border:1px solid #cfe0f5;border-radius:99px;padding:6px 14px;font-size:13px;font-weight:500;text-decoration:none;transition:background .2s,border-color .2s;}
+    .com-nav-cloud:hover{background:#eef5fd;border-color:#1d6fd1;}
     .com-nav-pub:hover{background:#155bb0;}
     .com-nav-me{display:inline-flex;align-items:center;cursor:pointer;padding:2px;}
     .com-nav-me .com-avatar{background:#eef0f2;color:#0f1419;border:1px solid #e4e7eb;}
