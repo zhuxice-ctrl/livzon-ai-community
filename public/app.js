@@ -1585,260 +1585,252 @@ var ActivitiesSection = () => {
 };
 
 var CommunitySection = () => {
-  const sections = [
-    {
-      title: "飞书知识库",
-      desc: "每场活动后归档四类内容：活动录屏、物料与总结、相关飞书云文档、Skill 仓库。",
-      items: ["活动录屏", "物料总结", "飞书云文档", "Skill 仓库"]
-    },
-    {
-      title: "课程目录",
-      desc: "用多维表格做一张课程目录，一行一节活动，支持画廊视图浏览，方便回看与检索。",
-      items: ["主题索引", "主讲人", "录屏链接", "多维表格"]
-    },
-    {
-      title: "精选作品区",
-      desc: '经作者同意后，优秀作品 / Skill 在知识库设"精选"专区，集团内部展示，扩大影响力。',
-      items: ["微电影", "网页设计", "海报设计", "实用 Skill"]
-    },
-    {
-      title: "高校联合",
-      desc: "和本地或有校友关系的高校 AI 实验室建立轻量合作，闭门前沿报告 + 实验室参访。",
-      items: ["季度讲座", "实验室参访", "联合实验", "学术交流"]
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
+    const KIND_LABEL = { image: "图像", video: "视频", "3d": "3D", tool: "工具", app: "应用", skill: "Skill", mcp: "MCP", source: "源码" };
+    const ACTION_LABEL = { work: "发布了作品", skill: "解锁了 Skill", event: "参加了活动", review: "写了复盘", "chat": "冒了个泡" };
+
+    // 动态：优先 /api/community/moments（契约见 docs/api/community-api.md，合并时后端接入），
+    // 接口未上线时回落静态 /data/community.json —— 前端零后端依赖即可跑
+    function loadMoments(cb) {
+      fetch("/api/community/moments").then(function (r) {
+        if (!r.ok) return Promise.reject(r.status);
+        return r.json();
+      }).then(function (j) {
+        if (cancelled) return;
+        var m = (j && j.ok && j.data && j.data.moments) ? j.data.moments : null;
+        cb(m, true);
+      }).catch(function () {
+        fetch("/data/community.json").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (d) {
+          if (cancelled) return;
+          cb((d && d.moments) || [], false);
+        }).catch(function () { if (!cancelled) cb([], false); });
+      });
     }
-  ];
-  return /* @__PURE__ */ React.createElement("section", {
-    className: "page-section",
-    style: {
-      background: "#f8f8f6",
-      color: "#1a1a1f",
-      padding: "140px 64px 100px",
-      minHeight: "100vh"
+
+    function loadStatic(cb) {
+      fetch("/data/community.json").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (d) {
+        if (!cancelled) cb(d || {});
+      }).catch(function () { if (!cancelled) cb({}); });
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    className: "page-container",
-    style: { maxWidth: 1200, margin: "0 auto" }
-  }, /* @__PURE__ */ React.createElement("div", {
-    className: "section-header",
-    style: { marginBottom: 72, textAlign: "center" }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#999",
-      letterSpacing: 3,
-      marginBottom: 16,
-      fontFamily: "'JetBrains Mono', monospace"
+
+    function loadWorks(cb) {
+      fetch("/api/works").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (j) {
+        if (!cancelled) cb((j && j.works) || []);
+      }).catch(function () { if (!cancelled) cb([]); });
     }
-  }, "COMMUNITY · 社团社区"), /* @__PURE__ */ React.createElement("h2", {
-    className: "section-title",
-    style: {
-      fontSize: 48,
-      fontWeight: 300,
-      letterSpacing: 2,
-      fontFamily: "'Noto Serif SC', serif"
+
+    function momentCard(m, i) {
+      var a = esc(m.author || "同学");
+      var act = ACTION_LABEL[m.action] || esc(m.action || "冒了个泡");
+      var initial = esc((m.author || "同").slice(0, 1));
+      var rot = (i % 3) - 1;
+      return "<div class='com-moment' style='--rot:" + rot + "deg'>" +
+        "<div class='com-mo-head'><span class='com-avatar'>" + initial + "</span><span class='com-mo-who'><b>" + a + "</b><i>" + esc(m.dept || "") + "</i></span><span class='com-mo-act'>" + act + "</span></div>" +
+        "<p class='com-mo-text'>" + esc(m.text || "") + "</p>" +
+        "<div class='com-mo-time'>" + esc(m.time || "") + "</div>" +
+        "</div>";
     }
-  }, "一群爱玩的人凑在一起"), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      marginTop: 20,
-      color: "#666",
-      fontSize: 15,
-      lineHeight: 1.9,
-      maxWidth: 600,
-      margin: "20px auto 0"
+
+    function workCard(w, i) {
+      var k = KIND_LABEL[w.kind] || esc(w.kind || "作品");
+      return "<div class='com-work' onclick=\"window.comOpenWork&&window.comOpenWork(" + i + ")\">" +
+        "<span class='com-wk-kind'>" + k + "</span>" +
+        "<div class='com-wk-title'>" + esc(w.title || "未命名作品") + "</div>" +
+        "<div class='com-wk-author'>" + esc(w.author || "匿名") + (w.category ? " · " + esc(w.category) : "") + "</div>" +
+        "<span class='com-wk-more'>看详情 →</span>" +
+        "</div>";
     }
-  }, "高效上班、不耽误下班。以兴趣为纽带，以分享为乐趣， 不内卷、不汇报、不答辩，就是一群人一起玩 AI。")), /* @__PURE__ */ React.createElement("div", {
-    className: "community-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(4, 1fr)",
-      gap: 20,
-      marginBottom: 80
+
+    function courseRow(c) {
+      return "<div class='com-course'>" +
+        "<span class='com-cs-no'>No." + esc(String(c.no).padStart(2, "0")) + "</span>" +
+        "<div class='com-cs-main'><div class='com-cs-theme'>" + esc(c.theme || "") + "</div><div class='com-cs-meta'>" + esc(c.speaker || "") + (c.minutes ? " · " + c.minutes + " 分钟" : "") + "</div></div>" +
+        (c.video ? "<a class='com-cs-link' href='" + esc(c.video) + "' target='_blank' rel='noopener'>看录屏 ↗</a>" : "<span class='com-cs-link com-cs-off'>整理中</span>") +
+        "</div>";
     }
-  }, sections.map((s, i) => /* @__PURE__ */ React.createElement("div", {
-    key: i,
-    style: {
-      background: "#fff",
-      border: "1px solid rgba(0,0,0,0.06)",
-      padding: "32px 24px",
-      borderRadius: 4,
-      transition: "all 0.3s ease",
-      cursor: "pointer"
-    },
-    onMouseEnter: (e) => {
-      e.currentTarget.style.transform = "translateY(-4px)";
-      e.currentTarget.style.boxShadow = "0 16px 40px rgba(0,0,0,0.05)";
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.boxShadow = "none";
+
+    function resourceCard(r) {
+      return "<div class='com-res'>" +
+        "<div class='com-res-name'>" + esc(r.title || "") + "</div>" +
+        "<p class='com-res-desc'>" + esc(r.desc || "") + "</p>" +
+        "<div class='com-res-items'>" + (r.items || []).map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div>" +
+        "</div>";
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 40,
-      fontWeight: 200,
-      color: "#ddd",
-      fontFamily: "'Noto Serif SC', serif",
-      marginBottom: 16
+
+    function openWorkModal(works) {
+      return function (i) {
+        var w = works[i];
+        if (!w) return;
+        var el = document.getElementById("com-modal");
+        if (!el) return;
+        var k = KIND_LABEL[w.kind] || esc(w.kind || "作品");
+        el.innerHTML = "<div class='com-modal-mask' onclick='window.comClose()'></div><div class='com-modal-card'>" +
+          "<button class='com-close' onclick='window.comClose()'>×</button>" +
+          "<span class='com-wk-kind'>" + k + "</span>" +
+          "<div class='com-modal-title'>" + esc(w.title || "未命名作品") + "</div>" +
+          "<div class='com-modal-meta'>" + esc(w.author || "匿名") + (w.category ? " · " + esc(w.category) : "") + (w.created_at ? " · " + esc(String(w.created_at).slice(0, 10)) : "") + "</div>" +
+          (w.description ? "<p class='com-modal-desc'>" + esc(w.description) + "</p>" : "<p class='com-modal-desc com-empty'>暂无简介</p>") +
+          "<div class='com-modal-tip'>完整团队与制作过程，见首页「作品墙」。</div>" +
+          "</div>";
+        el.style.display = "flex";
+      };
     }
-  }, "0", i + 1), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 18,
-      fontWeight: 500,
-      marginBottom: 10
+
+    window.comClose = function () { var el = document.getElementById("com-modal"); if (el) el.style.display = "none"; };
+
+    var worksCache = [];
+
+    function renderAll(moments, momentsFromApi, cfg, works) {
+      if (cancelled || !ref.current) return;
+      worksCache = works;
+      var courses = cfg.courses || [];
+      var resources = cfg.resources || [];
+      var partner = cfg.partner || null;
+
+      var h = "";
+      h += "<div class='com-wrap'>";
+      // Hero
+      h += "<div class='com-hero'><div class='com-eyebrow'>COMMUNITY · 社团社区</div><h1 class='com-title-lg'>一群爱玩的人<br/>凑成了这一面墙</h1><p class='com-sub'>高效上班、不耽误下班。以兴趣为纽带、以分享为乐趣——<b>不内卷、不汇报、不答辩</b>，就是一群人一起玩 AI。</p><div class='com-stickers'><span>不内卷</span><span>不汇报</span><span>不答辩</span><span>只管玩</span></div></div>";
+
+      // 社区动态
+      h += "<div class='com-sechead'><span class='com-sectitle'>社区动态</span><span class='com-secen'>MOMENTS" + (momentsFromApi ? "" : " · SEED") + "</span></div>";
+      if (moments.length) {
+        h += "<div class='com-moments'>" + moments.map(function (m, i) { return momentCard(m, i); }).join("") + "</div>";
+      } else {
+        h += "<div class='com-empty-block'>还没有动态——第一场活动之后，这里会热闹起来。</div>";
+      }
+
+      // 精选作品
+      h += "<div class='com-sechead'><span class='com-sectitle'>精选作品</span><span class='com-secen'>FEATURED WORKS</span></div>";
+      if (works.length) {
+        h += "<div class='com-works'>" + works.slice(0, 8).map(function (w, i) { return workCard(w, i); }).join("") + "</div>";
+      } else {
+        h += "<div class='com-empty-block'>作品墙还在等第一件作品——去首页上传，或等活动结束统一放送。</div>";
+      }
+
+      // 课程目录
+      if (courses.length) {
+        h += "<div class='com-sechead'><span class='com-sectitle'>课程目录</span><span class='com-secen'>COURSE INDEX</span></div>";
+        h += "<div class='com-courses'>" + courses.map(function (c) { return courseRow(c); }).join("") + "</div>";
+      }
+
+      // 知识库与共学
+      if (resources.length) {
+        h += "<div class='com-sechead'><span class='com-sectitle'>知识库与共学</span><span class='com-secen'>ARCHIVE</span></div>";
+        h += "<div class='com-resources'>" + resources.map(function (r) { return resourceCard(r); }).join("") + "</div>";
+      }
+
+      // 高校联合
+      if (partner) {
+        h += "<div class='com-partner'><div class='com-partner-in'><span class='com-partner-tag'>高校联合</span><div class='com-partner-title'>" + esc(partner.title || "") + "</div><p class='com-partner-desc'>" + esc(partner.desc || "") + "</p><div class='com-res-items'>" + (partner.items || []).map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div></div></div>";
+      }
+      h += "</div>";
+
+      ref.current.innerHTML = h;
+      window.comOpenWork = openWorkModal(worksCache);
     }
-  }, s.title), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      fontSize: 12,
-      color: "#888",
-      lineHeight: 1.8,
-      marginBottom: 16
+
+    // 数据装载：静态配置 + 动态(moments) + 作品(works) 并行取齐后一次性渲染
+    var cfgCache = {}, momentsCache = [], momentsApi = false, worksDone = false, momentsDone = false, cfgDone = false;
+    function tryRender() {
+      if (cancelled || !cfgDone || !momentsDone || !worksDone) return;
+      renderAll(momentsCache, momentsApi, cfgCache, worksCache);
     }
-  }, s.desc), /* @__PURE__ */ React.createElement("div", {
-    style: { display: "flex", flexWrap: "wrap", gap: 6 }
-  }, s.items.map((item, j) => /* @__PURE__ */ React.createElement("span", {
-    key: j,
-    style: {
-      fontSize: 10,
-      color: "#999",
-      padding: "3px 8px",
-      border: "1px solid #eee",
-      borderRadius: 2
+    loadStatic(function (d) { cfgCache = d; cfgDone = true; tryRender(); });
+    loadMoments(function (m, fromApi) { momentsCache = m || []; momentsApi = !!fromApi; momentsDone = true; tryRender(); });
+    loadWorks(function (ws) { worksCache = ws; worksDone = true; tryRender(); });
+
+    return function () {
+      cancelled = true;
+      delete window.comOpenWork;
+      delete window.comClose;
+    };
+  }, []);
+  return React.createElement("section", { className: "page-section", style: { background: "#faf9f5", color: "#1c1d20", padding: "140px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
+    .com-wrap{max-width:1080px;margin:0 auto;}
+    .com-hero{text-align:center;padding:8px 0 26px;}
+    .com-eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:4px;color:#b8434e;margin-bottom:18px;}
+    .com-title-lg{font-family:'Noto Serif SC',serif;font-size:56px;font-weight:600;letter-spacing:2px;line-height:1.25;margin:0 0 18px;color:#1c1d20;}
+    .com-sub{font-size:15px;color:#666;line-height:1.9;max-width:560px;margin:0 auto;}
+    .com-sub b{color:#1c1d20;}
+    .com-stickers{display:flex;justify-content:center;gap:10px;margin-top:26px;flex-wrap:wrap;}
+    .com-stickers span{font-size:12px;font-weight:700;padding:4px 14px;border:2px solid #1c1d20;border-radius:999px;background:#fff;box-shadow:2px 2px 0 rgba(28,29,32,0.18);transform:rotate(-2deg);}
+    .com-stickers span:nth-child(2n){transform:rotate(1.5deg);background:#fdf3d8;}
+    .com-stickers span:nth-child(3n){transform:rotate(-1deg);background:#e8f0e4;}
+    .com-sechead{display:flex;align-items:baseline;gap:14px;margin:72px 0 26px;border-bottom:1px solid rgba(28,29,32,0.12);padding-bottom:10px;}
+    .com-sectitle{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:600;color:#1c1d20;}
+    .com-secen{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#b0aca4;}
+    .com-moments{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+    .com-moment{background:#fff;border:2px solid #1c1d20;border-radius:8px;padding:18px 18px 14px;box-shadow:4px 4px 0 rgba(28,29,32,0.15);transform:rotate(var(--rot,0deg));transition:transform .25s cubic-bezier(.2,1.2,.4,1),box-shadow .25s;}
+    .com-moment:hover{transform:rotate(0deg) translateY(-4px);box-shadow:6px 8px 0 rgba(28,29,32,0.2);}
+    .com-mo-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+    .com-avatar{width:34px;height:34px;border-radius:50%;background:#1c1d20;color:#faf9f5;font-family:'Noto Serif SC',serif;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:0 0 34px;}
+    .com-mo-who{line-height:1.2;min-width:0;}
+    .com-mo-who b{display:block;font-size:13px;color:#1c1d20;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .com-mo-who i{font-style:normal;font-size:10px;color:#b0aca4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:120px;}
+    .com-mo-act{margin-left:auto;flex:0 0 auto;font-size:10px;font-weight:700;color:#b8434e;border:1.5px solid #b8434e;border-radius:999px;padding:2px 9px;background:rgba(184,67,78,0.06);}
+    .com-mo-text{font-size:13px;color:#444;line-height:1.8;margin:0 0 10px;}
+    .com-mo-time{font-family:'JetBrains Mono',monospace;font-size:10px;color:#c3bfb7;}
+    .com-works{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+    .com-work{position:relative;background:#fff;border:2px solid #1c1d20;border-radius:8px;padding:20px 16px 16px;box-shadow:3px 3px 0 rgba(28,29,32,0.12);cursor:pointer;transition:transform .22s,box-shadow .22s;overflow:hidden;}
+    .com-work:hover{transform:translateY(-4px);box-shadow:5px 7px 0 rgba(28,29,32,0.18);}
+    .com-wk-kind{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:#1c1d20;border-radius:3px;padding:2px 8px;margin-bottom:12px;letter-spacing:1px;}
+    .com-wk-title{font-family:'Noto Serif SC',serif;font-size:16px;font-weight:600;line-height:1.5;color:#1c1d20;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:48px;}
+    .com-wk-author{font-size:11px;color:#888;margin-bottom:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .com-wk-more{font-size:11px;color:#b8434e;font-weight:700;opacity:0;transition:opacity .2s;}
+    .com-work:hover .com-wk-more{opacity:1;}
+    .com-courses{display:flex;flex-direction:column;gap:0;}
+    .com-course{display:flex;align-items:center;gap:18px;padding:16px 6px;border-bottom:1px dashed rgba(28,29,32,0.25);transition:background .2s;}
+    .com-course:hover{background:rgba(255,255,255,0.7);}
+    .com-cs-no{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#b8434e;flex:0 0 52px;}
+    .com-cs-main{min-width:0;flex:1;}
+    .com-cs-theme{font-family:'Noto Serif SC',serif;font-size:17px;font-weight:600;color:#1c1d20;margin-bottom:4px;}
+    .com-cs-meta{font-size:12px;color:#999;}
+    .com-cs-link{flex:0 0 auto;font-size:12px;font-weight:700;color:#1c1d20;text-decoration:none;border:1.5px solid #1c1d20;border-radius:999px;padding:4px 13px;transition:all .2s;}
+    .com-cs-link:hover{background:#1c1d20;color:#faf9f5;}
+    .com-cs-off{color:#c3bfb7;border-color:#d8d4cc;cursor:default;}
+    .com-cs-off:hover{background:transparent;color:#c3bfb7;}
+    .com-resources{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+    .com-res{background:#fff;border:1.5px solid rgba(28,29,32,0.14);border-radius:8px;padding:22px 18px;transition:transform .22s,box-shadow .22s,border-color .22s;}
+    .com-res:hover{transform:translateY(-4px);box-shadow:4px 6px 0 rgba(28,29,32,0.1);border-color:#1c1d20;}
+    .com-res-name{font-family:'Noto Serif SC',serif;font-size:16px;font-weight:600;color:#1c1d20;margin-bottom:8px;}
+    .com-res-desc{font-size:12px;color:#888;line-height:1.8;margin:0 0 12px;}
+    .com-res-items{display:flex;flex-wrap:wrap;gap:6px;}
+    .com-res-items span{font-size:10px;color:#666;border:1px solid rgba(28,29,32,0.2);border-radius:3px;padding:2px 7px;background:rgba(28,29,32,0.03);}
+    .com-partner{margin-top:72px;background:#1c1d20;border-radius:10px;padding:34px 34px 30px;color:#faf9f5;box-shadow:6px 6px 0 rgba(184,67,78,0.5);}
+    .com-partner-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:2px;color:#1c1d20;background:#f2c94c;border-radius:3px;padding:3px 10px;margin-bottom:12px;}
+    .com-partner-title{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:600;margin-bottom:10px;}
+    .com-partner-desc{font-size:13px;color:rgba(250,249,245,0.75);line-height:1.9;max-width:640px;margin:0 0 16px;}
+    .com-partner .com-res-items span{color:rgba(250,249,245,0.85);border-color:rgba(250,249,245,0.3);background:rgba(250,249,245,0.06);}
+    .com-empty-block{background:#fff;border:1.5px dashed rgba(28,29,32,0.3);border-radius:8px;padding:36px 24px;text-align:center;color:#999;font-size:13px;}
+    #com-modal{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:24px;}
+    .com-modal-mask{position:absolute;inset:0;background:rgba(26,26,31,0.7);backdrop-filter:blur(4px);}
+    .com-modal-card{position:relative;width:100%;max-width:560px;background:#fff;border:2px solid #1c1d20;border-radius:10px;padding:36px;max-height:82vh;overflow:auto;box-shadow:8px 8px 0 rgba(28,29,32,0.25);}
+    .com-close{position:absolute;top:18px;right:18px;cursor:pointer;color:#aaa;font-size:22px;background:none;border:none;}
+    .com-modal-title{font-family:'Noto Serif SC',serif;font-size:26px;font-weight:500;margin:14px 0 8px;}
+    .com-modal-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:#999;margin-bottom:14px;}
+    .com-modal-desc{font-size:14px;color:#555;line-height:1.9;}
+    .com-empty{color:#bbb;}
+    .com-modal-tip{margin-top:20px;padding-top:14px;border-top:1px dashed rgba(28,29,32,0.2);font-size:12px;color:#b8434e;font-weight:700;}
+    @media (max-width: 900px){
+      .com-moments{grid-template-columns:repeat(2,1fr);}
+      .com-works{grid-template-columns:repeat(2,1fr);}
+      .com-resources{grid-template-columns:repeat(2,1fr);}
     }
-  }, item)))))), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      background: "#fff",
-      border: "1px solid rgba(0,0,0,0.06)",
-      borderRadius: 6,
-      padding: "60px",
-      marginBottom: 60
+    @media (max-width: 600px){
+      .com-title-lg{font-size:36px;}
+      .com-moments{grid-template-columns:1fr;}
+      .com-works{grid-template-columns:1fr;}
+      .com-resources{grid-template-columns:1fr;}
+      .com-course{flex-wrap:wrap;}
+      .com-cs-link{margin-left:52px;}
     }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: { textAlign: "center", marginBottom: 48 }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#999",
-      letterSpacing: 3,
-      marginBottom: 12,
-      fontFamily: "'JetBrains Mono', monospace"
-    }
-  }, "INCENTIVE"), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 32,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      letterSpacing: 2
-    }
-  }, "激励机制")), /* @__PURE__ */ React.createElement("div", {
-    className: "prize-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(4, 1fr)",
-      gap: 24,
-      textAlign: "center"
-    }
-  }, [
-    { prize: "一等奖", amount: "¥500", count: "1 名" },
-    { prize: "二等奖", amount: "¥300", count: "2 名" },
-    { prize: "三等奖", amount: "¥200", count: "3 名" },
-    { prize: "参与奖", amount: "¥100", count: "若干" }
-  ].map((p, i) => /* @__PURE__ */ React.createElement("div", {
-    key: i,
-    style: {
-      padding: "32px 16px",
-      border: "1px solid rgba(0,0,0,0.06)",
-      borderRadius: 4
-    }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "#999",
-      marginBottom: 12
-    }
-  }, p.prize), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 36,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      color: "#1a1a1f",
-      marginBottom: 8
-    }
-  }, p.amount), /* @__PURE__ */ React.createElement("div", {
-    style: { fontSize: 12, color: "#bbb" }
-  }, p.count)))), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      textAlign: "center",
-      marginTop: 32,
-      fontSize: 12,
-      color: "#aaa"
-    }
-  }, "另设最具想象力奖、最有哲学深度奖、最有氛围奖、最快出活奖、最离谱创意奖等趣味奖项")), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      background: "#1a1a1f",
-      borderRadius: 6,
-      padding: "60px",
-      color: "#fff"
-    }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: { textAlign: "center", marginBottom: 40 }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 11,
-      letterSpacing: 4,
-      color: "rgba(255,255,255,0.4)",
-      marginBottom: 12,
-      fontFamily: "'JetBrains Mono', monospace"
-    }
-  }, "SHARING RULES"), /* @__PURE__ */ React.createElement("h3", {
-    style: {
-      fontSize: 28,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      letterSpacing: 2
-    }
-  }, "每次分享讲清楚五件事")), /* @__PURE__ */ React.createElement("div", {
-    className: "rules-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(5, 1fr)",
-      gap: 20,
-      textAlign: "center"
-    }
-  }, ["创作思路", "完整工作流", "关键 Prompt", "亮点与不足", "工具选型理由"].map((item, i) => /* @__PURE__ */ React.createElement("div", {
-    key: i,
-    style: {
-      padding: "24px 12px",
-      border: "1px solid rgba(255,255,255,0.1)",
-      borderRadius: 4,
-      fontSize: 14,
-      color: "rgba(255,255,255,0.7)",
-      transition: "all 0.3s"
-    },
-    onMouseEnter: (e) => {
-      e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
-      e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-    },
-    onMouseLeave: (e) => {
-      e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-      e.currentTarget.style.background = "transparent";
-    }
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      fontSize: 24,
-      fontWeight: 300,
-      fontFamily: "'Noto Serif SC', serif",
-      marginBottom: 8,
-      color: "#fff"
-    }
-  }, "0", i + 1), item))), /* @__PURE__ */ React.createElement("p", {
-    style: {
-      textAlign: "center",
-      marginTop: 32,
-      fontSize: 12,
-      color: "rgba(255,255,255,0.35)"
-    }
-  }, '重点是让大家学到"怎么做出来的"，听完能上手抄作业'))));
+  `), React.createElement("div", { ref: ref }), React.createElement("div", { id: "com-modal", style: { position: "fixed", inset: 0, zIndex: 10000, display: "none", alignItems: "center", justifyContent: "center", padding: 24 } }));
 };
+
 var AboutSection = () => {
   const timeline = [
     { date: "每月", event: "1 次深度活动（2-3 小时）", desc: "主题沙龙 / 黑客松 / 作品展映" },
