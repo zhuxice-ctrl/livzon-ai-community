@@ -746,9 +746,12 @@ var ActivitiesSection = () => {
       // 03 回顾展区（惯性拖拽展墙 + 聚光 + 类型筛选）
       h += "<div class='act-sechead' id='act-sec-archive'><span class='act-secno'>03</span><span class='act-sectitle'>回顾展区</span><span class='act-secen'>ARCHIVE · 按住拖拽 · 点击查看回顾</span></div>";
       var typeNames = types.map(function (t) { return t.name; });
-      h += "<div class='arch-chips' id='archChips'><button class='chip on' data-f='全部'>全部</button>" + typeNames.map(function (n) { return "<button class='chip' data-f='" + esc(n) + "'>" + esc(n) + "</button>"; }).join("") + "</div>";
+      var typeCnt = {}; past.forEach(function (a) { var t = typeOfPast(a); typeCnt[t] = (typeCnt[t] || 0) + 1; });
+      h += "<div class='arch-chips' id='archChips'><button class='chip on' data-f='全部'>全部(" + past.length + ")</button>" + typeNames.map(function (n) { return "<button class='chip' data-f='" + esc(n) + "'>" + esc(n) + "(" + (typeCnt[n] || 0) + ")</button>"; }).join("") + "<span class='arch-hint'>← 拖拽浏览 · 聚光查看 →</span></div>";
       h += "<div class='arch-wall' id='archWall'><div class='arch-spot' id='archSpot'></div><div class='arch-track' id='archTrack'>" + past.map(function (a) {
         return "<div class='arch-item' data-type='" + esc(typeOfPast(a)) + "' onclick=\"window.actPanel&&window.actPanel('past','" + a.id + "')\">" +
+          "<span class='arch-top' style='background:" + (a.color || "#1a2b4a") + "' aria-hidden='true'></span>" +
+          "<span class='arch-badge' style='color:" + (a.color || "#1a2b4a") + "'>" + esc(a.tag || "已结束") + "</span>" +
           "<span class='past-date'>" + esc(a.dateLabel) + "</span>" +
           "<div class='arch-name'>" + esc(a.name) + "</div>" +
           "<p class='arch-summary'>" + esc(a.summary) + "</p>" +
@@ -1915,7 +1918,7 @@ var ActivitiesSection = () => {
     .arch-wall{position:relative;overflow:hidden;border:1px solid rgba(0,0,0,0.08);background:#fff;cursor:grab;touch-action:pan-y;user-select:none;}
     .arch-wall:active{cursor:grabbing;}
     .arch-track{display:flex;will-change:transform;}
-    .arch-item{flex:0 0 min(560px,86vw);padding:52px 48px;border-right:1px solid rgba(0,0,0,0.06);cursor:pointer;transition:background .6s cubic-bezier(.22,1,.36,1);}
+    .arch-item{position:relative;flex:0 0 min(560px,86vw);padding:52px 48px;border-right:1px solid rgba(0,0,0,0.06);cursor:pointer;transition:background .6s cubic-bezier(.22,1,.36,1);}
     .arch-item:hover{background:rgba(26,43,74,0.03);}
     .arch-name{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:400;letter-spacing:1px;color:#111;margin:12px 0 14px;}
     .arch-summary{font-size:13px;color:#666;line-height:1.9;max-width:440px;}
@@ -1923,6 +1926,11 @@ var ActivitiesSection = () => {
     .arch-spot{position:absolute;width:480px;height:480px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .6s;background:radial-gradient(circle,rgba(26,43,74,0.06) 0%,rgba(26,43,74,0.02) 40%,transparent 70%);z-index:2;}
     .arch-progress{height:1px;background:rgba(0,0,0,0.08);margin-top:18px;}
     .arch-progress span{display:block;height:1px;width:0;background:#1a2b4a;transition:width .2s;}
+    /* v13 对齐 mock v5b：卡片彩色顶边 + 状态徽标 + 拖拽提示 */
+    .arch-top{position:absolute;left:0;top:0;width:100%;height:6px;}
+    .arch-badge{position:absolute;right:48px;top:34px;font-size:11px;letter-spacing:2px;font-weight:400;}
+    .arch-hint{margin-left:auto;align-self:center;font-size:11px;color:#bbb;letter-spacing:2px;white-space:nowrap;}
+    @media(max-width:600px){.arch-badge{right:24px;top:26px;}.arch-hint{display:none;}}
     .past-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:#aaa;letter-spacing:2px;}
     .past-stats{display:flex;gap:22px;margin-top:14px;}
     .past-stat .n{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#1a1a1f;line-height:1;}
