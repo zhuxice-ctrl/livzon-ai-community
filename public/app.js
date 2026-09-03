@@ -2452,7 +2452,7 @@ var CommunitySection = () => {
         "</div>" +
         inlineBox +
         "</div></div>" +
-        (kids.length ? "<div class='com-cmt-kids'>" + kids.map(function (r) { return cmtHtml(p, r, depth + 1); }).join("") + "</div>" : "") +
+        (kids.length ? "<div class='com-cmt-kids'><i class='com-rail'></i>" + kids.map(function (r) { return cmtHtml(p, r, depth + 1); }).join("") + "</div>" : "") +
         "</div>";
     }
     function threadHtml(p) {
@@ -3206,9 +3206,14 @@ var CommunitySection = () => {
     .com-cmt{padding:0;}
     .com-cmt-main{display:flex;gap:8px;position:relative;padding:8px 0;border-bottom:1px solid #f2f4f6;}
     .com-cmt:last-of-type>.com-cmt-main{border-bottom:none;}
-    .com-cmt-kids{margin-left:13px;padding-left:14px;border-left:2px solid #e4e7eb;}
+    /* NL/推特式连贯引导线（轨道层）：回复带 .com-cmt-kids 内铺一条通高竖线（com-rail），
+       从带顶贯穿到带底——上接父头像所在行的底、下连每个孩子的肘线、尾端止于带底，天然无断点；
+       带内 .com-cmt 为 static 使竖线定位落在带上（rail 不随嵌套偏移）。 */
+    .com-cmt-kids{position:relative;margin-left:24px;}
+    .com-cmt-kids>.com-cmt{position:static;}
+    .com-rail{position:absolute;top:0;bottom:0;left:12px;width:2px;background:#e4e7eb;pointer-events:none;}
     .com-cmt-kids .com-cmt-main{border-bottom:none;}
-    .com-cmt-kids .com-cmt-main::before{content:"";position:absolute;left:-16px;top:21px;width:14px;height:9px;border-left:2px solid #e4e7eb;border-bottom:2px solid #e4e7eb;border-bottom-left-radius:9px;}
+    .com-cmt-kids .com-cmt-main::before{content:"";position:absolute;left:-12px;top:2px;width:12px;height:19px;border-left:2px solid #e4e7eb;border-bottom:2px solid #e4e7eb;border-bottom-left-radius:10px;}
     .com-cmt-quote{font-size:11px;color:#1d6fd1;background:#eef5ff;border-radius:4px;padding:1px 6px;margin-right:2px;}
     .com-inline-reply{margin-top:6px;}
     .com-inline-reply .com-thread-input textarea{background:#fff;border-color:#bcd4f0;}
@@ -4012,9 +4017,10 @@ var WorkComments = ({ workId }) => {
   var btnActStyle = { background: "none", border: "none", color: "#888", fontSize: 12, cursor: "pointer", padding: 0 };
   function renderCmt(c, depth) {
     var quote = c._replyTo ? el("span", { style: { fontSize: 11, color: "#1d6fd1", background: "#eef5ff", borderRadius: 4, padding: "1px 6px", marginRight: 4 } }, "回复 @" + c._replyTo) : null;
+    var kids = c._kids || [];
     return el("div", { key: c.id },
       el("div", { style: { display: "flex", gap: 10, position: "relative", padding: "10px 0", borderBottom: depth === 0 ? "1px solid #f2f4f6" : "none" } },
-        depth > 0 ? el("div", { style: { position: "absolute", left: -16, top: 23, width: 14, height: 10, borderLeft: "2px solid #e4e7eb", borderBottom: "2px solid #e4e7eb", borderBottomLeftRadius: 9 } }) : null,
+        depth > 0 ? el("div", { style: { position: "absolute", left: -12, top: 2, width: 12, height: 22, borderLeft: "2px solid #e4e7eb", borderBottom: "2px solid #e4e7eb", borderBottomLeftRadius: 10 } }) : null,
         el("div", { style: avStyle }, String((c.author || "同").slice(0, 1))),
         el("div", { style: { flex: 1, minWidth: 0 } },
           el("div", { style: { fontSize: 12, color: "#666", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
@@ -4026,8 +4032,9 @@ var WorkComments = ({ workId }) => {
             el("button", { style: Object.assign({}, btnActStyle, c.liked ? { color: "#c0392b" } : {}), onClick: function () { like(c.id); } }, (c.liked ? "♥" : "♡") + " " + (c.likes || 0)),
             el("button", { style: btnActStyle, onClick: function () { if (!mine) { flash("登录后才能回复"); return; } setReplyTo(replyTo === c.id ? null : c.id); setReplyText(""); } }, "回复")),
           replyTo === c.id ? replyBox(c.id) : null)),
-      c._kids.length ? el("div", { style: { marginLeft: 13, paddingLeft: 16, borderLeft: "2px solid #e4e7eb" } },
-        c._kids.map(function (k) { return renderCmt(k, depth + 1); })) : null);
+      kids.length ? el("div", { style: { position: "relative", marginLeft: 24 } },
+        el("i", { style: { position: "absolute", top: 0, bottom: 0, left: 13, width: 2, background: "#e4e7eb", pointerEvents: "none" } }),
+        kids.map(function (k) { return renderCmt(k, depth + 1); })) : null);
   }
   return el("div", { style: { marginTop: 64, padding: "28px 0", borderTop: "1px solid #eee" } },
     el("div", { style: { fontSize: 11, color: "#aaa", letterSpacing: 3, marginBottom: 20, fontFamily: "'JetBrains Mono', monospace" } }, "COMMENTS · 评论 (" + list.length + ")"),
