@@ -728,7 +728,7 @@ var ActivitiesSection = () => {
             (s.d ? "<p class='act-slide-desc'>" + esc(s.d) + "</p>" : "") +
             "</div>";
         }).join("") + "<div class='act-dots' id='actDots'>" + slides.map(function (s, si) { return "<span class='dot" + (si === 0 ? " on" : "") + "' data-i='" + si + "'></span>"; }).join("") + "</div></div>";
-        h += "<div class='act-feat-cta'>" + signupBtnHtml(focus.signup, "act-signup-btn", "去报名") + "</div>";
+        h += "<div class='act-feat-cta'><button class='act-signup-btn' onclick=\"window.actPanel&&window.actPanel('focus',0)\">去报名</button></div>";
       } else {
         h += "<div class='act-carousel'><div class='act-slide on'><span class='act-tagx'>敬请期待</span><div class='act-slide-name big'>下一场活动筹备中</div><p class='act-slide-desc'>我们正在策划下一场深度活动。</p></div></div>";
       }
@@ -737,11 +737,10 @@ var ActivitiesSection = () => {
       h += "<div class='act-sched' id='actSched'>" + upcoming.map(function (a, ai) {
         var su = a.signup || focusSignup;
         var no = ai + 1 < 10 ? "0" + (ai + 1) : String(ai + 1);
-        return "<div class='sk-row' data-open='0'>" +
+        return "<div class='sk-row' data-id='" + esc(a.id || "") + "'>" +
           "<div class='sk-line'><span class='sk-no'>" + no + "</span><span class='sk-date'>" + esc(dateNum(a.dateLabel)) + "</span>" +
           "<div class='sk-main'><div class='sk-name'>" + esc(a.name) + "</div><div class='sk-sub'>" + esc(a.dateLabel) + " · " + esc(a.location) + "</div></div>" +
           "<span class='sk-type'>" + esc(a.tag || "") + "</span><span class='sk-arrow'>→</span></div>" +
-          "<div class='sk-detail'>" + (a.desc ? "<p>" + esc(a.desc) + "</p>" : "") + signupBtnHtml(su, "sk-signup", "报名 / 预约") + "</div>" +
           "</div>";
       }).join("") + "</div>";
       // 03 回顾展区（惯性拖拽展墙 + 聚光 + 类型筛选）
@@ -749,7 +748,7 @@ var ActivitiesSection = () => {
       var typeNames = types.map(function (t) { return t.name; });
       h += "<div class='arch-chips' id='archChips'><button class='chip on' data-f='全部'>全部</button>" + typeNames.map(function (n) { return "<button class='chip' data-f='" + esc(n) + "'>" + esc(n) + "</button>"; }).join("") + "</div>";
       h += "<div class='arch-wall' id='archWall'><div class='arch-spot' id='archSpot'></div><div class='arch-track' id='archTrack'>" + past.map(function (a) {
-        return "<div class='arch-item' data-type='" + esc(typeOfPast(a)) + "' onclick=\"window.actOpen&&window.actOpen('" + a.id + "')\">" +
+        return "<div class='arch-item' data-type='" + esc(typeOfPast(a)) + "' onclick=\"window.actPanel&&window.actPanel('past','" + a.id + "')\">" +
           "<span class='past-date'>" + esc(a.dateLabel) + "</span>" +
           "<div class='arch-name'>" + esc(a.name) + "</div>" +
           "<p class='arch-summary'>" + esc(a.summary) + "</p>" +
@@ -771,6 +770,95 @@ var ActivitiesSection = () => {
       h += "<div class='act-join' id='act-sec-join'><div class='act-eyebrow'>HOW TO JOIN · 尾厅</div><h3>怎么参加？</h3><p>在 AI 社团群里报名即可。每次活动提前 1 周在群内发布主题和时间，想分享的同学回复报名，想来听的同学直接来。</p></div>";
       ref.current.innerHTML = h;
       window.actOpen = openReview;
+      // ===== 报名详情面板（v11）：所有活动入口点击统一打开 =====
+      try {
+        var panelRoot = document.createElement("div");
+        panelRoot.innerHTML = "<div class='act-p-mask'></div><aside class='act-panel' aria-hidden='true'><button class='act-p-close' aria-label='关闭'>×</button><div class='act-p-body'></div></aside>";
+        document.body.appendChild(panelRoot);
+        var panelEl = panelRoot.querySelector(".act-panel");
+        var maskEl = panelRoot.querySelector(".act-p-mask");
+        var pBodyEl = panelRoot.querySelector(".act-p-body");
+        var panelOpen = false, panelSaveOverflow = "";
+        var panelAct = function (kind, id) {
+          if (kind === "focus") return focus ? { a: focus, mode: "signup", st: "报名中" } : null;
+          var arr = kind === "past" ? past : upcoming;
+          for (var i = 0; i < arr.length; i++) {
+            if (String(arr[i].id) === String(id)) {
+              var a = arr[i];
+              if (kind === "past") return { a: a, mode: "past", st: "已结束" };
+              return { a: a, mode: "signup", st: a.signup ? "报名中" : "预约中" };
+            }
+          }
+          return arr.length ? { a: arr[0], mode: "signup", st: "预约中" } : null;
+        };
+        var metaCell = function (k, v) { return "<div class='act-p-meta'><span class='k'>" + k + "</span><span class='v'>" + esc(v || "—") + "</span></div>"; };
+        var openPanel = function (kind, id) {
+          var o = panelAct(kind, id);
+          if (!o || !pBodyEl) return;
+          var a = o.a, pastMode = o.mode === "past";
+          var hl = "";
+          if (pastMode) {
+            if (a.stats && Object.keys(a.stats).length) hl = "<div class='act-p-hl-head'>数据沉淀</div><div class='past-stats'>" + statsHtml(a.stats) + "</div>";
+            if (a.artifacts && a.artifacts.length) hl += "<div class='act-p-hl-head'>产出与回顾</div><ul class='act-p-hl'>" + a.artifacts.map(function (art) {
+              return "<li><span class='no'>·</span>" + esc(art.type) + (art.count ? " × " + art.count : "") + (art.note ? " — " + esc(art.note) : "") + "</li>";
+            }).join("") + "</ul>";
+          } else if (kind === "focus" && a.highlights && a.highlights.length) {
+            hl = "<ul class='act-p-hl'>" + a.highlights.map(function (t, i) {
+              var no = i + 1 < 10 ? "0" + (i + 1) : String(i + 1);
+              return "<li><span class='no'>" + no + "</span>" + esc(t) + "</li>";
+            }).join("") + "</ul>";
+          }
+          var lower = pastMode
+            ? "<div class='act-p-ended'><p>该活动已结束</p><a class='act-p-wall' href='/'>前往作品墙 →</a></div>"
+            : "<form class='act-p-form'>" +
+              "<div class='act-p-fhead'><span class='t'>SIGN UP · 报名表</span><span class='en'>REGISTRATION</span></div>" +
+              "<div class='act-p-field'><label>姓名 *</label><input required name='name' type='text' autocomplete='name' placeholder='请输入姓名'></div>" +
+              "<div class='act-p-field'><label>部门</label><input name='dept' type='text' placeholder='所在部门（选填）'></div>" +
+              "<div class='act-p-field'><label>联系方式</label><input name='contact' type='text' placeholder='手机 / 飞书（选填）'></div>" +
+              "<div class='act-p-field'><label>参与期待</label><textarea name='note' rows='3' placeholder='想听什么 / 想聊什么（选填）'></textarea></div>" +
+              "<button type='submit' class='act-p-submit'>确认报名 →</button>" +
+              "<p class='act-p-tip'>提交后即视为报名成功，活动前 1 天在群内通知</p>" +
+              "</form>";
+          pBodyEl.innerHTML =
+            "<div class='act-p-eyebrow'>" + (pastMode ? "REVIEW · 往期回顾" : "SIGN UP · 活动详情") + "</div>" +
+            "<h3 class='act-p-title'>" + esc(a.name || "") + "</h3>" +
+            "<div class='act-p-grid'>" + metaCell("时间", a.dateLabel) + metaCell("地点", a.location) + metaCell("类型", a.tag || typeOfPast(a)) + metaCell("状态", o.st) + "</div>" +
+            (a.desc || a.summary ? "<p class='act-p-desc'>" + esc(a.desc || a.summary) + "</p>" : "") +
+            hl + lower;
+          if (!pastMode) {
+            var f = pBodyEl.querySelector(".act-p-form");
+            if (f) f.addEventListener("submit", function (e) {
+              e.preventDefault();
+              var nm = f.querySelector("[name=name]");
+              if (!nm || !String(nm.value).trim()) { if (nm) { nm.classList.add("err"); nm.focus(); } return; }
+              // TODO: 后端接口 POST /api/activities/:id/signup {name,dept,contact,note}（当前前端演示态）
+              pBodyEl.innerHTML = "<div class='act-p-done'><div class='ring'>✓</div><p class='t'>已收到您的" + (a.signup ? "报名" : "预约") + "</p><p class='s'>" + esc(a.name || "") + "</p></div>";
+              setTimeout(function () { if (panelOpen) closePanel(); }, 1400);
+            });
+          }
+          panelEl.classList.add("open"); maskEl.classList.add("open");
+          panelEl.setAttribute("aria-hidden", "false");
+          panelOpen = true;
+          panelSaveOverflow = document.body.style.overflow;
+          document.body.style.overflow = "hidden";
+        };
+        var closePanel = function () {
+          panelEl.classList.remove("open"); maskEl.classList.remove("open");
+          panelEl.setAttribute("aria-hidden", "true");
+          panelOpen = false;
+          document.body.style.overflow = panelSaveOverflow;
+        };
+        maskEl.addEventListener("click", closePanel);
+        panelRoot.querySelector(".act-p-close").addEventListener("click", closePanel);
+        var onPanelKey = function (e) { if (e.key === "Escape" && panelOpen) closePanel(); };
+        window.addEventListener("keydown", onPanelKey);
+        uiCleanups.push(function () {
+          window.removeEventListener("keydown", onPanelKey);
+          if (panelRoot.parentNode) panelRoot.parentNode.removeChild(panelRoot);
+          document.body.style.overflow = panelSaveOverflow;
+        });
+        window.actPanel = openPanel;
+      } catch (pErr) { /* 面板构建异常不阻断主渲染与物理引擎 */ }
       // ===== v10 交互层（轮播 / 展线高亮 / 日程展开 / 拖拽展墙 / 聚光 / 筛选 / 渐显）=====
       try {
         var prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -794,6 +882,10 @@ var ActivitiesSection = () => {
             var t = e.target && e.target.closest ? e.target.closest(".dot") : null;
             if (t) goSlide(parseInt(t.getAttribute("data-i"), 10) || 0);
           });
+          slideEls.forEach(function (s) { s.addEventListener("click", function (e) {
+            if (e.target && e.target.closest && e.target.closest("button,.act-dots,.dot")) return;
+            if (window.actPanel) window.actPanel("focus", 0);
+          }); });
         }
         // 展线导航：点击平滑滚动 + 滚动高亮当前展厅
         var railEl = document.getElementById("actRail");
@@ -818,13 +910,13 @@ var ActivitiesSection = () => {
         window.addEventListener("scroll", onRailScroll, { passive: true });
         uiCleanups.push(function () { window.removeEventListener("scroll", onRailScroll); });
         onRailScroll();
-        // 02 日程行展开/收起
+        // 02 日程行点击 → 详情报名面板
         var schedEl = document.getElementById("actSched");
         if (schedEl) schedEl.addEventListener("click", function (e) {
           if (e.target && e.target.closest && e.target.closest("button")) return;
           var row = e.target.closest(".sk-row");
           if (!row) return;
-          row.setAttribute("data-open", row.getAttribute("data-open") === "1" ? "0" : "1");
+          if (window.actPanel) window.actPanel("upcoming", row.getAttribute("data-id") || "");
         });
         // 03 拖拽展墙：惯性 + 边界回弹 + 聚光 + 进度尺
         var wall = document.getElementById("archWall");
@@ -1829,6 +1921,50 @@ var ActivitiesSection = () => {
     /* 渐显入场 */
     .fadeup{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.22,1,.36,1),transform .8s cubic-bezier(.22,1,.36,1);}
     .fadeup.in{opacity:1;transform:none;}
+    /* ===== 报名详情面板（v11）===== */
+    .sk-row{cursor:pointer;}
+    .act-slide{cursor:pointer;}
+    .act-p-mask{position:fixed;inset:0;background:rgba(17,17,17,0.32);opacity:0;pointer-events:none;transition:opacity .5s ease;z-index:1200;}
+    .act-p-mask.open{opacity:1;pointer-events:auto;}
+    .act-panel{position:fixed;top:0;right:0;bottom:0;width:min(520px,92vw);background:#fafaf8;border-left:1px solid #e8e8e4;z-index:1201;transform:translateX(100%);transition:transform .7s cubic-bezier(.22,1,.36,1);overflow-y:auto;overscroll-behavior:contain;}
+    .act-panel.open{transform:translateX(0);}
+    .act-p-body{padding:64px 48px 56px;}
+    .act-p-close{position:absolute;top:18px;right:22px;width:36px;height:36px;border:1px solid #e2e2df;background:transparent;border-radius:50%;font-size:16px;line-height:36px;color:#888;cursor:pointer;transition:color .3s,border-color .3s,transform .3s;}
+    .act-p-close:hover{color:#111;border-color:#111;transform:rotate(90deg);}
+    .act-p-eyebrow{font-size:11px;letter-spacing:3px;color:#999;margin-bottom:14px;}
+    .act-p-title{font-family:'Noto Serif SC',serif;font-size:30px;font-weight:300;letter-spacing:2px;line-height:1.4;margin:0 0 26px;color:#111;}
+    .act-p-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #eee;border-left:1px solid #eee;margin-bottom:26px;}
+    .act-p-meta{padding:14px 16px;border-right:1px solid #eee;border-bottom:1px solid #eee;}
+    .act-p-meta .k{display:block;font-size:10px;letter-spacing:2px;color:#999;margin-bottom:6px;}
+    .act-p-meta .v{font-size:13px;color:#111;line-height:1.6;}
+    .act-p-desc{font-size:14px;color:#666;line-height:2;margin:0 0 26px;}
+    .act-p-hl-head{font-size:10px;letter-spacing:2px;color:#999;margin:22px 0 12px;padding-left:12px;border-left:2px solid #1a2b4a;line-height:1.4;}
+    .act-p-hl{list-style:none;margin:0;padding:0;}
+    .act-p-hl li{display:flex;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid #f0f0ec;font-size:13px;color:#555;line-height:1.8;}
+    .act-p-hl .no{font-family:'Noto Serif SC',serif;font-size:15px;color:#1a2b4a;flex:0 0 auto;}
+    .act-p-form{margin-top:34px;padding-top:30px;border-top:1px solid #eee;}
+    .act-p-fhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+    .act-p-fhead .t{font-size:11px;letter-spacing:3px;color:#111;}
+    .act-p-fhead .en{font-size:10px;letter-spacing:2px;color:#ccc;}
+    .act-p-field{display:flex;flex-direction:column;gap:8px;margin:20px 0;}
+    .act-p-field label{font-size:11px;letter-spacing:2px;color:#999;}
+    .act-p-field input,.act-p-field textarea{border:none;border-bottom:1px solid #ddd;background:transparent;padding:8px 2px;font-size:14px;color:#111;font-family:inherit;outline:none;transition:border-color .4s;resize:vertical;}
+    .act-p-field input:focus,.act-p-field textarea:focus{border-bottom-color:#1a2b4a;}
+    .act-p-field input.err{border-bottom-color:#c0564f;}
+    .act-p-submit{margin-top:10px;width:100%;background:#1a2b4a;color:#fff;border:none;padding:14px;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:2px;font-family:inherit;transition:background .4s;}
+    .act-p-submit:hover{background:#22395f;}
+    .act-p-tip{font-size:11px;color:#aaa;letter-spacing:1px;margin-top:12px;text-align:center;}
+    .act-p-ended{text-align:center;padding:40px 0 20px;}
+    .act-p-ended p{font-size:14px;color:#888;letter-spacing:2px;margin:0 0 22px;}
+    .act-p-wall{display:inline-block;border:1px solid #1a2b4a;color:#1a2b4a;text-decoration:none;font-size:12px;letter-spacing:3px;padding:10px 28px;border-radius:2px;transition:background .4s,color .4s;}
+    .act-p-wall:hover{background:#1a2b4a;color:#fff;}
+    .act-p-done{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:90px 0;text-align:center;animation:actPDone .6s ease-out;}
+    .act-p-done .ring{width:64px;height:64px;border:1px solid #1a2b4a;border-radius:50%;color:#1a2b4a;font-size:26px;line-height:64px;transform:rotate(-8deg);}
+    .act-p-done .t{font-family:'Noto Serif SC',serif;font-size:20px;font-weight:300;letter-spacing:3px;color:#111;margin:22px 0 8px;}
+    .act-p-done .s{font-size:12px;color:#999;margin:0;letter-spacing:1px;}
+    @keyframes actPDone{from{opacity:0;transform:scale(0.92);}to{opacity:1;transform:scale(1);}}
+    @media (prefers-reduced-motion: reduce){.act-panel,.act-p-mask{transition:none;}.act-p-done{animation:none;}.act-p-close{transition:none;}}
+    @media(max-width:600px){.act-p-body{padding:56px 24px 40px;}.act-p-title{font-size:24px;}}
     @media (prefers-reduced-motion: reduce){.fadeup{opacity:1;transform:none;transition:none;}.act-slide{transition:none;transform:none;}.sk-detail{transition:none;}.arch-progress span{transition:none;}}
     @media(max-width:768px){.act-title-wrap{min-height:88px}.act-title-lg{font-size:clamp(32px,10vw,52px);letter-spacing:3px}.act-title-bubble{left:58%;top:-26px;transform:translateX(-50%) scale(.78);transform-origin:center bottom;font-size:14px}}
     /* ===== 物理标题（v3 恢复版） ===== */
