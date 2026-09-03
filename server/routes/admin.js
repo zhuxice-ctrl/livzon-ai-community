@@ -106,6 +106,31 @@ router.patch('/registrations/:id', adminRequired, async (req, res) => {
   }
 });
 
+// ===== 活动预约管理 =====
+
+// GET /api/admin/activities/reservations —— 预约名单（按活动分组，含参与期待）
+router.get('/activities/reservations', adminRequired, async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT r.id, r.activity_id, a.title, r.user_id, r.name, r.dept, r.note, r.created_at
+       FROM activity_reservations r JOIN activities a ON a.id = r.activity_id
+       ORDER BY a.kind, a.sort, r.created_at`);
+    const groups = new Map();
+    for (const row of r.rows) {
+      if (!groups.has(row.activity_id)) {
+        groups.set(row.activity_id, { activityId: row.activity_id, title: row.title, total: 0, reservations: [] });
+      }
+      const g = groups.get(row.activity_id);
+      g.total++;
+      g.reservations.push({ id: row.id, userId: row.user_id, name: row.name, dept: row.dept, note: row.note, createdAt: row.created_at });
+    }
+    res.json(ok({ activities: [...groups.values()] }));
+  } catch (e) {
+    console.error('[admin.reservations]', e);
+    res.status(500).json(err(ErrorCodes.INTERNAL));
+  }
+});
+
 // ===== 社区管理（契约：posts-api.md）=====
 
 // POST /api/admin/community/posts/:id/pin —— 置顶/取消 + 归类（复用 community 处理器）

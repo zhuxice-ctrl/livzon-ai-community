@@ -66,10 +66,17 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
   const subColor = lightMode ? "rgba(26,26,31,0.5)" : "rgba(255,255,255,0.5)";
   const [user, setUser] = React.useState(null);
   const [showMsg, setShowMsg] = React.useState(false);
+  const [msg, setMsg] = React.useState({ unread: 0, messages: [] });
+  const refreshMsg = () => {
+    fetch("/api/my/messages").then((r) => r.json()).then((j) => {
+      if (j && j.ok && j.data) setMsg({ unread: j.data.unread || 0, messages: j.data.messages || [] });
+    }).catch(() => {});
+  };
   React.useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json()).then((j) => {
       if (j && j.authenticated && j.data) {
         setUser(j.data);
+        refreshMsg();
         fetch("/api/my/profile").then((r) => r.json()).then((p) => {
           if (p && p.ok && p.data) setUser({ ...j.data, avatar: p.data.avatar || "" });
         }).catch(() => {});
@@ -152,7 +159,7 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
   })))), isLogged ? /* @__PURE__ */ React.createElement("div", {
     style: { display: "flex", alignItems: "center", gap: 10 }
   }, /* @__PURE__ */ React.createElement("div", {
-    onClick: (e) => { e.stopPropagation(); setShowMsg(true); },
+    onClick: (e) => { e.stopPropagation(); setShowMsg(true); refreshMsg(); },
     style: {
       position: "relative",
       width: 36, height: 36, borderRadius: "50%",
@@ -170,12 +177,13 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
     d: "M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"
   }), /* @__PURE__ */ React.createElement("path", {
     d: "M10.3 21a1.94 1.94 0 0 0 3.4 0", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"
-  })), /* @__PURE__ */ React.createElement("span", {
+  })), msg.unread > 0 ? /* @__PURE__ */ React.createElement("span", {
+    title: msg.unread + " 条未读消息",
     style: {
       position: "absolute", top: 4, right: 5, width: 7, height: 7,
       borderRadius: "50%", background: "#e5484d", border: "1px solid transparent"
     }
-  })), /* @__PURE__ */ React.createElement("a", {
+  }) : null), /* @__PURE__ */ React.createElement("a", {
     href: "/#my",
     style: {
       display: "flex",
@@ -242,20 +250,32 @@ var Nav = ({ onNavigate, currentPage, lightMode }) => {
     }
   }, /* @__PURE__ */ React.createElement("div", {
     style: { padding: "16px 20px", borderBottom: `1px solid ${lightMode ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.08)"}`, display: "flex", justifyContent: "space-between", alignItems: "center" }
-  }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 700, letterSpacing: 1 } }, "最近消息"), /* @__PURE__ */ React.createElement("span", {
-    onClick: () => setShowMsg(false),
-    style: { cursor: "pointer", color: subColor, fontSize: 18, lineHeight: 1 }
-  }, "×")), /* @__PURE__ */ React.createElement("div", null,
-    /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 20px", borderBottom: `1px solid ${lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)"}` } },
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, "欢迎加入 AI 社团"),
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: subColor, lineHeight: 1.7 } }, "这是你的消息中心，活动通知与作品审核结果会显示在这里。")),
-    /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 20px", borderBottom: `1px solid ${lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)"}` } },
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, "作品「我的测试作品」待审核"),
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: subColor, lineHeight: 1.7 } }, "管理员审核通过后将对外展示。")),
-    /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 20px" } },
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, "AI 资源中心已上线"),
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: subColor, lineHeight: 1.7 } }, "点击右上角「AI 资源中心」进入申请。")))
-  )) : null);
+  }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 700, letterSpacing: 1 } }, "最近消息", msg.unread > 0 ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, fontWeight: 400, color: "#e5484d", marginLeft: 6 } }, "(" + msg.unread + ")") : null), /* @__PURE__ */ React.createElement("span", {
+    onClick: (e) => { e.stopPropagation(); if (msg.unread > 0) { fetch("/api/my/messages/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then(() => refreshMsg()).catch(() => {}); } setShowMsg(false); },
+    title: msg.unread > 0 ? "全部已读并关闭" : "关闭",
+    style: { cursor: "pointer", color: msg.unread > 0 ? "#2568d8" : subColor, fontSize: 12, lineHeight: 1 }
+  }, msg.unread > 0 ? "全部已读 ×" : "×")), (function () {
+    var fmtT = function (s) { return s ? String(s).slice(0, 16).replace("T", " ") : ""; };
+    var markRead = function (mid) {
+      fetch("/api/my/messages/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: mid }) })
+        .then(function () { refreshMsg(); }).catch(function () {});
+    };
+    return /* @__PURE__ */ React.createElement("div", null,
+      msg.messages.length ? msg.messages.map(function (m, i) {
+        return /* @__PURE__ */ React.createElement("div", {
+          key: m.id,
+          style: { padding: "16px 20px", borderBottom: i < msg.messages.length - 1 ? `1px solid ${lightMode ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)"}` : "none", opacity: m.read ? 0.6 : 1, cursor: "pointer" },
+          onClick: function () {
+            if (!m.read) markRead(m.id);
+            var pg = String(m.link || "").replace(/^#/, "");
+            if (pg) { setShowMsg(false); onNavigate(pg); }
+          }
+        },
+          /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, m.read ? "" : /* @__PURE__ */ React.createElement("span", { style: { color: "#e5484d", marginRight: 5 } }, "●"), m.title),
+          /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: subColor, lineHeight: 1.7 } }, m.body),
+          /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: subColor, marginTop: 6, fontFamily: "'JetBrains Mono', monospace" } }, fmtT(m.created_at)));
+      }) : /* @__PURE__ */ React.createElement("div", { style: { padding: "28px 20px", textAlign: "center", fontSize: 12, color: subColor, lineHeight: 1.9 } }, "暂无消息", /* @__PURE__ */ React.createElement("br", null), "活动通知与作品审核结果会显示在这里"));
+  })())) : null);
 };
 var CurvedWall = ({ onWorkClick }) => {
   const [hoverIndex, setHoverIndex] = React.useState(null);
@@ -830,9 +850,31 @@ var ActivitiesSection = () => {
             var f = pBodyEl.querySelector(".act-p-form");
             if (f) f.addEventListener("submit", function (e) {
               e.preventDefault();
-              // TODO: 后端接口 POST /api/activities/:id/reserve {note}（当前前端演示态，身份经飞书登录态获取）
-              pBodyEl.innerHTML = "<div class='act-p-done'><div class='ring'>✓</div><p class='t'>已收到您的预约</p><p class='s'>" + esc(a.name || "") + "</p></div>";
-              setTimeout(function () { if (panelOpen) closePanel(); }, 1400);
+              // 后端契约：POST /api/activities/:id/reserve {note}（身份=飞书登录态；未登录 401 引导登录）
+              var btn = f.querySelector(".act-p-submit");
+              var tip = f.querySelector(".act-p-tip");
+              if (btn && btn.disabled) return;
+              var noteEl = f.querySelector("textarea[name='note']");
+              if (btn) { btn.disabled = true; btn.textContent = "提交中…"; }
+              fetch("/api/activities/" + encodeURIComponent(String(a.id || "")) + "/reserve", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ note: String((noteEl && noteEl.value) || "").trim().slice(0, 500) })
+              }).then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+                .then(function (res) {
+                  if (res.s === 401) {
+                    if (tip) tip.innerHTML = "预约需先登录飞书账号 · <a href='/login.html' style='color:#2568d8;text-decoration:underline'>去登录 →</a>";
+                    if (btn) { btn.disabled = false; btn.textContent = "预约 →"; }
+                    return;
+                  }
+                  if (!res.j || !res.j.ok) throw new Error((res.j && res.j.error && res.j.error.message) || "submit failed");
+                  var rep = !!(res.j.data && res.j.data.repeated);
+                  pBodyEl.innerHTML = "<div class='act-p-done'><div class='ring'>✓</div><p class='t'>" + (rep ? "您已预约过该活动" : "已收到您的预约") + "</p><p class='s'>" + esc(a.name || "") + "</p></div>";
+                  setTimeout(function () { if (panelOpen) closePanel(); }, 1400);
+                })
+                .catch(function () {
+                  if (tip) tip.textContent = "提交失败，请稍后再试";
+                  if (btn) { btn.disabled = false; btn.textContent = "预约 →"; }
+                });
             });
           }
           panelEl.classList.add("open"); maskEl.classList.add("open");
@@ -2216,10 +2258,11 @@ var MySection = () => {
       fetch("/api/my/profile").then(function (r) { return r.json(); }),
       fetch("/api/my/registrations").then(function (r) { return r.json(); }),
       fetch("/api/my/works").then(function (r) { return r.json(); }),
-      fetch("/api/my/level").then(function (r) { return r.json(); })
+      fetch("/api/my/level").then(function (r) { return r.json(); }),
+      fetch("/api/my/messages").then(function (r) { return r.json(); })
     ]).then(function (rs) {
       if (cancelled || !ref.current) return;
-      var prof = rs[0], reg = rs[1], wrk = rs[2], lvl = rs[3];
+      var prof = rs[0], reg = rs[1], wrk = rs[2], lvl = rs[3], msg = rs[4];
       if (!prof.ok) {
         ref.current.innerHTML = "<div class='my-login'><div class='my-login-card'><h2>登录你的 AI 社团账户</h2><p>使用飞书账号登录后，即可查看和管理你的报名、作品与消息。</p><a class='my-login-btn' href='/login.html'>去登录</a></div></div>";
         return;
@@ -2242,8 +2285,13 @@ var MySection = () => {
         "<div class='my-tasks'>" + (L.tasks || []).map(function (t) {
           return "<div class='my-task" + (t.done ? " done" : "") + "'><span class='my-task-dot'>" + (t.done ? "✓" : "") + "</span><span class='my-task-label'>" + esc(t.label) + "</span><span class='my-task-pts'>+" + t.points + " XP</span></div>";
         }).join("") + "</div></div>";
-      // 最近消息入口
-      h += "<div class='my-msg-card'><div class='my-msg-icon'>🔔</div><div class='my-msg-body'><div class='my-msg-t'>最近消息</div><div class='my-msg-d'>平台活动通知、作品审核结果将在此显示</div></div><span class='my-msg-arrow'>›</span></div>";
+      // 最近消息入口（真实数据：未读数 + 最新一条摘要；无消息时给占位文案）
+      var msgs = (msg && msg.ok && msg.data && msg.data.messages) || [];
+      var nUnread = (msg && msg.ok && msg.data && msg.data.unread) || 0;
+      var msgDesc = msgs.length
+        ? esc(msgs[0].title) + (msgs[0].body ? " — " + esc(msgs[0].body) : "")
+        : "平台活动通知、作品审核结果将在此显示";
+      h += "<div class='my-msg-card'><div class='my-msg-icon'>🔔</div><div class='my-msg-body'><div class='my-msg-t'>最近消息" + (nUnread > 0 ? " <span style='display:inline-block;min-width:18px;text-align:center;background:#e5484d;color:#fff;font-size:10px;border-radius:99px;padding:1px 6px;vertical-align:1px'>" + nUnread + "</span>" : "") + "</div><div class='my-msg-d'>" + msgDesc + "</div></div><span class='my-msg-arrow'>›</span></div>";
       // 统计
       h += "<div class='my-kpis'><div class='my-kpi'><div class='n'>" + regs.length + "</div><div class='l'>活动报名</div></div><div class='my-kpi'><div class='n'>" + works.length + "</div><div class='l'>我的作品</div></div></div>";
       // 活动报名

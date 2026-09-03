@@ -53,9 +53,24 @@ F:\pingce\
 | GET | `/api/health` | 健康检查 |
 | GET | `/api/info` | 服务元信息（IP、端口、飞书配置状态） |
 | GET | `/api/works` | 作品列表 |
-| GET | `/api/activities` | 活动列表 |
+| GET | `/api/activities` | 活动列表（DB 聚合，与原 json 同构；DB 不可用回落 json） |
+| GET | `/api/activities/:id` | 单活动详情 |
+| POST | `/api/activities/:id/reserve` | 活动预约（需登录，见下文） |
+| GET | `/api/my/messages` | 我的站内消息 + 未读数 |
+| POST | `/api/my/messages/read` | 标记已读（`{id}` 单条 / `{}` 全部） |
+| GET | `/api/admin/activities/reservations` | 预约名单（仅管理员，按活动分组） |
 | GET | `/api/schedule` | 进度 |
 | POST | `/api/register` | 报名提交 |
+
+（社区帖子/评论/点赞/上传等端点契约见 `docs/api/posts-api.md`，作品评论见 `routes/work-comments.js` 头注释。）
+
+### POST /api/activities/:id/reserve · 活动预约
+
+- **身份**：需飞书登录态（`authRequired`）；姓名/部门从 session+users 快照落库，请求体只收 `{note}`（参与期待，选填 ≤500 字）
+- **幂等**：`UNIQUE(user_id, activity_id)`——重复提交返回 200 `{reserved:true, repeated:true, message:"您已预约过该活动"}`，不报错不累积
+- **约束**：仅 `upcoming` 活动可约；past/current 返回 400；活动不存在 404；未登录 401（前端引导去登录）
+- **成功副作用**：写一条站内通知（消息中心/顶栏铃铛）；「开始前飞书通知」的推送待 Phase 2 凭证打通后接入（见飞书清单）
+- **数据维护**：活动以 `public/data/activities.json` 为编辑源，改完跑 `node server/sql/import_activities.js` 幂等刷新入库
 
 ### POST /api/register
 
@@ -147,7 +162,7 @@ cd F:\pingce
 node server/sql/run_migrate.js
 ```
 
-迁移脚本按文件名顺序执行 `server/sql/*.sql`：`schema.sql`（基线）→ `004_*` → `005_community.sql`（社区帖子/评论/点赞/配置）→ `006_work_comments.sql`（作品评论）。升级时拉取新 SQL 后重跑一次 `run_migrate.js` 即可。
+迁移脚本按文件名顺序执行 `server/sql/*.sql`：`schema.sql`（基线）→ `004_*` → `005_community.sql`（社区帖子/评论/点赞/配置）→ `006_work_comments.sql`（作品评论）→ `007_activities.sql`（活动落库/预约/站内消息）。升级时拉取新 SQL 后重跑一次 `run_migrate.js` 即可；活动数据变更后另跑 `node server/sql/import_activities.js` 刷新入库。
 
 ## 每期更新作品
 

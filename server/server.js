@@ -26,6 +26,7 @@ const authRouter = require('./routes/auth');
 const myRouter = require('./routes/my');
 const communityRouter = require('./routes/community');
 const workCommentsRouter = require('./routes/work-comments');
+const activitiesRouter = require('./routes/activities');
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -147,22 +148,8 @@ app.use('/api/vote', voteRouter);
 // 作品资源/制品
 app.use('/api/artifacts', artifactRouter);
 
-app.get('/api/activities', (req, res) => {
-  const data = readData('activities.json');
-  if (!data) return res.status(404).json({ ok: false, error: 'activities.json not found' });
-  res.json({ ok: true, data });
-});
-
-// GET /api/activities/:id —— 单个活动详情（供「查看回顾」）
-app.get('/api/activities/:id', (req, res) => {
-  const id = req.params.id;
-  const data = readData('activities.json');
-  if (!data) return res.status(404).json({ ok: false, error: 'activities.json not found' });
-  const all = [...(data.current || []), ...(data.upcoming || []), ...(data.past || [])];
-  const item = all.find(x => x.id === id);
-  if (!item) return res.status(404).json({ ok: false, error: '活动不存在' });
-  res.json({ ok: true, data: item });
-});
+// 活动（列表/详情 DB 同构读 + 预约写，契约见 routes/activities.js）
+app.use('/api/activities', activitiesRouter);
 
 app.get('/api/schedule', (req, res) => {
   const data = readData('schedule.json');

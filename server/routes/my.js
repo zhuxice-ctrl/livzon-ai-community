@@ -1,8 +1,9 @@
 // server/routes/my.js
-// 个人中心（登录后）：我的飞书账户 / 我的报名 / 我的作品
+// 个人中心（登录后）：我的飞书账户 / 我的报名 / 我的作品 / 我的等级 / 我的消息
 const express = require('express');
 const { query } = require('../db');
 const { ok, err, ErrorCodes } = require('../contract');
+const { checkRules } = require('../validate');
 const { authRequired } = require('../middleware/auth');
 
 const router = express.Router();
@@ -71,6 +72,37 @@ router.get('/level', async (req, res) => {
     }));
   } catch (e) {
     console.error('[my.level]', e);
+    res.status(500).json(err(ErrorCodes.INTERNAL));
+  }
+});
+
+// GET /api/my/messages —— 站内消息（最新 30 条）+ 未读数（顶栏铃铛角标用）
+router.get('/messages', async (req, res) => {
+  try {
+    const [list, unread] = await Promise.all([
+      query(`SELECT id, type, title, body, link, read, created_at
+             FROM notifications WHERE user_id=$1 ORDER BY created_at DESC, id DESC LIMIT 30`, [req.user.id]),
+      query(`SELECT count(*)::int AS c FROM notifications WHERE user_id=$1 AND read=FALSE`, [req.user.id]),
+    ]);
+    res.json(ok({ messages: list.rows, unread: unread.rows[0].c }));
+  } catch (e) {
+    console.error('[my.messages]', e);
+    res.status(500).json(err(ErrorCodes.INTERNAL));
+  }
+});
+
+// POST /api/my/messages/read —— 标记已读：body {id?} 单条；缺省全部
+router.post('/messages/read', async (req, res) => {
+  const rules = { id: { type: 'number' } };
+  const { valid, errors, casted } = checkRules(req.body || {}, rules);
+  if (!valid) return res.status(400).json(err(ErrorCodes.VALIDATION, errors.join('；')));
+  try {
+    const r = casted.id != null
+      ? await query(`UPDATE notifications SET read=TRUE WHERE id=$1 AND user_id=$2`, [casted.id, req.user.id])
+      : await query(`UPDATE notifications SET read=TRUE WHERE user_id=$1 AND read=FALSE`, [req.user.id]);
+    res.json(ok({ updated: r.rowCount }));
+  } catch (e) {
+    console.error('[my.messages.read]', e);
     res.status(500).json(err(ErrorCodes.INTERNAL));
   }
 });
