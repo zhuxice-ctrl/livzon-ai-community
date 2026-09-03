@@ -1840,6 +1840,7 @@ var CommunitySection = () => {
     var stageFiles = [];       // 发布页暂存附件（{name,size,url,file}）
     var curSection = "all";    // 当前分区（all=首页全量）
     var pubOpen = false;       // 独立发布页是否打开
+    var detailPid = null;      // 帖子详情页：非空=正在看该帖详情（整页视图）
     var pubSection = "chat";   // 发布页选中的分区
     var pubDraft = "";         // 发布页草稿（跨渲染保留）
     var searchQ = "";          // 信息流搜索关键词
@@ -1890,7 +1891,7 @@ var CommunitySection = () => {
       var ts = function (c) { return String(c.time || c.created_at || ""); };
       Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return ts(a).localeCompare(ts(b)); }); });
       var attach = function (c) {
-        c._replies = (kids[String(c.id)] || []).map(function (r) { attach(r); return r; });
+        c._replies = (kids[String(c.id)] || []).map(function (r) { r._replyTo = c.author; attach(r); return r; });
         c._likes = c.likes || 0; c._liked = false;
         return c;
       };
@@ -2010,30 +2011,44 @@ var CommunitySection = () => {
       depth = depth || 0;
       var pid = postKey(p);
       var isAuthor = !!(p.author && c.author && c.author === p.author);
-      var replyCls = depth > 0 && depth <= 8 ? " com-cmt-reply" : "";
-      return "<div class='com-cmt" + replyCls + "'>" +
+      var quote = c._replyTo ? "<span class='com-cmt-quote'>回复 @" + esc(c._replyTo) + "</span> " : "";
+      var rs = replyState[pid];
+      var isReplying = rs && String(rs.cid) === String(c.id);
+      var inlineBox = isReplying ?
+        "<div class='com-inline-reply'>" +
+        "<div class='com-thread-input'>" +
+        "<textarea id='cmt-input-" + esc(pid) + "-" + esc(String(c.id)) + "' rows='2' placeholder='回复 @" + esc(rs.name || "") + "…'></textarea>" +
+        "<button class='com-send' onclick=\"window.comSendComment&&window.comSendComment('" + esc(pid) + "','" + esc(String(c.id)) + "')\">发送</button>" +
+        "</div>" +
+        "<span id='loginhint-" + esc(pid) + "-" + esc(String(c.id)) + "' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span>" +
+        "<button class='com-inline-cancel' onclick=\"window.comCancelReply&&window.comCancelReply('" + esc(pid) + "')\">取消回复</button>" +
+        "</div>" : "";
+      var kids = (c._replies || []);
+      return "<div class='com-cmt'>" +
+        "<div class='com-cmt-main'>" +
         "<span class='com-avatar com-cmt-av'>" + esc((c.author || "同").slice(0, 1)) + "</span>" +
         "<div class='com-cmt-body'>" +
         "<div class='com-cmt-head'><b>" + esc(c.author || "同学") + "</b>" + (c.dept ? "<i>" + esc(c.dept) + "</i>" : "") +
         (isAuthor ? "<span class='com-badge-author'>作者</span>" : "") +
         "<span class='com-cmt-time'>" + esc(c.time || "") + "</span></div>" +
-        "<p class='com-cmt-text'>" + esc(c.text || "") + "</p>" +
+        "<p class='com-cmt-text'>" + quote + esc(c.text || "") + "</p>" +
         "<div class='com-cmt-acts'>" +
         "<button class='com-act" + (c._liked ? " on" : "") + "' id='clike-" + esc(pid) + "-" + esc(String(c.id)) + "' onclick=\"window.comLikeComment&&window.comLikeComment('" + esc(pid) + "','" + esc(String(c.id)) + "')\">" + (c._liked ? "♥ 已赞" : "♡ 赞") + " " + c._likes + "</button>" +
         "<button class='com-act' onclick=\"window.comReplyComment&&window.comReplyComment('" + esc(pid) + "','" + esc(String(c.id)) + "','" + esc(String(c.author || "同学")).replace(/'/g, "") + "')\">回复</button>" +
-        "</div></div></div>" +
-        (c._replies || []).map(function (r) { return cmtHtml(p, r, depth + 1); }).join("");
+        "</div>" +
+        inlineBox +
+        "</div></div>" +
+        (kids.length ? "<div class='com-cmt-kids'>" + kids.map(function (r) { return cmtHtml(p, r, depth + 1); }).join("") + "</div>" : "") +
+        "</div>";
     }
     function threadHtml(p) {
       var pid = postKey(p);
       var list = (p.comments || []).map(function (c) { return cmtHtml(p, c, 0); }).join("");
-      var rs = replyState[pid];
       return "<div class='com-thread'>" +
         (list || "<div class='com-empty'>还没有人评论——说点什么吧。</div>") +
         "<div class='com-thread-box'>" +
-        (rs ? "<div class='com-reply-chip'>回复 @" + esc(rs.name || "") + " <button class='com-act' onclick=\"window.comCancelReply&&window.comCancelReply('" + esc(pid) + "')\">取消</button></div>" : "") +
         "<div class='com-thread-input'>" +
-        "<textarea id='cmt-input-" + esc(pid) + "' rows='2' placeholder='" + (rs ? "回复 @" + esc(rs.name || "") + "…" : "写下你的评论…") + "'></textarea>" +
+        "<textarea id='cmt-input-" + esc(pid) + "' rows='2' placeholder='写下你的评论…'></textarea>" +
         "<button class='com-send' onclick=\"window.comSendComment&&window.comSendComment('" + esc(pid) + "')\">发送</button>" +
         "</div>" +
         "<span id='loginhint-" + esc(pid) + "' class='com-cmt-loginhint' style='display:none'>登录后才能发布/点赞（线上接口启用时生效）</span>" +
@@ -2074,6 +2089,7 @@ var CommunitySection = () => {
       return "<div class='com-post" + (p.pinned ? " com-post-pinned" : "") + "'>" +
         "<span class='com-avatar'>" + esc((p.author || "同").slice(0, 1)) + "</span>" +
         "<div class='com-post-main'>" +
+        "<div class='com-post-clickable' onclick=\"window.comOpenPostFromCard&&window.comOpenPostFromCard(event,'" + esc(pid) + "')\">" +
         "<div class='com-post-head'><b>" + esc(p.author || "同学") + "</b>" + (p.dept ? "<i>" + esc(p.dept) + "</i>" : "") + tag +
         "<span class='com-post-time'>" + esc(p.time || "") + "</span></div>" +
         "<p class='com-post-text'>" + esc(p.text || "") + "</p>" +
@@ -2082,15 +2098,53 @@ var CommunitySection = () => {
         "<div class='com-post-acts'>" +
         "<button class='com-act" + (open ? " on" : "") + "' onclick=\"window.comToggleThread&&window.comToggleThread('" + esc(pid) + "')\">💬 " + cc + "</button>" +
         "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥" : "♡") + " " + (p.likes || 0) + "</button>" +
+        "<button class='com-act' onclick=\"window.comOpenPost&&window.comOpenPost('" + esc(pid) + "')\">详情 ›</button>" +
+        "</div>" +
         "</div>" +
         (open ? threadHtml(p) : "") +
         "</div></div>";
     }
-    function snapshotDrafts() {
+    // 帖子整页详情：全文 + 媒体 + 展开的完整评论区
+    function postDetailHtml(p) {
+      var pid = postKey(p);
+      var tag = (p.pinned && p.tag) ? "<span class='com-pin-tag com-tag-" + esc(p.tag) + "'>📌 " + esc(TAG_LABEL[p.tag] || p.tag) + "</span>" : "";
+      if (!p.pinned) tag = "<span class='com-sec-chip'>" + esc(sectionLabel(sectionOf(p))) + "</span>";
+      var cc = commentCount(p);
+      return "<div class='com-detail'>" +
+        "<button class='com-detail-back' onclick='window.comClosePost&&window.comClosePost()'>← 返回信息流</button>" +
+        "<div class='com-post com-detail-post" + (p.pinned ? " com-post-pinned" : "") + "'>" +
+        "<span class='com-avatar'>" + esc((p.author || "同").slice(0, 1)) + "</span>" +
+        "<div class='com-post-main'>" +
+        "<div class='com-post-head'><b>" + esc(p.author || "同学") + "</b>" + (p.dept ? "<i>" + esc(p.dept) + "</i>" : "") + tag +
+        "<span class='com-post-time'>" + esc(p.time || "") + "</span></div>" +
+        "<p class='com-post-text'>" + esc(p.text || "") + "</p>" +
+        workEmbed(p) +
+        mediaHtml(p, pid) +
+        "<div class='com-post-acts'>" +
+        "<span class='com-act' style='cursor:default'>💬 " + cc + "</span>" +
+        "<button class='com-act" + (p._liked ? " on" : "") + "' id='plike-" + esc(pid) + "' onclick=\"window.comLikePost&&window.comLikePost('" + esc(pid) + "')\">" + (p._liked ? "♥" : "♡") + " " + (p.likes || 0) + "</button>" +
+        "</div>" +
+        threadHtml(p) +
+        "</div></div></div>";
+    }
+    function snapshotDrafts(excludeId) {
       var d = {};
-      var ta = document.querySelectorAll("#com-feed textarea");
-      for (var i = 0; i < ta.length; i++) if (ta[i].id) d[ta[i].id] = ta[i].value;
+      var ta = document.querySelectorAll("#com-feed textarea, #com-detail textarea");
+      for (var i = 0; i < ta.length; i++) if (ta[i].id && ta[i].id !== excludeId) d[ta[i].id] = ta[i].value;
       return d;
+    }
+    // 统一重渲染：详情模式刷详情，否则刷信息流
+    function rerender(drafts) {
+      if (detailPid) {
+        var dp = findPost(detailPid);
+        if (dp) {
+          var de = document.getElementById("com-detail");
+          if (de) { de.innerHTML = postDetailHtml(dp); restoreDrafts(drafts); }
+          return;
+        }
+        detailPid = null;
+      }
+      renderFeed(drafts);
     }
     function restoreDrafts(d) {
       if (!d) return;
@@ -2103,7 +2157,7 @@ var CommunitySection = () => {
       var list = curSection === "all" ? postsCache.slice() : postsCache.filter(function (p) { return sectionOf(p) === curSection; });
       var q = searchQ.trim().toLowerCase();
       if (q) list = list.filter(function (p) {
-        return String(p.content || "").toLowerCase().indexOf(q) > -1 || String(p.author || "").toLowerCase().indexOf(q) > -1;
+        return String(p.text || "").toLowerCase().indexOf(q) > -1 || String(p.author || "").toLowerCase().indexOf(q) > -1;
       });
       return list;
     }
@@ -2149,6 +2203,26 @@ var CommunitySection = () => {
     function renderMain() {
       var el = document.getElementById("com-main");
       if (!el || cancelled) return;
+      if (detailPid) {
+        var dp = findPost(detailPid);
+        if (dp) {
+          var keep = snapshotDrafts();
+          el.innerHTML = "<div id='com-detail'></div>";
+          var de = document.getElementById("com-detail");
+          de.innerHTML = postDetailHtml(dp);
+          restoreDrafts(keep);
+          if (!dp._commentsLoaded) loadComments(dp, function () {
+            if (!detailPid) return;
+            var e2 = document.getElementById("com-detail");
+            if (!e2) return;
+            var keep2 = snapshotDrafts();
+            e2.innerHTML = postDetailHtml(dp);
+            restoreDrafts(keep2);
+          });
+          return;
+        }
+        detailPid = null; // 帖子已被删/找不到 → 回落信息流
+      }
       if (pubOpen) {
         var chips = SECTIONS.filter(function (s) { return s.key !== "all" && s.key !== "featured"; }).map(function (s) {
           return "<button class='com-pub-chip" + (pubSection === s.key ? " on" : "") + "' onclick=\"window.comPubSection&&window.comPubSection('" + s.key + "')\">" + s.label + "</button>";
@@ -2345,18 +2419,40 @@ var CommunitySection = () => {
       if (lb) lb.style.display = "none";
     };
 
-    // ===== 交互：分区 / 发布页 =====
+    // ===== 交互：分区 / 发布页 / 帖子详情 =====
     window.comGoSection = function (k) {
       curSection = SECTIONS.some(function (s) { return s.key === k; }) ? k : "all";
       pubOpen = false;
+      detailPid = null;
       renderSidebar();
       renderMain();
       window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.comOpenPost = function (pid) {
+      var p = findPost(pid);
+      if (!p) return;
+      detailPid = String(pid);
+      threadOpen[pid] = true;
+      renderSidebar();
+      renderMain();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.comClosePost = function () {
+      detailPid = null;
+      renderSidebar();
+      renderMain();
+    };
+    // 帖子整卡可点进详情：点到交互件（按钮/链接/图片查看器入口/评论区内）不触发
+    window.comOpenPostFromCard = function (e, pid) {
+      if (e && e.target && typeof e.target.closest === "function" &&
+        e.target.closest("button,a,input,textarea,select,.com-imgi,.com-embed,.com-cmt,.com-inline-reply,.com-attach,.com-thread-box")) return;
+      window.comOpenPost(pid);
     };
     window.comOpenPublish = function () {
       if (curSection !== "all" && curSection !== "featured") pubSection = curSection;
       else if (pubSection === "all" || pubSection === "featured") pubSection = "chat";
       pubOpen = true;
+      detailPid = null;
       renderSidebar();
       renderMain();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2390,6 +2486,7 @@ var CommunitySection = () => {
       postsCache.unshift(p);
       stageImages = []; stageFiles = []; pubDraft = "";
       pubOpen = false;
+      detailPid = null;
       curSection = "all";
       renderSidebar();
       renderMain();
@@ -2486,19 +2583,22 @@ var CommunitySection = () => {
           if (j && j.ok && j.data) { p.likes = j.data.likes; p._liked = !!j.data.liked; if (btn) { btn.innerHTML = (p._liked ? "♥" : "♡") + " " + p.likes; if (btn.classList) btn.classList.toggle("on", p._liked); } }
         }).catch(function () {});
     };
-    window.comSendComment = function (pid) {
+    window.comSendComment = function (pid, replyCid) {
       var p = findPost(pid);
       if (!p) return;
-      var input = document.getElementById("cmt-input-" + pid);
-      var hint = document.getElementById("loginhint-" + pid);
+      var isReply = !!replyCid;
+      var inputId = isReply ? ("cmt-input-" + pid + "-" + replyCid) : ("cmt-input-" + pid);
+      var hintId = isReply ? ("loginhint-" + pid + "-" + replyCid) : ("loginhint-" + pid);
+      var input = document.getElementById(inputId);
+      var hint = document.getElementById(hintId);
       var text = (input && input.value || "").trim();
       if (!text) { if (input) input.focus(); return; }
-      var rs = replyState[pid];
-      var parentId = rs ? rs.cid : null;
+      var parentId = isReply ? replyCid : null;
       var done = function (c) {
         p.comments = normComments(commentsToRaw(p.comments).concat([c]));
         delete replyState[pid];
-        renderFeed(snapshotDrafts());
+        // 发完清空当前编辑框且不回填（需求 3）：把该框 id 从草稿快照中排除
+        rerender(snapshotDrafts(inputId));
       };
       if (!postsApi) {
         localSeq += 1;
@@ -2519,13 +2619,13 @@ var CommunitySection = () => {
     window.comReplyComment = function (pid, cid, name) {
       replyState[pid] = { cid: cid, name: name };
       threadOpen[pid] = true;
-      renderFeed(snapshotDrafts());
-      var input = document.getElementById("cmt-input-" + pid);
+      rerender(snapshotDrafts());
+      var input = document.getElementById("cmt-input-" + pid + "-" + cid);
       if (input) input.focus();
     };
     window.comCancelReply = function (pid) {
       delete replyState[pid];
-      renderFeed(snapshotDrafts());
+      rerender(snapshotDrafts());
     };
     window.comLikeComment = function (pid, cid) {
       var p = findPost(pid);
@@ -2610,6 +2710,9 @@ var CommunitySection = () => {
       delete window.comReplyComment;
       delete window.comCancelReply;
       delete window.comLikeComment;
+      delete window.comOpenPost;
+      delete window.comClosePost;
+      delete window.comOpenPostFromCard;
     };
   }, []);
   return React.createElement("section", { className: "page-section", style: { background: "#f6f7f8", color: "#0f1419", padding: "88px 16px 80px", minHeight: "100vh" } }, React.createElement("style", null, `
@@ -2686,9 +2789,24 @@ var CommunitySection = () => {
     .com-thread-input .com-send{margin-top:2px;}
     .com-thread textarea{width:100%;box-sizing:border-box;border:1px solid #e4e7eb;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;min-height:40px;background:#fafbfc;color:#0f1419;line-height:1.6;}
     .com-thread textarea:focus{outline:none;border-color:#1d6fd1;background:#fff;}
-    .com-cmt{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #f2f4f6;}
-    .com-cmt:last-of-type{border-bottom:none;}
-    .com-cmt-reply{margin:0 0 0 4px;border-left:2px solid #e4e7eb;padding-left:10px;border-bottom:none;}
+    .com-cmt{padding:0;}
+    .com-cmt-main{display:flex;gap:8px;position:relative;padding:8px 0;border-bottom:1px solid #f2f4f6;}
+    .com-cmt:last-of-type>.com-cmt-main{border-bottom:none;}
+    .com-cmt-kids{margin-left:13px;padding-left:14px;border-left:2px solid #e4e7eb;}
+    .com-cmt-kids .com-cmt-main{border-bottom:none;}
+    .com-cmt-kids .com-cmt-main::before{content:"";position:absolute;left:-16px;top:21px;width:14px;height:9px;border-left:2px solid #e4e7eb;border-bottom:2px solid #e4e7eb;border-bottom-left-radius:9px;}
+    .com-cmt-quote{font-size:11px;color:#1d6fd1;background:#eef5ff;border-radius:4px;padding:1px 6px;margin-right:2px;}
+    .com-inline-reply{margin-top:6px;}
+    .com-inline-reply .com-thread-input textarea{background:#fff;border-color:#bcd4f0;}
+    .com-inline-cancel{background:none;border:none;font-size:11px;color:#9aa3ad;cursor:pointer;font-family:inherit;padding:2px 0;margin-top:2px;}
+    .com-inline-cancel:hover{color:#b8434e;}
+    .com-post-clickable{cursor:pointer;}
+    .com-post-clickable .com-post-text:hover{color:#1d6fd1;}
+    .com-detail{background:#fff;border:1px solid #e6e9ec;border-radius:14px;padding:14px 16px 20px;}
+    .com-detail-back{background:none;border:none;font-size:13px;color:#6b7280;cursor:pointer;font-family:inherit;padding:2px 0 10px;}
+    .com-detail-back:hover{color:#1d6fd1;}
+    .com-detail-post{padding:0;border-bottom:none;}
+    .com-detail-post .com-post-text{font-size:15px;line-height:1.85;margin:8px 0 0;}
     .com-cmt-av{flex:0 0 26px;width:26px;height:26px;font-size:11px;}
     .com-cmt-body{flex:1;min-width:0;}
     .com-cmt-head{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;flex-wrap:wrap;}
@@ -2709,9 +2827,10 @@ var CommunitySection = () => {
     .com-notice-text{color:#1f2933;flex:1;min-width:0;line-height:1.5;}
     .com-notice-meta{color:#9aa3ad;font-family:'JetBrains Mono',monospace;font-size:10px;flex:0 0 auto;}
     .com-banner{position:relative;border-radius:10px;overflow:hidden;margin-bottom:12px;background:#0f1419;}
-    .com-banner-slide{display:none;position:relative;height:150px;}
+    .com-banner-slide{display:none;position:relative;background:#0f1419;}
     .com-banner-slide.on{display:block;}
-    .com-banner-slide img{width:100%;height:150px;object-fit:cover;display:block;}
+    .com-banner-slide img{display:block;width:100%;height:auto;max-height:420px;object-fit:cover;}
+    @media(max-width:768px){.com-banner-slide img{max-height:240px;}}
     .com-banner-cap{position:absolute;left:0;right:0;bottom:0;padding:18px 14px 8px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;display:flex;align-items:baseline;gap:10px;}
     .com-banner-cap b{font-size:14px;font-weight:700;}
     .com-banner-cap span{font-size:11px;opacity:0.85;}
@@ -2747,12 +2866,14 @@ var CommunitySection = () => {
     .com-stage-file{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1f2933;background:#f2f4f6;border-radius:6px;padding:5px 8px;position:relative;}
     .com-stage-file .com-stage-x{position:static;background:#d0d5db;color:#0f1419;}
     .com-imgs{display:grid;gap:6px;margin-top:8px;}
-    .com-imgs-1{grid-template-columns:1fr;}
+    .com-imgs-1{grid-template-columns:1fr;max-width:520px;}
     .com-imgs-2{grid-template-columns:1fr 1fr;}
     .com-imgs-3{grid-template-columns:repeat(3,1fr);}
     .com-imgi{position:relative;overflow:hidden;border-radius:8px;border:1px solid #e4e7eb;cursor:zoom-in;background:#f4f6f8;}
-    .com-imgi img{width:100%;height:110px;object-fit:cover;display:block;}
-    .com-imgs-1 .com-imgi img{height:auto;max-height:420px;object-fit:cover;}
+    .com-imgi img{width:100%;height:100%;object-fit:cover;display:block;}
+    .com-imgs-2 .com-imgi,.com-imgs-3 .com-imgi{aspect-ratio:4/3;}
+    .com-imgs-1 .com-imgi{aspect-ratio:auto;}
+    .com-imgs-1 .com-imgi img{height:auto;max-height:560px;object-fit:contain;background:#f4f6f8;}
     .com-imgi-extra::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.45);}
     .com-img-more{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:700;letter-spacing:1px;}
     .com-attach{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#1d6fd1;text-decoration:none;background:#f6f9fd;border:1px solid #e0ecf9;border-radius:6px;padding:6px 10px;}
@@ -3342,9 +3463,177 @@ var JoinSection = () => {
     }
   }, "提交后将通过飞书工单流转审批 · 预计 3 个工作日内反馈"))));
 };
+// 作品投票按钮：GET /api/vote/status 取票数+已投态；点击 POST /api/vote；未登录(401)提示去登录
+var VoteButton = ({ workId }) => {
+  var el = React.createElement;
+  var st = React.useState, ef = React.useEffect;
+  var [count, setCount] = st(0);
+  var [voted, setVoted] = st(false);
+  var [mine, setMine] = st(false);
+  var [busy, setBusy] = st(false);
+  var [hint, setHint] = st("");
+  var flash = function (m) { setHint(m); setTimeout(function () { setHint(""); }, 2600); };
+  ef(function () {
+    if (workId == null) return;
+    fetch("/api/auth/me").then(function (r) { return r.json(); }).then(function (j) {
+      setMine(!!(j && j.authenticated && j.data && j.data.userId));
+    }).catch(function () {});
+    fetch("/api/vote/status?work_id=" + encodeURIComponent(workId)).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (j && j.ok && j.data) { setCount(j.data.count | 0); setVoted(!!j.data.voted); }
+    }).catch(function () {});
+  }, [workId]);
+  var cast = function () {
+    if (!mine) { flash("登录后才能投票"); return; }
+    if (voted || busy) return;
+    setBusy(true);
+    fetch("/api/vote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workId: workId }) })
+      .then(function (r) { return r.json().then(function (b) { return { s: r.status, b: b }; }); })
+      .then(function (res) {
+        if (res.s === 401) flash("登录后才能投票");
+        else if (res.s === 409) { setVoted(true); flash("你已经为该作品投过票啦"); }
+        else if (res.b && res.b.ok) { setVoted(true); setCount(function (c) { return c + 1; }); }
+        else flash("投票失败，请稍后再试");
+      })
+      .catch(function () { flash("网络异常，请稍后再试"); })
+      .then(function () { setBusy(false); });
+  };
+  var btnStyle = {
+    width: "100%",
+    background: voted ? "#fce8ea" : "#1a1a1f",
+    color: voted ? "#c0392b" : "#fff",
+    border: voted ? "1px solid #f0c2c8" : "none",
+    padding: "14px",
+    borderRadius: 4,
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: voted || busy ? "default" : "pointer",
+    letterSpacing: 1,
+    marginBottom: 12,
+    transition: "all 0.2s ease"
+  };
+  return el("div", { style: { marginBottom: 4 } },
+    el("button", {
+      style: btnStyle, disabled: voted || busy, onClick: cast,
+      onMouseEnter: function (e) { if (!voted && !busy) e.currentTarget.style.background = "#2d2d34"; },
+      onMouseLeave: function (e) { if (!voted && !busy) e.currentTarget.style.background = "#1a1a1f"; }
+    }, (voted ? "♥ 已投票 · " : "♡ 投一票 · ") + count + " 票"),
+    !mine ? el("div", { style: { fontSize: 11, color: "#999", marginBottom: 8 } },
+      "登录后即可投票 · ", el("a", { href: "/login.html", style: { color: "#2568d8", textDecoration: "none" } }, "去登录")) : null,
+    hint ? el("div", { style: { fontSize: 12, color: "#c0392b", marginBottom: 8, textAlign: "center" } }, hint) : null);
+};
+// 作品评论区：独立于社区帖子，走 /api/work-comments。楼中楼/点赞/就地回复，登录可选。
+var WorkComments = ({ workId }) => {
+  var el = React.createElement;
+  var st = React.useState, ef = React.useEffect;
+  var [list, setList] = st([]);
+  var [replyTo, setReplyTo] = st(null);
+  var [replyText, setReplyText] = st("");
+  var [newText, setNewText] = st("");
+  var [mine, setMine] = st(false);
+  var [busy, setBusy] = st(false);
+  var [hint, setHint] = st("");
+  var flash = function (m) { setHint(m); setTimeout(function () { setHint(""); }, 2600); };
+  function load() {
+    if (workId == null) return;
+    fetch("/api/work-comments?work_id=" + encodeURIComponent(workId)).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.ok && j.data) setList(j.data.comments || []); })
+      .catch(function () {});
+  }
+  ef(function () {
+    load();
+    fetch("/api/auth/me").then(function (r) { return r.json(); }).then(function (j) {
+      setMine(!!(j && j.authenticated && j.data && j.data.userId));
+    }).catch(function () {});
+  }, [workId]);
+  // 组树：nodes 保留后端时间正序，_replyTo 记父作者
+  var nodes = {}, roots = [];
+  list.forEach(function (c) { nodes[c.id] = Object.assign({}, c, { _kids: [] }); });
+  list.forEach(function (c) {
+    var node = nodes[c.id];
+    var pid = c.parent_id && nodes[c.parent_id] ? c.parent_id : null;
+    if (pid) { nodes[pid]._kids.push(node); node._replyTo = nodes[pid].author; }
+    else roots.push(node);
+  });
+  function send(parentId) {
+    var txt = String(parentId ? replyText : newText).trim();
+    if (!txt) return;
+    if (!mine) { flash("登录后才能发布评论"); return; }
+    if (busy) return;
+    setBusy(true);
+    fetch("/api/work-comments", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ work_id: workId, content: txt.slice(0, 500), parent_id: parentId || undefined }) })
+      .then(function (r) { return r.json().then(function (b) { return { s: r.status, b: b }; }); })
+      .then(function (res) {
+        if (res.s === 401) flash("登录后才能发布评论");
+        else if (res.b && res.b.ok) {
+          if (parentId) { setReplyTo(null); setReplyText(""); } else { setNewText(""); }
+          load();
+        } else flash("发布失败，请稍后再试");
+      })
+      .catch(function () { flash("网络异常，请稍后再试"); })
+      .then(function () { setBusy(false); });
+  }
+  function like(id) {
+    if (!mine) { flash("登录后才能点赞"); return; }
+    fetch("/api/work-comments/" + encodeURIComponent(id) + "/like", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (j && j.ok && j.data) setList(function (prev) {
+          return prev.map(function (x) { return x.id === id ? Object.assign({}, x, { likes: j.data.likes | 0, liked: !!j.data.liked }) : x; });
+        });
+      }).catch(function () {});
+  }
+  function replyBox(id) {
+    return el("div", { style: { marginTop: 8 } },
+      el("textarea", {
+        value: replyText, rows: 2, placeholder: "回复中…",
+        onChange: function (e) { setReplyText(e.target.value); },
+        style: { width: "100%", padding: "8px 10px", border: "1px solid #bcd4f0", borderRadius: 6, fontSize: 13, resize: "vertical", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
+      }),
+      el("div", { style: { display: "flex", gap: 8, marginTop: 6, alignItems: "center" } },
+        el("button", { onClick: function () { send(id); }, disabled: busy, style: { background: "#2568d8", color: "#fff", border: "none", borderRadius: 6, padding: "5px 14px", fontSize: 12, cursor: busy ? "default" : "pointer" } }, busy ? "发送中…" : "回复"),
+        el("button", { onClick: function () { setReplyTo(null); setReplyText(""); }, style: { background: "none", border: "none", color: "#999", fontSize: 12, cursor: "pointer" } }, "取消")));
+  }
+  var avStyle = { width: 28, height: 28, borderRadius: "50%", background: "#1a1a1f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 };
+  var btnActStyle = { background: "none", border: "none", color: "#888", fontSize: 12, cursor: "pointer", padding: 0 };
+  function renderCmt(c, depth) {
+    var quote = c._replyTo ? el("span", { style: { fontSize: 11, color: "#1d6fd1", background: "#eef5ff", borderRadius: 4, padding: "1px 6px", marginRight: 4 } }, "回复 @" + c._replyTo) : null;
+    return el("div", { key: c.id },
+      el("div", { style: { display: "flex", gap: 10, position: "relative", padding: "10px 0", borderBottom: depth === 0 ? "1px solid #f2f4f6" : "none" } },
+        depth > 0 ? el("div", { style: { position: "absolute", left: -16, top: 23, width: 14, height: 10, borderLeft: "2px solid #e4e7eb", borderBottom: "2px solid #e4e7eb", borderBottomLeftRadius: 9 } }) : null,
+        el("div", { style: avStyle }, String((c.author || "同").slice(0, 1))),
+        el("div", { style: { flex: 1, minWidth: 0 } },
+          el("div", { style: { fontSize: 12, color: "#666", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
+            el("b", { style: { color: "#1a1a1f" } }, c.author || "同学"),
+            c.dept ? el("span", { style: { color: "#aaa" } }, c.dept) : null,
+            el("span", { style: { color: "#bbb", marginLeft: "auto" } }, c.time || "")),
+          el("div", { style: { fontSize: 13, color: "#333", lineHeight: 1.7, marginTop: 3, whiteSpace: "pre-wrap", wordBreak: "break-word" } }, quote, c.text),
+          el("div", { style: { display: "flex", gap: 16, marginTop: 5 } },
+            el("button", { style: Object.assign({}, btnActStyle, c.liked ? { color: "#c0392b" } : {}), onClick: function () { like(c.id); } }, (c.liked ? "♥" : "♡") + " " + (c.likes || 0)),
+            el("button", { style: btnActStyle, onClick: function () { if (!mine) { flash("登录后才能回复"); return; } setReplyTo(replyTo === c.id ? null : c.id); setReplyText(""); } }, "回复")),
+          replyTo === c.id ? replyBox(c.id) : null)),
+      c._kids.length ? el("div", { style: { marginLeft: 13, paddingLeft: 16, borderLeft: "2px solid #e4e7eb" } },
+        c._kids.map(function (k) { return renderCmt(k, depth + 1); })) : null);
+  }
+  return el("div", { style: { marginTop: 64, padding: "28px 0", borderTop: "1px solid #eee" } },
+    el("div", { style: { fontSize: 11, color: "#aaa", letterSpacing: 3, marginBottom: 20, fontFamily: "'JetBrains Mono', monospace" } }, "COMMENTS · 评论 (" + list.length + ")"),
+    el("div", { style: { marginBottom: 18 } },
+      mine ? el("textarea", {
+        value: newText, rows: 3, placeholder: "写下你对这个作品的评论…",
+        onChange: function (e) { setNewText(e.target.value); },
+        style: { width: "100%", padding: "12px 14px", border: "1px solid #e0e0dc", borderRadius: 8, fontSize: 14, resize: "vertical", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
+      }) : el("div", { style: { padding: "14px 16px", border: "1px dashed #ddd", borderRadius: 8, fontSize: 13, color: "#999", textAlign: "center" } },
+        "登录后即可参与评论 · ", el("a", { href: "/login.html", style: { color: "#2568d8", textDecoration: "none" } }, "去登录")),
+      mine ? el("div", { style: { marginTop: 8, textAlign: "right" } },
+        el("button", { onClick: function () { send(null); }, disabled: busy || !newText.trim(), style: { background: (!busy && newText.trim()) ? "#1a1a1f" : "#ccc", color: "#fff", border: "none", borderRadius: 999, padding: "8px 24px", fontSize: 13, cursor: (!busy && newText.trim()) ? "pointer" : "default" } }, busy ? "发送中…" : "发表评论")) : null),
+    hint ? el("div", { style: { fontSize: 12, color: "#c0392b", marginBottom: 12 } }, hint) : null,
+    roots.length ? el("div", null, roots.map(function (c) { return renderCmt(c, 0); }))
+      : el("div", { style: { fontSize: 13, color: "#bbb", padding: "8px 0" } }, "还没有评论，来抢占第一个沙发吧。"));
+};
 var WorkDetail = ({ workIdx, onBack }) => {
   var el = React.createElement;
   const work = WORKS_INFO[workIdx % 28];
+  const workId = work && work.id != null ? work.id : null;
   const detail = work.detail || {};
   const img = WALL_IMAGES[workIdx % 28];
   const related = [(workIdx + 3) % 28, (workIdx + 7) % 28, (workIdx + 11) % 28];
@@ -3587,6 +3876,8 @@ var WorkDetail = ({ workIdx, onBack }) => {
         },
         onClick: onBack
       }, "← 返回作品巨幕"),
+      workId != null ? el(VoteButton, { workId: workId }) : null,
+      workId != null ? el("div", { style: { height: 8 } }) : null,
       el("div", { style: { fontSize: 11, color: "#aaa", lineHeight: 1.8 } },
         "点击「进入作品原网页」将在新窗口打开",
         el("br", null),
@@ -3610,7 +3901,9 @@ var WorkDetail = ({ workIdx, onBack }) => {
   }, el("div", {
     className: "page-container",
     style: { maxWidth: 1100, margin: "0 auto" }
-  }, backLink, heroImg, ctaStrip, grid, /* @__PURE__ */ React.createElement("div", {
+  }, backLink, heroImg, ctaStrip, grid,
+    workId != null ? el(WorkComments, { workId: workId }) : null,
+    /* @__PURE__ */ React.createElement("div", {
     style: { marginTop: 100 }
   }, /* @__PURE__ */ React.createElement("div", {
     style: {
@@ -4105,6 +4398,7 @@ window.App = App;
           for (var i = 0; i < works.length && i < WORKS_INFO.length; i++) {
             var w = works[i];
             if (!w) continue;
+            if (w.id != null) WORKS_INFO[i].id = w.id;   // 真实作品 id：投票/评论依赖
             if (w.title) WORKS_INFO[i].title = w.title;
             if (w.author) WORKS_INFO[i].author = w.author;
             if (w.category) WORKS_INFO[i].category = w.category;
