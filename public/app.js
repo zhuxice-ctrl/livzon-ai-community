@@ -683,7 +683,7 @@ var ActivitiesSection = () => {
       var past = data.past || [];
       var types = data.types || [];
       var h = "";
-      h += "<div class='act-hero'><span class='act-hero-wm' aria-hidden='true'>玩</span><div class='act-eyebrow act-hero-in hi-1'>ACTIVITIES · 活动大厅</div><div class='act-title-wrap act-hero-in hi-2'><h1 class='act-title-lg' id='actPhysicsTitle' aria-label='玩出来的 AI'><!-- 字符由物理引擎注入 --></h1></div><p class='act-sub act-hero-in hi-3'>" + esc(data.motto || "") + "</p><div class='hero-hint act-hero-in hi-4' id='actHeroHint'><span><span class='hint-dot'></span>点击字符 · 让它掉下去</span><span><span class='hint-dot'></span>掉的过程中可以滚动页面 · 惯性不会被打断</span></div><button class='reset-btn act-hero-in hi-5' id='actResetBtn' type='button'>重置标题</button><div class='act-start act-hero-in hi-6' aria-hidden='true'>START<span class='act-start-cursor'></span></div></div>";
+      h += "<div class='act-hero'><span class='act-hero-wm' aria-hidden='true'>玩</span><div class='act-eyebrow act-hero-in hi-1'>ACTIVITIES · 活动大厅</div><div class='act-title-wrap act-hero-in hi-2'><h1 class='act-title-lg' id='actPhysicsTitle' aria-label='玩出来的 AI'><!-- 字符由物理引擎注入 --></h1></div><p class='act-sub act-hero-in hi-3'>" + esc(data.motto || "") + "</p><button class='reset-btn act-hero-in hi-5' id='actResetBtn' type='button'>重置标题</button><div class='act-start act-hero-in hi-6' aria-hidden='true'>START<span class='act-start-cursor'></span></div></div>";
       var focusSignup = focus && focus.signup ? focus.signup : "";
       var signupBtnHtml = function (url, cls, label) {
         return url
@@ -709,7 +709,7 @@ var ActivitiesSection = () => {
       // 展线导航（sticky 吸附）
       h += "<nav class='act-rail' id='actRail'>" +
         "<a href='#act-sec-feature' data-target='act-sec-feature' class='rail-link on'><span class='rail-no'>01</span><span>本月特展</span></a>" +
-        "<a href='#act-sec-upcoming' data-target='act-sec-upcoming' class='rail-link'><span class='rail-no'>02</span><span>即将开展</span></a>" +
+        "<a href='#act-sec-upcoming' data-target='act-sec-upcoming' class='rail-link'><span class='rail-no'>02</span><span>预约消息通知</span></a>" +
         "<a href='#act-sec-archive' data-target='act-sec-archive' class='rail-link'><span class='rail-no'>03</span><span>回顾展区</span></a>" +
         "<a href='#act-sec-types' data-target='act-sec-types' class='rail-link'><span class='rail-no'>04</span><span>展馆地图</span></a>" +
         "<a href='#act-sec-join' data-target='act-sec-join' class='rail-link'><span class='rail-no'>尾厅</span><span>参与方式</span></a>" +
@@ -730,12 +730,11 @@ var ActivitiesSection = () => {
             (s.d ? "<p class='act-slide-desc'>" + esc(s.d) + "</p>" : "") +
             "</div>" + ph + "</div>";
         }).join("") + "<div class='act-dots' id='actDots'>" + slides.map(function (s, si) { return "<span class='dot" + (si === 0 ? " on" : "") + "' data-i='" + si + "'></span>"; }).join("") + "</div></div>";
-        h += "<div class='act-feat-cta'><button class='act-signup-btn' onclick=\"window.actPanel&&window.actPanel('focus',0)\">去报名</button></div>";
       } else {
         h += "<div class='act-carousel'><div class='act-slide on'><span class='act-tagx'>敬请期待</span><div class='act-slide-name big'>下一场活动筹备中</div><p class='act-slide-desc'>我们正在策划下一场深度活动。</p></div></div>";
       }
-      // 02 即将开展（编辑式日程表：大日期 + 活动名 + 类型 + 细箭头）
-      h += "<div class='act-sechead' id='act-sec-upcoming'><span class='act-secno'>02</span><span class='act-sectitle'>即将开展</span><span class='act-secen'>UPCOMING</span></div>";
+      // 02 预约消息通知（编辑式日程表：大日期 + 活动名 + 类型 + 细箭头）
+      h += "<div class='act-sechead' id='act-sec-upcoming'><span class='act-secno'>02</span><span class='act-sectitle'>预约消息通知</span><span class='act-secen'>NOTIFY · 预约后消息提醒</span></div>";
       h += "<div class='act-sched' id='actSched'>" + upcoming.map(function (a, ai) {
         var su = a.signup || focusSignup;
         var no = ai + 1 < 10 ? "0" + (ai + 1) : String(ai + 1);
@@ -785,13 +784,13 @@ var ActivitiesSection = () => {
         var pBodyEl = panelRoot.querySelector(".act-p-body");
         var panelOpen = false, panelSaveOverflow = "";
         var panelAct = function (kind, id) {
-          if (kind === "focus") return focus ? { a: focus, mode: "signup", st: "报名中" } : null;
+          if (kind === "focus") return focus ? { a: focus, mode: "signup", st: "预约中" } : null;
           var arr = kind === "past" ? past : upcoming;
           for (var i = 0; i < arr.length; i++) {
             if (String(arr[i].id) === String(id)) {
               var a = arr[i];
               if (kind === "past") return { a: a, mode: "past", st: "已结束" };
-              return { a: a, mode: "signup", st: a.signup ? "报名中" : "预约中" };
+              return { a: a, mode: "signup", st: "预约中" };
             }
           }
           return arr.length ? { a: arr[0], mode: "signup", st: "预约中" } : null;
@@ -816,16 +815,13 @@ var ActivitiesSection = () => {
           var lower = pastMode
             ? "<div class='act-p-ended'><p>该活动已结束</p><a class='act-p-wall' href='/'>前往作品墙 →</a></div>"
             : "<form class='act-p-form'>" +
-              "<div class='act-p-fhead'><span class='t'>SIGN UP · 报名表</span><span class='en'>REGISTRATION</span></div>" +
-              "<div class='act-p-field'><label>姓名 *</label><input required name='name' type='text' autocomplete='name' placeholder='请输入姓名'></div>" +
-              "<div class='act-p-field'><label>部门</label><input name='dept' type='text' placeholder='所在部门（选填）'></div>" +
-              "<div class='act-p-field'><label>联系方式</label><input name='contact' type='text' placeholder='手机 / 飞书（选填）'></div>" +
+              "<div class='act-p-fhead'><span class='t'>RESERVE · 预约表</span><span class='en'>RESERVATION</span></div>" +
               "<div class='act-p-field'><label>参与期待</label><textarea name='note' rows='3' placeholder='想听什么 / 想聊什么（选填）'></textarea></div>" +
-              "<button type='submit' class='act-p-submit'>确认报名 →</button>" +
-              "<p class='act-p-tip'>提交后即视为报名成功，活动前 1 天在群内通知</p>" +
+              "<button type='submit' class='act-p-submit'>预约 →</button>" +
+              "<p class='act-p-tip'>身份信息将通过飞书登录自动获取，预约消息将通过飞书通知</p>" +
               "</form>";
           pBodyEl.innerHTML =
-            "<div class='act-p-eyebrow'>" + (pastMode ? "REVIEW · 往期回顾" : "SIGN UP · 活动详情") + "</div>" +
+            "<div class='act-p-eyebrow'>" + (pastMode ? "REVIEW · 往期回顾" : "RESERVE · 活动详情") + "</div>" +
             "<h3 class='act-p-title'>" + esc(a.name || "") + "</h3>" +
             "<div class='act-p-grid'>" + metaCell("时间", a.dateLabel) + metaCell("地点", a.location) + metaCell("类型", a.tag || typeOfPast(a)) + metaCell("状态", o.st) + "</div>" +
             (a.desc || a.summary ? "<p class='act-p-desc'>" + esc(a.desc || a.summary) + "</p>" : "") +
@@ -834,10 +830,8 @@ var ActivitiesSection = () => {
             var f = pBodyEl.querySelector(".act-p-form");
             if (f) f.addEventListener("submit", function (e) {
               e.preventDefault();
-              var nm = f.querySelector("[name=name]");
-              if (!nm || !String(nm.value).trim()) { if (nm) { nm.classList.add("err"); nm.focus(); } return; }
-              // TODO: 后端接口 POST /api/activities/:id/signup {name,dept,contact,note}（当前前端演示态）
-              pBodyEl.innerHTML = "<div class='act-p-done'><div class='ring'>✓</div><p class='t'>已收到您的" + (a.signup ? "报名" : "预约") + "</p><p class='s'>" + esc(a.name || "") + "</p></div>";
+              // TODO: 后端接口 POST /api/activities/:id/reserve {note}（当前前端演示态，身份经飞书登录态获取）
+              pBodyEl.innerHTML = "<div class='act-p-done'><div class='ring'>✓</div><p class='t'>已收到您的预约</p><p class='s'>" + esc(a.name || "") + "</p></div>";
               setTimeout(function () { if (panelOpen) closePanel(); }, 1400);
             });
           }
@@ -887,10 +881,6 @@ var ActivitiesSection = () => {
             var t = e.target && e.target.closest ? e.target.closest(".dot") : null;
             if (t) goSlide(parseInt(t.getAttribute("data-i"), 10) || 0);
           });
-          slideEls.forEach(function (s) { s.addEventListener("click", function (e) {
-            if (e.target && e.target.closest && e.target.closest("button,.act-dots,.dot")) return;
-            if (window.actPanel) window.actPanel("focus", 0);
-          }); });
         }
         // 展线导航：点击平滑滚动 + 滚动高亮当前展厅
         var railEl = document.getElementById("actRail");
@@ -1921,7 +1911,6 @@ var ActivitiesSection = () => {
     .act-dots{position:absolute;right:28px;bottom:22px;display:flex;gap:8px;}
     .act-dots .dot{width:22px;height:2px;background:#ddd;cursor:pointer;transition:background .4s;}
     .act-dots .dot.on{background:#1a2b4a;}
-    .act-feat-cta{margin-top:20px;text-align:right;}
     /* v14: 本月特展图片占位块 */
     .act-slide.has-ph{flex-direction:row;align-items:center;gap:56px;}
     .act-slide.has-ph .act-slide-main{flex:1;min-width:0;}
@@ -1933,7 +1922,7 @@ var ActivitiesSection = () => {
     .act-feat-ph i.c3{left:12px;bottom:12px;border-right:none;border-top:none;}
     .act-feat-ph i.c4{right:12px;bottom:12px;border-left:none;border-top:none;}
     @media(max-width:900px){.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:100%;}}
-    /* 02 即将开展 · 编辑式日程表 */
+    /* 02 预约消息通知 · 编辑式日程表 */
     .act-sched{border-top:1px solid rgba(0,0,0,0.08);}
     .sk-row{border-bottom:1px solid rgba(0,0,0,0.08);}
     .sk-line{display:flex;align-items:baseline;gap:32px;padding:34px 8px 34px 0;cursor:pointer;transition:background .6s cubic-bezier(.22,1,.36,1);}
@@ -2045,7 +2034,7 @@ var ActivitiesSection = () => {
     /* ===== v12 视觉增强：hero 细格纹/水印/START/入场序列 + 展线进度条 + 展厅编号 ===== */
     .act-hero{background-image:linear-gradient(rgba(0,0,0,0.026) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.026) 1px,transparent 1px);background-size:60px 60px;}
     .act-hero-wm{position:absolute;right:-1%;top:50%;transform:translateY(-52%);font-family:'Noto Serif SC',serif;font-size:clamp(260px,34vw,520px);font-weight:500;line-height:1;color:rgba(0,0,0,0.035);pointer-events:none;user-select:none;z-index:0;}
-    .act-hero .act-eyebrow,.act-hero .act-sub,.act-hero .hero-hint{position:relative;z-index:1;}
+    .act-hero .act-eyebrow,.act-hero .act-sub{position:relative;z-index:1;}
     .act-start{position:absolute;left:0;bottom:26px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:5px;color:#c9c9c4;z-index:1;display:flex;align-items:center;gap:10px;}
     .act-start-cursor{display:inline-block;width:1px;height:14px;background:#c9c9c4;animation:actCursorBlink 1.2s steps(1) infinite;}
     @keyframes actCursorBlink{0%,50%{opacity:1;}51%,100%{opacity:0;}}
@@ -2079,18 +2068,6 @@ var ActivitiesSection = () => {
     .char-body.pinned { cursor: pointer; }
     .char-body:not(.pinned) { cursor: grab; }
     .char-body:not(.pinned):active { cursor: grabbing; }
-    .hero-hint {
-      margin-top: 20px;
-      font-size: 12px;
-      color: #bbb;
-      display: flex;
-      gap: 20px;
-      align-items: center;
-      transition: opacity 0.6s;
-    }
-    .hero-hint.faded { opacity: 0; pointer-events: none; }
-    .hero-hint span { display: inline-flex; align-items: center; gap: 6px; }
-    .hint-dot { width: 4px; height: 4px; border-radius: 50%; background: #ccc; }
     .reset-btn {
       position: absolute;
       top: 0;
