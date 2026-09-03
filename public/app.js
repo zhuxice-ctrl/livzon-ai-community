@@ -721,12 +721,14 @@ var ActivitiesSection = () => {
         var slides = [{ t: focus.tag || "本月特展", n: focus.name, m: "◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location), d: focus.desc, big: true }];
         (focus.highlights || []).forEach(function (x, xi) { slides.push({ t: "亮点 · 0" + (xi + 1), n: x, m: "", d: "", big: false }); });
         h += "<div class='act-carousel' id='actCarousel'>" + slides.map(function (s, si) {
-          return "<div class='act-slide" + (si === 0 ? " on" : "") + "'>" +
+          var ph = si === 0 ? "<div class='act-feat-ph' aria-hidden='true'><i class='c1'></i><i class='c2'></i><i class='c3'></i><i class='c4'></i><span class='ph-t'>IMAGE · 图片占位</span></div>" : "";
+          return "<div class='act-slide" + (si === 0 ? " on has-ph" : "") + "'>" +
+            "<div class='act-slide-main'>" +
             "<span class='act-tagx' style='color:" + fc + "'>" + esc(s.t) + "</span>" +
             "<div class='act-slide-name" + (s.big ? " big" : "") + "'>" + esc(s.n) + "</div>" +
             (s.m ? "<div class='act-slide-meta'>" + s.m + "</div>" : "") +
             (s.d ? "<p class='act-slide-desc'>" + esc(s.d) + "</p>" : "") +
-            "</div>";
+            "</div>" + ph + "</div>";
         }).join("") + "<div class='act-dots' id='actDots'>" + slides.map(function (s, si) { return "<span class='dot" + (si === 0 ? " on" : "") + "' data-i='" + si + "'></span>"; }).join("") + "</div></div>";
         h += "<div class='act-feat-cta'><button class='act-signup-btn' onclick=\"window.actPanel&&window.actPanel('focus',0)\">去报名</button></div>";
       } else {
@@ -964,32 +966,61 @@ var ActivitiesSection = () => {
           if (prefersReduced) {
             wall.style.overflowX = "auto";
           } else {
-            var dragging = false, lastPX = 0, movedPx = 0, vTrack = 0, wallRaf = null;
-            var wallTick = function () {
+            var dragging = false, lastPX = 0, movedPx = 0, vTrack = 0, wallRaf = null, lastTickT = 0;
+            var velSamples = [];
+            var pushSample = function (t, x) {
+              velSamples.push({ t: t, x: x });
+              while (velSamples.length > 2 && t - velSamples[0].t > 110) velSamples.shift();
+            };
+            var measureVel = function () {
+              if (velSamples.length < 2) return 0;
+              var a = velSamples[0], b = velSamples[velSamples.length - 1];
+              var dt = b.t - a.t;
+              if (dt <= 0) return 0;
+              return -(b.x - a.x) / dt;
+            };
+            var wallTick = function (now) {
               if (cancelled) return;
               if (!dragging) {
-                if (wallX < 0) { wallX += (0 - wallX) * 0.18; }
-                else if (wallX > wallMaxX()) { wallX += (wallMaxX() - wallX) * 0.18; }
-                else if (Math.abs(vTrack) > 0.1) { wallX += vTrack; vTrack *= 0.94; }
-                else { wallRaf = null; }
+                var dt = Math.min(50, now - (lastTickT || now)); lastTickT = now;
+                var mx = wallMaxX();
+                if (wallX < 0 || wallX > mx) {
+                  var target = wallX < 0 ? 0 : mx;
+                  wallX += (target - wallX) * (1 - Math.pow(0.86, dt / 16.7));
+                  if (Math.abs(target - wallX) < 0.5) { wallX = target; vTrack = 0; }
+                } else if (Math.abs(vTrack) > 0.015) {
+                  wallX += vTrack * dt;
+                  vTrack *= Math.pow(0.9975, dt);
+                  if (wallX < 0 || wallX > mx) { wallX = Math.max(0, Math.min(wallX, mx)); vTrack = 0; }
+                } else { vTrack = 0; wallRaf = null; }
                 setWallX(wallX);
-                if (!wallRaf && (Math.abs(vTrack) > 0.1 || wallX < 0 || wallX > wallMaxX())) wallRaf = requestAnimationFrame(wallTick);
+                if (!wallRaf && (Math.abs(vTrack) > 0.015 || wallX < 0 || wallX > wallMaxX())) wallRaf = requestAnimationFrame(wallTick);
               } else { wallRaf = null; }
             };
             wall.addEventListener("pointerdown", function (e) {
-              dragging = true; movedPx = 0; lastPX = e.clientX; vTrack = 0;
+              dragging = true; movedPx = 0; lastPX = e.clientX; vTrack = 0; velSamples = [];
+              pushSample(e.timeStamp, e.clientX);
               if (wall.setPointerCapture) { try { wall.setPointerCapture(e.pointerId); } catch (err2) {} }
               if (wallRaf) { cancelAnimationFrame(wallRaf); wallRaf = null; }
             });
             wall.addEventListener("pointermove", function (e) {
               if (!dragging) return;
               var dx = e.clientX - lastPX; lastPX = e.clientX; movedPx += Math.abs(dx);
-              vTrack = dx; setWallX(wallX - dx);
+              pushSample(e.timeStamp, e.clientX);
+              var resist = (wallX < 0 || wallX > wallMaxX()) ? 0.32 : 1;
+              setWallX(wallX - dx * resist);
             });
             var endWallDrag = function () {
               if (!dragging) return;
               dragging = false;
               if (movedPx < 6) { vTrack = 0; setWallX(wallX); }
+              else {
+                vTrack = measureVel();
+                if (vTrack > 3.2) vTrack = 3.2;
+                if (vTrack < -3.2) vTrack = -3.2;
+                if ((wallX < 0 && vTrack < 0) || (wallX > wallMaxX() && vTrack > 0)) vTrack = 0;
+              }
+              lastTickT = 0;
               if (!wallRaf) wallRaf = requestAnimationFrame(wallTick);
             };
             wall.addEventListener("pointerup", endWallDrag);
@@ -1891,6 +1922,17 @@ var ActivitiesSection = () => {
     .act-dots .dot{width:22px;height:2px;background:#ddd;cursor:pointer;transition:background .4s;}
     .act-dots .dot.on{background:#1a2b4a;}
     .act-feat-cta{margin-top:20px;text-align:right;}
+    /* v14: 本月特展图片占位块 */
+    .act-slide.has-ph{flex-direction:row;align-items:center;gap:56px;}
+    .act-slide.has-ph .act-slide-main{flex:1;min-width:0;}
+    .act-feat-ph{position:relative;flex:0 0 320px;max-width:36%;aspect-ratio:4/3;border:1px solid rgba(0,0,0,0.12);background:#fafaf9;background-image:linear-gradient(rgba(0,0,0,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.022) 1px,transparent 1px);background-size:24px 24px;display:flex;align-items:center;justify-content:center;}
+    .act-feat-ph .ph-t{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:4px;color:#c2c2bc;}
+    .act-feat-ph i{position:absolute;width:16px;height:16px;border:1px solid rgba(0,0,0,0.25);}
+    .act-feat-ph i.c1{left:12px;top:12px;border-right:none;border-bottom:none;}
+    .act-feat-ph i.c2{right:12px;top:12px;border-left:none;border-bottom:none;}
+    .act-feat-ph i.c3{left:12px;bottom:12px;border-right:none;border-top:none;}
+    .act-feat-ph i.c4{right:12px;bottom:12px;border-left:none;border-top:none;}
+    @media(max-width:900px){.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:100%;}}
     /* 02 即将开展 · 编辑式日程表 */
     .act-sched{border-top:1px solid rgba(0,0,0,0.08);}
     .sk-row{border-bottom:1px solid rgba(0,0,0,0.08);}
@@ -2003,7 +2045,7 @@ var ActivitiesSection = () => {
     /* ===== v12 视觉增强：hero 细格纹/水印/START/入场序列 + 展线进度条 + 展厅编号 ===== */
     .act-hero{background-image:linear-gradient(rgba(0,0,0,0.026) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.026) 1px,transparent 1px);background-size:60px 60px;}
     .act-hero-wm{position:absolute;right:-1%;top:50%;transform:translateY(-52%);font-family:'Noto Serif SC',serif;font-size:clamp(260px,34vw,520px);font-weight:500;line-height:1;color:rgba(0,0,0,0.035);pointer-events:none;user-select:none;z-index:0;}
-    .act-hero .act-eyebrow,.act-hero .act-sub,.act-hero .hero-hint,.act-hero .reset-btn{position:relative;z-index:1;}
+    .act-hero .act-eyebrow,.act-hero .act-sub,.act-hero .hero-hint{position:relative;z-index:1;}
     .act-start{position:absolute;left:0;bottom:26px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:5px;color:#c9c9c4;z-index:1;display:flex;align-items:center;gap:10px;}
     .act-start-cursor{display:inline-block;width:1px;height:14px;background:#c9c9c4;animation:actCursorBlink 1.2s steps(1) infinite;}
     @keyframes actCursorBlink{0%,50%{opacity:1;}51%,100%{opacity:0;}}
