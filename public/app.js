@@ -3214,6 +3214,8 @@ var CommunitySection = () => {
     .com-rail{position:absolute;top:0;bottom:0;left:12px;width:2px;background:#e4e7eb;pointer-events:none;}
     .com-cmt-kids .com-cmt-main{border-bottom:none;}
     .com-cmt-kids .com-cmt-main::before{content:"";position:absolute;left:-12px;top:2px;width:12px;height:19px;border-left:2px solid #e4e7eb;border-bottom:2px solid #e4e7eb;border-bottom-left-radius:10px;}
+    /* 细节：有回复的父评论，头像下缘到回复带顶之间补线，父行全程挂线不断头 */
+    .com-cmt:has(> .com-cmt-kids)>.com-cmt-main::after{content:"";position:absolute;left:12px;top:40px;bottom:0;width:2px;background:#e4e7eb;}
     .com-cmt-quote{font-size:11px;color:#1d6fd1;background:#eef5ff;border-radius:4px;padding:1px 6px;margin-right:2px;}
     .com-inline-reply{margin-top:6px;}
     .com-inline-reply .com-thread-input textarea{background:#fff;border-color:#bcd4f0;}
@@ -3222,7 +3224,8 @@ var CommunitySection = () => {
     .com-post-clickable{cursor:pointer;}
     .com-post-clickable .com-post-text:hover{color:#1d6fd1;}
     .com-detail{background:#fff;border:1px solid #e6e9ec;border-radius:14px;padding:14px 16px 20px;}
-    .com-detail-back{background:none;border:none;font-size:13px;color:#6b7280;cursor:pointer;font-family:inherit;padding:2px 0 10px;}
+    /* 返回按钮吸顶：长评论区滚到哪儿都够得着（吸附在固定顶栏下方） */
+    .com-detail-back{position:sticky;top:66px;z-index:40;display:block;width:100%;text-align:left;background:#fff;border:none;font-size:13px;color:#6b7280;cursor:pointer;font-family:inherit;padding:8px 0 10px;margin:-8px 0 0;}
     .com-detail-back:hover{color:#1d6fd1;}
     .com-detail-post{padding:0;border-bottom:none;}
     .com-detail-post .com-post-text{font-size:15px;line-height:1.85;margin:8px 0 0;}
@@ -4021,6 +4024,7 @@ var WorkComments = ({ workId }) => {
     return el("div", { key: c.id },
       el("div", { style: { display: "flex", gap: 10, position: "relative", padding: "10px 0", borderBottom: depth === 0 ? "1px solid #f2f4f6" : "none" } },
         depth > 0 ? el("div", { style: { position: "absolute", left: -12, top: 2, width: 12, height: 22, borderLeft: "2px solid #e4e7eb", borderBottom: "2px solid #e4e7eb", borderBottomLeftRadius: 10 } }) : null,
+        kids.length ? el("div", { style: { position: "absolute", left: 13, top: 44, bottom: 0, width: 2, background: "#e4e7eb" } }) : null,
         el("div", { style: avStyle }, String((c.author || "同").slice(0, 1))),
         el("div", { style: { flex: 1, minWidth: 0 } },
           el("div", { style: { fontSize: 12, color: "#666", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
