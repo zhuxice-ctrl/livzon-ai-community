@@ -721,8 +721,8 @@ var ActivitiesSection = () => {
         var slides = [{ t: focus.tag || "本月特展", n: focus.name, m: "◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location), d: focus.desc, big: true }];
         (focus.highlights || []).forEach(function (x, xi) { slides.push({ t: "亮点 · 0" + (xi + 1), n: x, m: "", d: "", big: false }); });
         h += "<div class='act-carousel' id='actCarousel'>" + slides.map(function (s, si) {
-          var ph = si === 0 ? "<div class='act-feat-ph' aria-hidden='true'><i class='c1'></i><i class='c2'></i><i class='c3'></i><i class='c4'></i><span class='ph-t'>IMAGE · 图片占位</span></div>" : "";
-          return "<div class='act-slide" + (si === 0 ? " on has-ph" : "") + "'>" +
+          var ph = "<div class='act-feat-ph' aria-hidden='true'><i class='c1'></i><i class='c2'></i><i class='c3'></i><i class='c4'></i><span class='ph-t'>IMAGE · 图片占位</span></div>";
+          return "<div class='act-slide has-ph" + (si === 0 ? " on" : "") + "'>" +
             "<div class='act-slide-main'>" +
             "<span class='act-tagx' style='color:" + fc + "'>" + esc(s.t) + "</span>" +
             "<div class='act-slide-name" + (s.big ? " big" : "") + "'>" + esc(s.n) + "</div>" +
@@ -881,6 +881,36 @@ var ActivitiesSection = () => {
             var t = e.target && e.target.closest ? e.target.closest(".dot") : null;
             if (t) goSlide(parseInt(t.getAttribute("data-i"), 10) || 0);
           });
+          // v16: 拖拽滑动切换 + 左右方向键切换（仅当轮播大部分在视口内时接管按键）
+          if (slideEls.length > 1) {
+            var carDragging = false, carStartX = 0, carDx = 0, carMoved = false;
+            carEl.addEventListener("pointerdown", function (e) {
+              if (e.button !== undefined && e.button !== 0) return;
+              carDragging = true; carMoved = false; carStartX = e.clientX; carDx = 0;
+            });
+            carEl.addEventListener("pointermove", function (e) {
+              if (!carDragging) return;
+              carDx = e.clientX - carStartX;
+              if (Math.abs(carDx) > 8) carMoved = true;
+            });
+            var carEndDrag = function () {
+              if (!carDragging) return;
+              carDragging = false;
+              if (carMoved && Math.abs(carDx) > 50) goSlide(curSlide + (carDx < 0 ? 1 : -1));
+            };
+            carEl.addEventListener("pointerup", carEndDrag);
+            carEl.addEventListener("pointercancel", carEndDrag);
+            carEl.addEventListener("pointerleave", carEndDrag);
+            var onCarKey = function (e) {
+              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+              var r = carEl.getBoundingClientRect();
+              if (r.bottom < window.innerHeight * 0.25 || r.top > window.innerHeight * 0.75) return;
+              e.preventDefault();
+              goSlide(curSlide + (e.key === "ArrowRight" ? 1 : -1));
+            };
+            window.addEventListener("keydown", onCarKey);
+            uiCleanups.push(function () { window.removeEventListener("keydown", onCarKey); });
+          }
         }
         // 展线导航：点击平滑滚动 + 滚动高亮当前展厅
         var railEl = document.getElementById("actRail");
@@ -1900,7 +1930,8 @@ var ActivitiesSection = () => {
     .act-signup-btn:hover{background:#0f1c33;}
     .act-signup-btn:disabled{background:transparent;color:#aaa;border:1px solid #ddd;cursor:not-allowed;letter-spacing:1px;}
     /* 01 本月特展 · 轮播 */
-    .act-carousel{position:relative;overflow:hidden;border:1px solid rgba(0,0,0,0.08);background:#fff;}
+    .act-carousel{position:relative;overflow:hidden;border:1px solid rgba(0,0,0,0.08);background:#fff;min-height:384px;touch-action:pan-y;user-select:none;cursor:grab;}
+    .act-carousel:active{cursor:grabbing;}
     .act-slide{position:absolute;inset:0;padding:56px 64px;opacity:0;transform:translateX(28px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1);pointer-events:none;display:flex;flex-direction:column;justify-content:center;}
     .act-slide.on{position:relative;opacity:1;transform:none;pointer-events:auto;}
     .act-tagx{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;}
@@ -1921,7 +1952,7 @@ var ActivitiesSection = () => {
     .act-feat-ph i.c2{right:12px;top:12px;border-left:none;border-bottom:none;}
     .act-feat-ph i.c3{left:12px;bottom:12px;border-right:none;border-top:none;}
     .act-feat-ph i.c4{right:12px;bottom:12px;border-left:none;border-top:none;}
-    @media(max-width:900px){.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:100%;}}
+    @media(max-width:900px){.act-carousel{min-height:0;}.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:100%;}}
     /* 02 预约消息通知 · 编辑式日程表 */
     .act-sched{border-top:1px solid rgba(0,0,0,0.08);}
     .sk-row{border-bottom:1px solid rgba(0,0,0,0.08);}
@@ -2096,7 +2127,7 @@ var ActivitiesSection = () => {
       transform: scale(0.6) rotate(-2deg);
       transform-origin: bottom left;
       pointer-events: none;
-      transition: opacity 0.22s ease-out;
+      transition: opacity 0.34s ease-out, transform 0.34s cubic-bezier(.22,1,.36,1);
       filter: drop-shadow(3px 3px 0 rgba(28, 29, 32, 0.15));
     }
     .bubble-shape {
@@ -2128,7 +2159,7 @@ var ActivitiesSection = () => {
     }
     .title-bubble.hide {
       opacity: 0 !important;
-      transform: scale(0.8) rotate(-2deg) !important;
+      transform: scale(0.62) rotate(-5deg) !important;
       animation: none !important;
     }
     @keyframes bubblePop {
