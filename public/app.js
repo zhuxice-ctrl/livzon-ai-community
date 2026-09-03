@@ -640,6 +640,7 @@ var ActivitiesSection = () => {
   React.useEffect(() => {
     let cancelled = false;
     let engineCleanup = null;
+    var uiCleanups = [];
     const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
     const labelOf = function (k) { return { participants: "参与", works: "作品", inWall: "入墙", sessions: "场次", docs: "文档", teams: "小组", mvp: "MVP", production: "生产", speakers: "分享", avgMinutes: "分享均长" }[k] || k; };
     const statsHtml = function (stats) { return Object.keys(stats).map(function (k) { return "<div class='past-stat'><div class='n'>" + stats[k] + "</div><div class='l'>" + labelOf(k) + "</div></div>"; }).join(""); };
@@ -667,6 +668,13 @@ var ActivitiesSection = () => {
       });
     };
     window.actClose = function () { var el = document.getElementById("act-modal"); if (el) el.style.display = "none"; };
+    window.actSignup = function (url) {
+      if (!url) return;
+      fetch("/api/my/profile").then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.ok) { window.location.href = url; }
+        else { window.location.href = "/login.html"; }
+      }).catch(function () { window.location.href = "/login.html"; });
+    };
     fetch("/api/activities").then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(function (j) {
       if (!j.ok || cancelled || !ref.current) return;
       var data = j.data;
@@ -676,30 +684,345 @@ var ActivitiesSection = () => {
       var types = data.types || [];
       var h = "";
       h += "<div class='act-hero'><div class='act-eyebrow'>ACTIVITIES · 活动大厅</div><div class='act-title-wrap'><h1 class='act-title-lg' id='actPhysicsTitle' aria-label='玩出来的 AI'><!-- 字符由物理引擎注入 --></h1></div><p class='act-sub'>" + esc(data.motto || "") + "</p><div class='hero-hint' id='actHeroHint'><span><span class='hint-dot'></span>点击字符 · 让它掉下去</span><span><span class='hint-dot'></span>掉的过程中可以滚动页面 · 惯性不会被打断</span></div><button class='reset-btn' id='actResetBtn' type='button'>重置标题</button></div>";
-      // 本月焦点
-      h += "<div class='act-sechead'><span class='act-sectitle'>本月焦点</span><span class='act-secen'>SPOTLIGHT</span></div>";
+      var focusSignup = focus && focus.signup ? focus.signup : "";
+      var signupBtnHtml = function (url, cls, label) {
+        return url
+          ? "<button class='" + cls + "' onclick=\"window.actSignup&&window.actSignup('" + esc(url) + "')\">" + label + "</button>"
+          : "<button class='" + cls + "' disabled>联系群内报名</button>";
+      };
+      var dateNum = function (s) {
+        var m = String(s || "").match(/(\d{1,2})\s*月\s*(\d{1,2})/);
+        if (m) { var mo = m[1].length < 2 ? "0" + m[1] : m[1]; var dd = m[2].length < 2 ? "0" + m[2] : m[2]; return mo + "." + dd; }
+        m = String(s || "").match(/^(\d{4})-(\d{2})/);
+        if (m) return m[2] + "月";
+        return String(s || "");
+      };
+      var typeOfPast = function (a) {
+        if (a.type) return a.type;
+        var id = String(a.id || "");
+        if (/camp|train|boot/.test(id)) return "AI 训练营";
+        if (/salon/.test(id)) return "技术沙龙";
+        if (/clinic|project/.test(id)) return "项目实战";
+        if (/share|summer|winter|annual/.test(id)) return "内部分享";
+        return "";
+      };
+      // 展线导航（sticky 吸附）
+      h += "<nav class='act-rail' id='actRail'>" +
+        "<a href='#act-sec-feature' data-target='act-sec-feature' class='rail-link on'><span class='rail-no'>01</span><span>本月特展</span></a>" +
+        "<a href='#act-sec-upcoming' data-target='act-sec-upcoming' class='rail-link'><span class='rail-no'>02</span><span>即将开展</span></a>" +
+        "<a href='#act-sec-archive' data-target='act-sec-archive' class='rail-link'><span class='rail-no'>03</span><span>回顾展区</span></a>" +
+        "<a href='#act-sec-types' data-target='act-sec-types' class='rail-link'><span class='rail-no'>04</span><span>展馆地图</span></a>" +
+        "<a href='#act-sec-join' data-target='act-sec-join' class='rail-link'><span class='rail-no'>尾厅</span><span>参与方式</span></a>" +
+        "</nav>";
+      // 01 本月特展（浅色自动轮播：首页 + 亮点页）
+      h += "<div class='act-sechead' id='act-sec-feature'><span class='act-sectitle'>本月特展</span><span class='act-secen'>SPOTLIGHT</span></div>";
       if (focus) {
-        var fc = focus.color || "#5b8cff";
-        h += "<div class='act-focus'><span class='act-focusbar' style='background:" + fc + "'></span><div class='act-focus-in'><span class='act-focustag'>" + esc(focus.tag || "本月焦点") + "</span><div class='act-focusname'>" + esc(focus.name) + "</div><div class='act-focusmeta'>◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location) + "</div><p class='act-focusdesc'>" + esc(focus.desc) + "</p><div>" + (focus.highlights || []).map(function (x) { return "<span class='ftag'># " + esc(x) + "</span>"; }).join("") + "</div></div></div>";
+        var fc = focus.color || "#1a2b4a";
+        var slides = [{ t: focus.tag || "本月特展", n: focus.name, m: "◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location), d: focus.desc, big: true }];
+        (focus.highlights || []).forEach(function (x, xi) { slides.push({ t: "亮点 · 0" + (xi + 1), n: x, m: "", d: "", big: false }); });
+        h += "<div class='act-carousel' id='actCarousel'>" + slides.map(function (s, si) {
+          return "<div class='act-slide" + (si === 0 ? " on" : "") + "'>" +
+            "<span class='act-tagx' style='color:" + fc + "'>" + esc(s.t) + "</span>" +
+            "<div class='act-slide-name" + (s.big ? " big" : "") + "'>" + esc(s.n) + "</div>" +
+            (s.m ? "<div class='act-slide-meta'>" + s.m + "</div>" : "") +
+            (s.d ? "<p class='act-slide-desc'>" + esc(s.d) + "</p>" : "") +
+            "</div>";
+        }).join("") + "<div class='act-dots' id='actDots'>" + slides.map(function (s, si) { return "<span class='dot" + (si === 0 ? " on" : "") + "' data-i='" + si + "'></span>"; }).join("") + "</div></div>";
+        h += "<div class='act-feat-cta'><button class='act-signup-btn' onclick=\"window.actPanel&&window.actPanel('focus',0)\">去报名</button></div>";
       } else {
-        h += "<div class='act-focus'><div class='act-focus-in'><span class='act-focustag'>敬请期待</span><div class='act-focusname'>下一场活动筹备中</div><p class='act-focusdesc'>我们正在策划下一场深度活动。</p></div></div>";
+        h += "<div class='act-carousel'><div class='act-slide on'><span class='act-tagx'>敬请期待</span><div class='act-slide-name big'>下一场活动筹备中</div><p class='act-slide-desc'>我们正在策划下一场深度活动。</p></div></div>";
       }
-      // 接下来
-      h += "<div class='act-sechead'><span class='act-sectitle'>接下来</span><span class='act-secen'>UPCOMING</span></div>";
-      h += "<div class='act-upcoming'>" + upcoming.map(function (a) { return "<div class='tl-item'><div class='tl-dot' style='background:" + (a.color || "#5b8cff") + "'></div><div class='tl-month'>" + esc(a.dateLabel) + "</div><div class='tl-name'>" + esc(a.name) + "</div><span class='tl-tag'>" + esc(a.tag || "") + "</span><div class='tl-loc'>" + esc(a.location) + "</div></div>"; }).join("") + "</div>";
-      // 往期回顾
-      h += "<div class='act-sechead'><span class='act-sectitle'>往期回顾</span><span class='act-secen'>ARCHIVE · 点击查看回顾</span></div>";
-      h += "<div class='act-past'>" + past.map(function (a) {
-        var c = a.color || "#5b8cff";
-        return "<div class='past-card' style='--c:" + c + "' onclick=\"window.actOpen&&window.actOpen('" + a.id + "')\"><span class='past-bar' style='background:" + c + "'></span><div class='past-head'><span class='past-date'>" + esc(a.dateLabel) + "</span><span class='past-tag' style='color:" + c + "'>" + esc(a.tag || "已举办") + "</span></div><div class='past-name'>" + esc(a.name) + "</div><p class='past-summary'>" + esc(a.summary) + "</p>" + (a.stats ? "<div class='past-stats'>" + statsHtml(a.stats) + "</div>" : "") + "<span class='past-more'>查看回顾 →</span></div>";
+      // 02 即将开展（编辑式日程表：大日期 + 活动名 + 类型 + 细箭头）
+      h += "<div class='act-sechead' id='act-sec-upcoming'><span class='act-sectitle'>即将开展</span><span class='act-secen'>UPCOMING</span></div>";
+      h += "<div class='act-sched' id='actSched'>" + upcoming.map(function (a, ai) {
+        var su = a.signup || focusSignup;
+        var no = ai + 1 < 10 ? "0" + (ai + 1) : String(ai + 1);
+        return "<div class='sk-row' data-id='" + esc(a.id || "") + "'>" +
+          "<div class='sk-line'><span class='sk-no'>" + no + "</span><span class='sk-date'>" + esc(dateNum(a.dateLabel)) + "</span>" +
+          "<div class='sk-main'><div class='sk-name'>" + esc(a.name) + "</div><div class='sk-sub'>" + esc(a.dateLabel) + " · " + esc(a.location) + "</div></div>" +
+          "<span class='sk-type'>" + esc(a.tag || "") + "</span><span class='sk-arrow'>→</span></div>" +
+          "</div>";
       }).join("") + "</div>";
-      // 类型
-      h += "<div class='act-sechead'><span class='act-sectitle'>活动姿势</span><span class='act-secen'>OUR TYPES</span></div>";
-      h += "<div class='act-types'>" + types.map(function (t) { return "<div class='type-item'><div class='type-name'>" + esc(t.name) + "</div><div class='type-tagline'>" + esc(t.tagline) + "</div><div class='type-meta'>" + esc(t.cadence) + "<br/>" + esc(t.format) + "</div></div>"; }).join("") + "</div>";
-      // 参与方式
-      h += "<div class='act-join'><div class='act-eyebrow'>HOW TO JOIN</div><h3>怎么参加？</h3><p>在 AI 社团群里报名即可。每次活动提前 1 周在群内发布主题和时间，想分享的同学回复报名，想来听的同学直接来。</p></div>";
+      // 03 回顾展区（惯性拖拽展墙 + 聚光 + 类型筛选）
+      h += "<div class='act-sechead' id='act-sec-archive'><span class='act-sectitle'>回顾展区</span><span class='act-secen'>ARCHIVE · 按住拖拽 · 点击查看回顾</span></div>";
+      var typeNames = types.map(function (t) { return t.name; });
+      h += "<div class='arch-chips' id='archChips'><button class='chip on' data-f='全部'>全部</button>" + typeNames.map(function (n) { return "<button class='chip' data-f='" + esc(n) + "'>" + esc(n) + "</button>"; }).join("") + "</div>";
+      h += "<div class='arch-wall' id='archWall'><div class='arch-spot' id='archSpot'></div><div class='arch-track' id='archTrack'>" + past.map(function (a) {
+        return "<div class='arch-item' data-type='" + esc(typeOfPast(a)) + "' onclick=\"window.actPanel&&window.actPanel('past','" + a.id + "')\">" +
+          "<span class='past-date'>" + esc(a.dateLabel) + "</span>" +
+          "<div class='arch-name'>" + esc(a.name) + "</div>" +
+          "<p class='arch-summary'>" + esc(a.summary) + "</p>" +
+          (a.stats ? "<div class='past-stats'>" + statsHtml(a.stats) + "</div>" : "") +
+          "<span class='arch-more'>查看回顾 →</span></div>";
+      }).join("") + "</div></div>";
+      h += "<div class='arch-progress'><span id='archProgBar'></span></div>";
+      // 04 展馆地图（极简类型索引：大序号 + 类型名 + 细线；点击筛选回顾展墙）
+      h += "<div class='act-sechead' id='act-sec-types'><span class='act-sectitle'>展馆地图</span><span class='act-secen'>OUR TYPES · 点击筛选回顾展区</span></div>";
+      h += "<div class='act-types' id='actTypes'>" + types.map(function (t, ti) {
+        return "<div class='type-item' data-f='" + esc(t.name) + "' tabindex='0'>" +
+          "<div class='type-no'>" + (ti + 1 < 10 ? "0" + (ti + 1) : String(ti + 1)) + "</div>" +
+          "<div class='type-name'>" + esc(t.name) + "</div>" +
+          "<div class='type-tagline'>" + esc(t.tagline) + "</div>" +
+          "<div class='type-meta'>" + esc(t.cadence) + "<br/>" + esc(t.format) + "</div>" +
+          "<span class='type-line'></span></div>";
+      }).join("") + "</div>";
+      // 尾厅 · 参与方式
+      h += "<div class='act-join' id='act-sec-join'><div class='act-eyebrow'>HOW TO JOIN · 尾厅</div><h3>怎么参加？</h3><p>在 AI 社团群里报名即可。每次活动提前 1 周在群内发布主题和时间，想分享的同学回复报名，想来听的同学直接来。</p></div>";
       ref.current.innerHTML = h;
       window.actOpen = openReview;
+      // ===== 报名详情面板（v11）：所有活动入口点击统一打开 =====
+      try {
+        var panelRoot = document.createElement("div");
+        panelRoot.innerHTML = "<div class='act-p-mask'></div><aside class='act-panel' aria-hidden='true'><button class='act-p-close' aria-label='关闭'>×</button><div class='act-p-body'></div></aside>";
+        document.body.appendChild(panelRoot);
+        var panelEl = panelRoot.querySelector(".act-panel");
+        var maskEl = panelRoot.querySelector(".act-p-mask");
+        var pBodyEl = panelRoot.querySelector(".act-p-body");
+        var panelOpen = false, panelSaveOverflow = "";
+        var panelAct = function (kind, id) {
+          if (kind === "focus") return focus ? { a: focus, mode: "signup", st: "报名中" } : null;
+          var arr = kind === "past" ? past : upcoming;
+          for (var i = 0; i < arr.length; i++) {
+            if (String(arr[i].id) === String(id)) {
+              var a = arr[i];
+              if (kind === "past") return { a: a, mode: "past", st: "已结束" };
+              return { a: a, mode: "signup", st: a.signup ? "报名中" : "预约中" };
+            }
+          }
+          return arr.length ? { a: arr[0], mode: "signup", st: "预约中" } : null;
+        };
+        var metaCell = function (k, v) { return "<div class='act-p-meta'><span class='k'>" + k + "</span><span class='v'>" + esc(v || "—") + "</span></div>"; };
+        var openPanel = function (kind, id) {
+          var o = panelAct(kind, id);
+          if (!o || !pBodyEl) return;
+          var a = o.a, pastMode = o.mode === "past";
+          var hl = "";
+          if (pastMode) {
+            if (a.stats && Object.keys(a.stats).length) hl = "<div class='act-p-hl-head'>数据沉淀</div><div class='past-stats'>" + statsHtml(a.stats) + "</div>";
+            if (a.artifacts && a.artifacts.length) hl += "<div class='act-p-hl-head'>产出与回顾</div><ul class='act-p-hl'>" + a.artifacts.map(function (art) {
+              return "<li><span class='no'>·</span>" + esc(art.type) + (art.count ? " × " + art.count : "") + (art.note ? " — " + esc(art.note) : "") + "</li>";
+            }).join("") + "</ul>";
+          } else if (kind === "focus" && a.highlights && a.highlights.length) {
+            hl = "<ul class='act-p-hl'>" + a.highlights.map(function (t, i) {
+              var no = i + 1 < 10 ? "0" + (i + 1) : String(i + 1);
+              return "<li><span class='no'>" + no + "</span>" + esc(t) + "</li>";
+            }).join("") + "</ul>";
+          }
+          var lower = pastMode
+            ? "<div class='act-p-ended'><p>该活动已结束</p><a class='act-p-wall' href='/'>前往作品墙 →</a></div>"
+            : "<form class='act-p-form'>" +
+              "<div class='act-p-fhead'><span class='t'>SIGN UP · 报名表</span><span class='en'>REGISTRATION</span></div>" +
+              "<div class='act-p-field'><label>姓名 *</label><input required name='name' type='text' autocomplete='name' placeholder='请输入姓名'></div>" +
+              "<div class='act-p-field'><label>部门</label><input name='dept' type='text' placeholder='所在部门（选填）'></div>" +
+              "<div class='act-p-field'><label>联系方式</label><input name='contact' type='text' placeholder='手机 / 飞书（选填）'></div>" +
+              "<div class='act-p-field'><label>参与期待</label><textarea name='note' rows='3' placeholder='想听什么 / 想聊什么（选填）'></textarea></div>" +
+              "<button type='submit' class='act-p-submit'>确认报名 →</button>" +
+              "<p class='act-p-tip'>提交后即视为报名成功，活动前 1 天在群内通知</p>" +
+              "</form>";
+          pBodyEl.innerHTML =
+            "<div class='act-p-eyebrow'>" + (pastMode ? "REVIEW · 往期回顾" : "SIGN UP · 活动详情") + "</div>" +
+            "<h3 class='act-p-title'>" + esc(a.name || "") + "</h3>" +
+            "<div class='act-p-grid'>" + metaCell("时间", a.dateLabel) + metaCell("地点", a.location) + metaCell("类型", a.tag || typeOfPast(a)) + metaCell("状态", o.st) + "</div>" +
+            (a.desc || a.summary ? "<p class='act-p-desc'>" + esc(a.desc || a.summary) + "</p>" : "") +
+            hl + lower;
+          if (!pastMode) {
+            var f = pBodyEl.querySelector(".act-p-form");
+            if (f) f.addEventListener("submit", function (e) {
+              e.preventDefault();
+              var nm = f.querySelector("[name=name]");
+              if (!nm || !String(nm.value).trim()) { if (nm) { nm.classList.add("err"); nm.focus(); } return; }
+              // TODO: 后端接口 POST /api/activities/:id/signup {name,dept,contact,note}（当前前端演示态）
+              pBodyEl.innerHTML = "<div class='act-p-done'><div class='ring'>✓</div><p class='t'>已收到您的" + (a.signup ? "报名" : "预约") + "</p><p class='s'>" + esc(a.name || "") + "</p></div>";
+              setTimeout(function () { if (panelOpen) closePanel(); }, 1400);
+            });
+          }
+          panelEl.classList.add("open"); maskEl.classList.add("open");
+          panelEl.setAttribute("aria-hidden", "false");
+          panelOpen = true;
+          panelSaveOverflow = document.body.style.overflow;
+          document.body.style.overflow = "hidden";
+        };
+        var closePanel = function () {
+          panelEl.classList.remove("open"); maskEl.classList.remove("open");
+          panelEl.setAttribute("aria-hidden", "true");
+          panelOpen = false;
+          document.body.style.overflow = panelSaveOverflow;
+        };
+        maskEl.addEventListener("click", closePanel);
+        panelRoot.querySelector(".act-p-close").addEventListener("click", closePanel);
+        var onPanelKey = function (e) { if (e.key === "Escape" && panelOpen) closePanel(); };
+        window.addEventListener("keydown", onPanelKey);
+        uiCleanups.push(function () {
+          window.removeEventListener("keydown", onPanelKey);
+          if (panelRoot.parentNode) panelRoot.parentNode.removeChild(panelRoot);
+          document.body.style.overflow = panelSaveOverflow;
+        });
+        window.actPanel = openPanel;
+      } catch (pErr) { /* 面板构建异常不阻断主渲染与物理引擎 */ }
+      // ===== v10 交互层（轮播 / 展线高亮 / 日程展开 / 拖拽展墙 / 聚光 / 筛选 / 渐显）=====
+      try {
+        var prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        // 01 轮播：5s 自动 + 点 dot 跳转
+        var carEl = document.getElementById("actCarousel");
+        var dotsEl = document.getElementById("actDots");
+        if (carEl) {
+          var slideEls = Array.prototype.slice.call(carEl.children).filter(function (n) { return n.classList && n.classList.contains("act-slide"); });
+          var curSlide = 0;
+          var goSlide = function (i) {
+            if (!slideEls.length) return;
+            curSlide = (i + slideEls.length) % slideEls.length;
+            slideEls.forEach(function (s, si) { s.classList.toggle("on", si === curSlide); });
+            if (dotsEl) Array.prototype.forEach.call(dotsEl.children, function (d, di) { d.classList.toggle("on", di === curSlide); });
+          };
+          if (!prefersReduced && slideEls.length > 1) {
+            var carTimer = setInterval(function () { if (!cancelled) goSlide(curSlide + 1); }, 5000);
+            uiCleanups.push(function () { clearInterval(carTimer); });
+          }
+          if (dotsEl) dotsEl.addEventListener("click", function (e) {
+            var t = e.target && e.target.closest ? e.target.closest(".dot") : null;
+            if (t) goSlide(parseInt(t.getAttribute("data-i"), 10) || 0);
+          });
+          slideEls.forEach(function (s) { s.addEventListener("click", function (e) {
+            if (e.target && e.target.closest && e.target.closest("button,.act-dots,.dot")) return;
+            if (window.actPanel) window.actPanel("focus", 0);
+          }); });
+        }
+        // 展线导航：点击平滑滚动 + 滚动高亮当前展厅
+        var railEl = document.getElementById("actRail");
+        var railSecIds = ["act-sec-feature", "act-sec-upcoming", "act-sec-archive", "act-sec-types", "act-sec-join"];
+        var railLinks = railEl ? Array.prototype.slice.call(railEl.querySelectorAll(".rail-link")) : [];
+        if (railEl) railEl.addEventListener("click", function (e) {
+          var a = e.target && e.target.closest ? e.target.closest(".rail-link") : null;
+          if (!a) return;
+          var el = document.getElementById(a.getAttribute("data-target") || "");
+          if (!el) return;
+          e.preventDefault();
+          el.scrollIntoView({ behavior: prefersReduced ? "auto" : "smooth" });
+        });
+        var onRailScroll = function () {
+          var best = -1;
+          railSecIds.forEach(function (id, i) {
+            var el = document.getElementById(id);
+            if (el && el.getBoundingClientRect().top < window.innerHeight * 0.45) best = i;
+          });
+          railLinks.forEach(function (l, i) { l.classList.toggle("on", i === best); });
+        };
+        window.addEventListener("scroll", onRailScroll, { passive: true });
+        uiCleanups.push(function () { window.removeEventListener("scroll", onRailScroll); });
+        onRailScroll();
+        // 02 日程行点击 → 详情报名面板
+        var schedEl = document.getElementById("actSched");
+        if (schedEl) schedEl.addEventListener("click", function (e) {
+          if (e.target && e.target.closest && e.target.closest("button")) return;
+          var row = e.target.closest(".sk-row");
+          if (!row) return;
+          if (window.actPanel) window.actPanel("upcoming", row.getAttribute("data-id") || "");
+        });
+        // 03 拖拽展墙：惯性 + 边界回弹 + 聚光 + 进度尺
+        var wall = document.getElementById("archWall");
+        var track = document.getElementById("archTrack");
+        var spot = document.getElementById("archSpot");
+        var progBar = document.getElementById("archProgBar");
+        var wallX = 0; var setWallX = null;
+        var applyFilter = function (f) {
+          if (!track) return;
+          Array.prototype.forEach.call(track.children, function (it) {
+            it.style.display = (f === "全部" || it.getAttribute("data-type") === f) ? "" : "none";
+          });
+          wallX = 0; if (setWallX) setWallX(0);
+        };
+        var chipsEl = document.getElementById("archChips");
+        if (chipsEl) chipsEl.addEventListener("click", function (e) {
+          var b = e.target && e.target.closest ? e.target.closest(".chip") : null;
+          if (!b) return;
+          Array.prototype.forEach.call(chipsEl.children, function (c) { c.classList.remove("on"); });
+          b.classList.add("on");
+          applyFilter(b.getAttribute("data-f"));
+        });
+        var typesEl = document.getElementById("actTypes");
+        if (typesEl) typesEl.addEventListener("click", function (e) {
+          var it = e.target && e.target.closest ? e.target.closest(".type-item") : null;
+          if (!it) return;
+          var f = it.getAttribute("data-f");
+          var wasSel = it.classList.contains("sel");
+          Array.prototype.forEach.call(typesEl.children, function (c) { c.classList.remove("sel"); });
+          if (chipsEl) Array.prototype.forEach.call(chipsEl.children, function (c) { c.classList.toggle("on", c.getAttribute("data-f") === (wasSel ? "全部" : f)); });
+          applyFilter(wasSel ? "全部" : f);
+          var arc = document.getElementById("act-sec-archive");
+          if (arc && arc.scrollIntoView) arc.scrollIntoView({ behavior: prefersReduced ? "auto" : "smooth" });
+        });
+        if (wall && track) {
+          var wallMaxX = function () { return Math.max(0, track.scrollWidth - wall.clientWidth); };
+          setWallX = function (v) {
+            wallX = Math.max(-90, Math.min(v, wallMaxX() + 90));
+            track.style.transform = "translateX(" + (-wallX) + "px)";
+            if (progBar && wallMaxX() > 0) progBar.style.width = Math.min(100, wallX / wallMaxX() * 100) + "%";
+          };
+          if (prefersReduced) {
+            wall.style.overflowX = "auto";
+          } else {
+            var dragging = false, lastPX = 0, movedPx = 0, vTrack = 0, wallRaf = null;
+            var wallTick = function () {
+              if (cancelled) return;
+              if (!dragging) {
+                if (wallX < 0) { wallX += (0 - wallX) * 0.18; }
+                else if (wallX > wallMaxX()) { wallX += (wallMaxX() - wallX) * 0.18; }
+                else if (Math.abs(vTrack) > 0.1) { wallX += vTrack; vTrack *= 0.94; }
+                else { wallRaf = null; }
+                setWallX(wallX);
+                if (!wallRaf && (Math.abs(vTrack) > 0.1 || wallX < 0 || wallX > wallMaxX())) wallRaf = requestAnimationFrame(wallTick);
+              } else { wallRaf = null; }
+            };
+            wall.addEventListener("pointerdown", function (e) {
+              dragging = true; movedPx = 0; lastPX = e.clientX; vTrack = 0;
+              if (wall.setPointerCapture) { try { wall.setPointerCapture(e.pointerId); } catch (err2) {} }
+              if (wallRaf) { cancelAnimationFrame(wallRaf); wallRaf = null; }
+            });
+            wall.addEventListener("pointermove", function (e) {
+              if (!dragging) return;
+              var dx = e.clientX - lastPX; lastPX = e.clientX; movedPx += Math.abs(dx);
+              vTrack = dx; setWallX(wallX - dx);
+            });
+            var endWallDrag = function () {
+              if (!dragging) return;
+              dragging = false;
+              if (movedPx < 6) { vTrack = 0; setWallX(wallX); }
+              if (!wallRaf) wallRaf = requestAnimationFrame(wallTick);
+            };
+            wall.addEventListener("pointerup", endWallDrag);
+            wall.addEventListener("pointercancel", endWallDrag);
+            wall.addEventListener("click", function (e) { if (movedPx > 6) { e.preventDefault(); e.stopPropagation(); } }, true);
+            wallRaf = requestAnimationFrame(wallTick);
+            uiCleanups.push(function () { if (wallRaf) cancelAnimationFrame(wallRaf); });
+          }
+          if (spot && !prefersReduced) {
+            wall.addEventListener("mousemove", function (e) {
+              var r = wall.getBoundingClientRect();
+              spot.style.opacity = "1";
+              spot.style.left = (e.clientX - r.left - 240) + "px";
+              spot.style.top = (e.clientY - r.top - 240) + "px";
+            });
+            wall.addEventListener("mouseleave", function () { spot.style.opacity = "0"; });
+          }
+          wall.addEventListener("wheel", function (e) {
+            if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && wallMaxX() > 0) {
+              setWallX(wallX + e.deltaY);
+              e.preventDefault();
+            }
+          }, { passive: false });
+          setWallX(0);
+        }
+        // 渐显入场
+        if (!prefersReduced && "IntersectionObserver" in window && ref.current) {
+          var fuEls = ref.current.querySelectorAll(".act-sechead,.act-carousel,.sk-row,.arch-item,.type-item,.act-join");
+          Array.prototype.forEach.call(fuEls, function (el) { el.classList.add("fadeup"); });
+          var fuIO = new IntersectionObserver(function (ents) {
+            ents.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); fuIO.unobserve(en.target); } });
+          }, { threshold: 0.12 });
+          Array.prototype.forEach.call(fuEls, function (el) { fuIO.observe(el); });
+          uiCleanups.push(function () { fuIO.disconnect(); });
+        }
+      } catch (uiErr) { /* 交互层异常不阻断内容渲染与物理引擎 */ }
       // ===== v3 物理引擎（恢复版）：视口跟随地面 + 页脚上限 + 字符互撞 + 抓取投掷 + 回正 =====
       var titleContainerOuter = document.getElementById('actPhysicsTitle');
       var resetBtnEl = document.getElementById('actResetBtn');
@@ -1497,7 +1820,7 @@ var ActivitiesSection = () => {
         init();
       }
     }).catch(function () {});
-    return function () { cancelled = true; if (engineCleanup) { engineCleanup(); engineCleanup = null; } };
+    return function () { cancelled = true; if (engineCleanup) { engineCleanup(); engineCleanup = null; } uiCleanups.forEach(function (fn) { try { fn(); } catch (e) {} }); };
   }, []);
   return React.createElement("section", { className: "page-section", style: { background: "#f8f8f6", color: "#1a1a1f", padding: "140px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
     .act-hero .act-eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:3px;color:#999;margin-bottom:16px;font-weight:400;}
@@ -1510,48 +1833,139 @@ var ActivitiesSection = () => {
     .act-title-bubble path{fill:#fff;stroke:#1a1a1f;stroke-width:3;stroke-linejoin:round;stroke-linecap:round;}
     .act-title-bubble span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 24px 12px;white-space:nowrap;}
     .act-sub{margin-top:20px;color:#666;font-size:15px;line-height:1.9;max-width:560px;}
-    .act-sechead{display:flex;align-items:baseline;gap:14px;margin:60px 0 22px;}
-    .act-sectitle{font-family:'Noto Serif SC',serif;font-size:22px;font-weight:500;letter-spacing:2px;}
+    /* ===== v10 活动大厅（低调大气版）===== */
+    .act-hero{min-height:calc(100vh - 260px);display:flex;flex-direction:column;justify-content:center;}
+    .act-rail{position:sticky;top:70px;z-index:40;display:flex;gap:36px;align-items:center;padding:18px 0 16px;background:rgba(248,248,246,0.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(0,0,0,0.06);}
+    .rail-link{display:inline-flex;align-items:baseline;gap:8px;font-size:12px;letter-spacing:2px;color:#999;text-decoration:none;transition:color .5s cubic-bezier(.22,1,.36,1);position:relative;padding-bottom:14px;}
+    .rail-link .rail-no{font-family:'JetBrains Mono',monospace;font-size:10px;color:#bbb;}
+    .rail-link.on{color:#111;}
+    .rail-link.on .rail-no{color:#1a2b4a;}
+    .rail-link::after{content:"";position:absolute;left:0;right:100%;bottom:0;height:1px;background:#1a2b4a;transition:right .6s cubic-bezier(.22,1,.36,1);}
+    .rail-link.on::after{right:0;}
+    .act-sechead{display:flex;align-items:baseline;gap:14px;margin:84px 0 30px;scroll-margin-top:150px;}
+    .act-sectitle{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:400;letter-spacing:3px;}
     .act-secen{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#aaa;}
-    .act-focus{background:#1a1a1f;color:#fff;border-radius:8px;overflow:hidden;position:relative;display:flex;}
-    .act-focusbar{width:4px;flex:0 0 4px;}
-    .act-focus-in{padding:40px 44px;}
-    .act-focustag{display:inline-block;font-size:11px;letter-spacing:2px;color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.25);padding:3px 10px;border-radius:2px;margin-bottom:18px;font-weight:500;}
-    .act-focusname{font-family:'Noto Serif SC',serif;font-size:28px;font-weight:300;letter-spacing:1px;margin-bottom:14px;}
-    .act-focusmeta{font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:18px;}
-    .act-focusdesc{color:rgba(255,255,255,0.72);font-size:14px;line-height:1.9;max-width:720px;margin-bottom:20px;}
-    .ftag{font-size:11px;color:rgba(255,255,255,0.65);background:rgba(255,255,255,0.08);padding:4px 10px;border-radius:2px;margin-right:8px;}
-    .act-upcoming{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
-    @media(max-width:900px){.act-upcoming{grid-template-columns:repeat(2,1fr);}}
-    .tl-item{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:6px;padding:22px;min-height:150px;}
-    .tl-dot{width:8px;height:8px;border-radius:50%;margin-bottom:14px;}
-    .tl-month{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;color:#aaa;margin-bottom:6px;}
-    .tl-name{font-size:16px;font-weight:600;color:#1a1a1f;margin-bottom:10px;line-height:1.4;}
-    .tl-tag{font-size:11px;color:#888;border:1px solid rgba(0,0,0,0.12);padding:2px 9px;border-radius:2px;display:inline-block;margin-bottom:12px;}
-    .tl-loc{font-size:11px;color:#999;font-family:'JetBrains Mono',monospace;}
-    .act-past{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;}
-    .past-card{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:8px;padding:28px 30px;cursor:pointer;position:relative;overflow:hidden;transition:transform .3s ease,box-shadow .3s ease;}
-    .past-card:hover{transform:translateY(-4px);box-shadow:0 20px 50px rgba(0,0,0,0.08);}
-    .past-bar{position:absolute;left:0;top:0;bottom:0;width:4px;}
-    .past-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+    .act-signup-btn{display:inline-block;font-size:13px;letter-spacing:2px;padding:12px 32px;border-radius:2px;border:none;background:#1a2b4a;color:#fff;font-weight:500;cursor:pointer;transition:background .4s cubic-bezier(.22,1,.36,1);}
+    .act-signup-btn:hover{background:#0f1c33;}
+    .act-signup-btn:disabled{background:transparent;color:#aaa;border:1px solid #ddd;cursor:not-allowed;letter-spacing:1px;}
+    /* 01 本月特展 · 轮播 */
+    .act-carousel{position:relative;overflow:hidden;border:1px solid rgba(0,0,0,0.08);background:#fff;}
+    .act-slide{position:absolute;inset:0;padding:56px 64px;opacity:0;transform:translateX(28px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1);pointer-events:none;display:flex;flex-direction:column;justify-content:center;}
+    .act-slide.on{position:relative;opacity:1;transform:none;pointer-events:auto;}
+    .act-tagx{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;}
+    .act-slide-name{font-family:'Noto Serif SC',serif;font-size:22px;font-weight:400;letter-spacing:1px;margin:14px 0 10px;color:#111;}
+    .act-slide-name.big{font-size:40px;letter-spacing:2px;}
+    .act-slide-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:#999;margin-bottom:16px;}
+    .act-slide-desc{font-size:14px;color:#666;line-height:1.9;max-width:720px;}
+    .act-dots{position:absolute;right:28px;bottom:22px;display:flex;gap:8px;}
+    .act-dots .dot{width:22px;height:2px;background:#ddd;cursor:pointer;transition:background .4s;}
+    .act-dots .dot.on{background:#1a2b4a;}
+    .act-feat-cta{margin-top:20px;text-align:right;}
+    /* 02 即将开展 · 编辑式日程表 */
+    .act-sched{border-top:1px solid rgba(0,0,0,0.08);}
+    .sk-row{border-bottom:1px solid rgba(0,0,0,0.08);}
+    .sk-line{display:flex;align-items:baseline;gap:32px;padding:34px 8px 34px 0;cursor:pointer;transition:background .6s cubic-bezier(.22,1,.36,1);}
+    .sk-row:hover .sk-line{background:rgba(26,43,74,0.025);}
+    .sk-no{font-family:'JetBrains Mono',monospace;font-size:10px;color:#ccc;letter-spacing:1px;}
+    .sk-date{font-family:'Noto Serif SC',serif;font-size:46px;font-weight:300;color:#111;min-width:130px;line-height:1;letter-spacing:1px;}
+    .sk-main{flex:1;min-width:0;}
+    .sk-name{font-size:19px;font-weight:500;color:#1a1a1f;letter-spacing:1px;}
+    .sk-sub{font-size:12px;color:#999;margin-top:8px;font-family:'JetBrains Mono',monospace;letter-spacing:1px;}
+    .sk-type{font-size:11px;letter-spacing:3px;color:#999;text-transform:uppercase;white-space:nowrap;}
+    .sk-arrow{font-size:18px;color:#bbb;transition:transform .6s cubic-bezier(.22,1,.36,1),color .6s;}
+    .sk-row:hover .sk-arrow{transform:translateX(8px);color:#1a2b4a;}
+    .sk-detail{max-height:0;overflow:hidden;transition:max-height .7s cubic-bezier(.22,1,.36,1);}
+    .sk-row[data-open='1'] .sk-detail{max-height:260px;}
+    .sk-detail p{font-size:14px;color:#666;line-height:1.9;max-width:760px;margin:0 0 18px 162px;}
+    .sk-detail .sk-signup{margin:0 0 30px 162px;display:inline-block;font-size:12px;letter-spacing:2px;padding:9px 26px;border-radius:2px;border:1px solid #1a2b4a;color:#1a2b4a;background:transparent;cursor:pointer;transition:background .4s,color .4s;}
+    .sk-detail .sk-signup:hover{background:#1a2b4a;color:#fff;}
+    .sk-detail .sk-signup:disabled{border-color:#ddd;color:#bbb;cursor:not-allowed;}
+    @media(max-width:900px){.sk-date{font-size:30px;min-width:86px;}.sk-line{gap:16px;flex-wrap:wrap;}.sk-detail p,.sk-detail .sk-signup{margin-left:0;}}
+    /* 03 回顾展区 · 拖拽展墙 */
+    .arch-chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;}
+    .arch-chips .chip{font-size:11px;letter-spacing:2px;padding:7px 18px;border:1px solid rgba(0,0,0,0.14);background:transparent;color:#888;cursor:pointer;border-radius:2px;transition:all .5s cubic-bezier(.22,1,.36,1);}
+    .arch-chips .chip.on{border-color:#1a2b4a;color:#1a2b4a;background:rgba(26,43,74,0.04);}
+    .arch-wall{position:relative;overflow:hidden;border:1px solid rgba(0,0,0,0.08);background:#fff;cursor:grab;touch-action:pan-y;user-select:none;}
+    .arch-wall:active{cursor:grabbing;}
+    .arch-track{display:flex;will-change:transform;}
+    .arch-item{flex:0 0 min(560px,86vw);padding:52px 48px;border-right:1px solid rgba(0,0,0,0.06);cursor:pointer;transition:background .6s cubic-bezier(.22,1,.36,1);}
+    .arch-item:hover{background:rgba(26,43,74,0.03);}
+    .arch-name{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:400;letter-spacing:1px;color:#111;margin:12px 0 14px;}
+    .arch-summary{font-size:13px;color:#666;line-height:1.9;max-width:440px;}
+    .arch-more{display:inline-block;font-size:12px;letter-spacing:2px;color:#1a2b4a;margin-top:20px;}
+    .arch-spot{position:absolute;width:480px;height:480px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .6s;background:radial-gradient(circle,rgba(26,43,74,0.06) 0%,rgba(26,43,74,0.02) 40%,transparent 70%);z-index:2;}
+    .arch-progress{height:1px;background:rgba(0,0,0,0.08);margin-top:18px;}
+    .arch-progress span{display:block;height:1px;width:0;background:#1a2b4a;transition:width .2s;}
     .past-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:#aaa;letter-spacing:2px;}
-    .past-tag{font-size:11px;letter-spacing:1px;padding:2px 10px;border-radius:2px;background:rgba(0,0,0,0.03);}
-    .past-name{font-family:'Noto Serif SC',serif;font-size:18px;font-weight:500;margin-bottom:10px;}
-    .past-summary{font-size:13px;color:#666;line-height:1.8;margin-bottom:14px;}
-    .past-stats{display:flex;gap:22px;margin-bottom:14px;}
+    .past-stats{display:flex;gap:22px;margin-top:14px;}
     .past-stat .n{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#1a1a1f;line-height:1;}
     .past-stat .l{font-size:10px;color:#aaa;letter-spacing:1px;margin-top:4px;}
-    .past-more{font-size:12px;color:#5b8cff;letter-spacing:1px;}
-    .act-types{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
-    @media(max-width:900px){.act-types{grid-template-columns:repeat(2,1fr);}}
-    .type-item{background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:6px;padding:24px;}
-    .type-name{font-size:16px;font-weight:600;margin-bottom:6px;}
-    .type-tagline{font-size:12px;color:#999;margin-bottom:14px;}
-    .type-meta{font-size:11px;color:#aaa;font-family:'JetBrains Mono',monospace;line-height:1.9;}
-    .act-join{background:#1a1a1f;color:#fff;border-radius:8px;padding:48px;text-align:center;margin-top:60px;}
+    /* 04 展馆地图 · 极简索引 */
+    .act-types{display:grid;grid-template-columns:repeat(4,1fr);gap:48px;}
+    .type-item{cursor:pointer;outline:none;}
+    .type-no{font-family:'Noto Serif SC',serif;font-size:64px;font-weight:300;color:#e2e2df;line-height:1;transition:color .6s cubic-bezier(.22,1,.36,1);}
+    .type-item:hover .type-no,.type-item.sel .type-no{color:#1a2b4a;}
+    .type-name{font-size:18px;font-weight:500;color:#111;margin:18px 0 8px;letter-spacing:1px;}
+    .type-tagline{font-size:12px;color:#999;line-height:1.8;margin-bottom:14px;}
+    .type-meta{font-size:11px;color:#aaa;font-family:'JetBrains Mono',monospace;line-height:1.9;letter-spacing:1px;}
+    .type-line{display:block;height:1px;width:40px;background:#1a2b4a;margin-top:18px;transform-origin:left;transition:transform .6s cubic-bezier(.22,1,.36,1);}
+    .type-item:hover .type-line{transform:scaleX(4);}
+    .type-item.sel .type-line{transform:scaleX(4);height:2px;}
+    @media(max-width:1100px){.act-types{grid-template-columns:repeat(2,1fr);gap:36px 48px;}}
+    @media(max-width:600px){.act-types{grid-template-columns:1fr;}}
+    /* 尾厅 */
+    .act-join{background:#1a2b4a;color:#fff;border-radius:2px;padding:72px 48px;text-align:center;margin-top:100px;}
     .act-join .act-eyebrow{color:rgba(255,255,255,0.4);margin-bottom:16px;}
-    .act-join h3{font-family:'Noto Serif SC',serif;font-size:30px;font-weight:300;letter-spacing:2px;margin:0 0 24px;}
-    .act-join p{font-size:14px;color:rgba(255,255,255,0.6);line-height:2;max-width:600px;margin:0 auto;}
+    .act-join h3{font-family:'Noto Serif SC',serif;font-size:30px;font-weight:300;letter-spacing:3px;margin:0 0 24px;}
+    .act-join p{font-size:14px;color:rgba(255,255,255,0.65);line-height:2;max-width:600px;margin:0 auto;}
+    /* 渐显入场 */
+    .fadeup{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.22,1,.36,1),transform .8s cubic-bezier(.22,1,.36,1);}
+    .fadeup.in{opacity:1;transform:none;}
+    /* ===== 报名详情面板（v11）===== */
+    .sk-row{cursor:pointer;}
+    .act-slide{cursor:pointer;}
+    .act-p-mask{position:fixed;inset:0;background:rgba(17,17,17,0.32);opacity:0;pointer-events:none;transition:opacity .5s ease;z-index:1200;}
+    .act-p-mask.open{opacity:1;pointer-events:auto;}
+    .act-panel{position:fixed;top:0;right:0;bottom:0;width:min(520px,92vw);background:#fafaf8;border-left:1px solid #e8e8e4;z-index:1201;transform:translateX(100%);transition:transform .7s cubic-bezier(.22,1,.36,1);overflow-y:auto;overscroll-behavior:contain;}
+    .act-panel.open{transform:translateX(0);}
+    .act-p-body{padding:64px 48px 56px;}
+    .act-p-close{position:absolute;top:18px;right:22px;width:36px;height:36px;border:1px solid #e2e2df;background:transparent;border-radius:50%;font-size:16px;line-height:36px;color:#888;cursor:pointer;transition:color .3s,border-color .3s,transform .3s;}
+    .act-p-close:hover{color:#111;border-color:#111;transform:rotate(90deg);}
+    .act-p-eyebrow{font-size:11px;letter-spacing:3px;color:#999;margin-bottom:14px;}
+    .act-p-title{font-family:'Noto Serif SC',serif;font-size:30px;font-weight:300;letter-spacing:2px;line-height:1.4;margin:0 0 26px;color:#111;}
+    .act-p-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #eee;border-left:1px solid #eee;margin-bottom:26px;}
+    .act-p-meta{padding:14px 16px;border-right:1px solid #eee;border-bottom:1px solid #eee;}
+    .act-p-meta .k{display:block;font-size:10px;letter-spacing:2px;color:#999;margin-bottom:6px;}
+    .act-p-meta .v{font-size:13px;color:#111;line-height:1.6;}
+    .act-p-desc{font-size:14px;color:#666;line-height:2;margin:0 0 26px;}
+    .act-p-hl-head{font-size:10px;letter-spacing:2px;color:#999;margin:22px 0 12px;padding-left:12px;border-left:2px solid #1a2b4a;line-height:1.4;}
+    .act-p-hl{list-style:none;margin:0;padding:0;}
+    .act-p-hl li{display:flex;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid #f0f0ec;font-size:13px;color:#555;line-height:1.8;}
+    .act-p-hl .no{font-family:'Noto Serif SC',serif;font-size:15px;color:#1a2b4a;flex:0 0 auto;}
+    .act-p-form{margin-top:34px;padding-top:30px;border-top:1px solid #eee;}
+    .act-p-fhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+    .act-p-fhead .t{font-size:11px;letter-spacing:3px;color:#111;}
+    .act-p-fhead .en{font-size:10px;letter-spacing:2px;color:#ccc;}
+    .act-p-field{display:flex;flex-direction:column;gap:8px;margin:20px 0;}
+    .act-p-field label{font-size:11px;letter-spacing:2px;color:#999;}
+    .act-p-field input,.act-p-field textarea{border:none;border-bottom:1px solid #ddd;background:transparent;padding:8px 2px;font-size:14px;color:#111;font-family:inherit;outline:none;transition:border-color .4s;resize:vertical;}
+    .act-p-field input:focus,.act-p-field textarea:focus{border-bottom-color:#1a2b4a;}
+    .act-p-field input.err{border-bottom-color:#c0564f;}
+    .act-p-submit{margin-top:10px;width:100%;background:#1a2b4a;color:#fff;border:none;padding:14px;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:2px;font-family:inherit;transition:background .4s;}
+    .act-p-submit:hover{background:#22395f;}
+    .act-p-tip{font-size:11px;color:#aaa;letter-spacing:1px;margin-top:12px;text-align:center;}
+    .act-p-ended{text-align:center;padding:40px 0 20px;}
+    .act-p-ended p{font-size:14px;color:#888;letter-spacing:2px;margin:0 0 22px;}
+    .act-p-wall{display:inline-block;border:1px solid #1a2b4a;color:#1a2b4a;text-decoration:none;font-size:12px;letter-spacing:3px;padding:10px 28px;border-radius:2px;transition:background .4s,color .4s;}
+    .act-p-wall:hover{background:#1a2b4a;color:#fff;}
+    .act-p-done{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:90px 0;text-align:center;animation:actPDone .6s ease-out;}
+    .act-p-done .ring{width:64px;height:64px;border:1px solid #1a2b4a;border-radius:50%;color:#1a2b4a;font-size:26px;line-height:64px;transform:rotate(-8deg);}
+    .act-p-done .t{font-family:'Noto Serif SC',serif;font-size:20px;font-weight:300;letter-spacing:3px;color:#111;margin:22px 0 8px;}
+    .act-p-done .s{font-size:12px;color:#999;margin:0;letter-spacing:1px;}
+    @keyframes actPDone{from{opacity:0;transform:scale(0.92);}to{opacity:1;transform:scale(1);}}
+    @media (prefers-reduced-motion: reduce){.act-panel,.act-p-mask{transition:none;}.act-p-done{animation:none;}.act-p-close{transition:none;}}
+    @media(max-width:600px){.act-p-body{padding:56px 24px 40px;}.act-p-title{font-size:24px;}}
+    @media (prefers-reduced-motion: reduce){.fadeup{opacity:1;transform:none;transition:none;}.act-slide{transition:none;transform:none;}.sk-detail{transition:none;}.arch-progress span{transition:none;}}
     @media(max-width:768px){.act-title-wrap{min-height:88px}.act-title-lg{font-size:clamp(32px,10vw,52px);letter-spacing:3px}.act-title-bubble{left:58%;top:-26px;transform:translateX(-50%) scale(.78);transform-origin:center bottom;font-size:14px}}
     /* ===== 物理标题（v3 恢复版） ===== */
     .act-hero{position:relative;}
