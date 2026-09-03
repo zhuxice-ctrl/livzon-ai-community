@@ -137,6 +137,18 @@ http://<你的内网IP>:8787/
 
 不在同网段（含家里/4G）访问不到，这是「本机当服务器」的天然限制。
 
+## 数据库迁移（PostgreSQL）
+
+后端数据表全部在本地 `pingce` 库。启动前需保证服务已运行（`E:\PostgreSQL\launch_pg.cmd` 拉起 PG）。
+
+```bash
+# 建表/补列（幂等，可重复执行）
+cd F:\pingce
+node server/sql/run_migrate.js
+```
+
+迁移脚本按文件名顺序执行 `server/sql/*.sql`：`schema.sql`（基线）→ `004_*` → `005_community.sql`（社区帖子/评论/点赞/配置）→ `006_work_comments.sql`（作品评论）。升级时拉取新 SQL 后重跑一次 `run_migrate.js` 即可。
+
 ## 每期更新作品
 
 1. 编辑 `public/data/works.json`，修改 `works` 数组（每件作品 id/title/author/category/desc）
@@ -149,3 +161,4 @@ http://<你的内网IP>:8787/
 - **并发量**：单 Node 进程，~百级并发没问题，**不适合数千并发**。
 - **HTTPS**：当前 HTTP 内网环境，敏感信息靠 LAN 隔离。
 - **报名后端凭证**：需要你单独创建飞书自建应用（5 分钟一次性操作），详见上文。
+- **`public/admin.html` 为旧后台产物，已废弃**：站内无任何入口链接（已核实），文件暂时保留不再迭代。管理功能后续归并进「账号权限」体系（有管理权限的账号在个人中心获得专属入口）。

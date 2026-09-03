@@ -1,31 +1,36 @@
 // server/routes/admin.js
-// 管理后台（登录 mock 对应）：作品列表 + 审核/发布。
-// 当前登录为 mock，未做强鉴权；已预留 x-user-role 请求头作为身份标识口子，
-// 后续接入真实登录鉴权只需补充中间件。
+// 管理后台：作品审核/发布、报名审核、社区置顶与配置。
+// 身份：session role='admin' 为权威；非生产环境兼容 admin.html 旧的 x-user-role 头（内网调试过渡）。
+// 读接口对登录用户开放（member 只读）；写接口一律 adminRequired 强校验。
 
 const express = require('express');
 const { query } = require('../db');
 const { ok, err, ErrorCodes } = require('../contract');
+const { adminRequired } = require('../middleware/auth');
+const community = require('./community');
 
 const router = express.Router();
 
 const FIELDS = `id, kind, title, author, category, description, cover, source, session, status, published, created_at`;
 
-// 简单身份判断（mock）：默认 admin，实际以后接入
-function roleOf(req) {
-  return (req.headers['x-user-role'] || 'admin').toLowerCase();
+// 读取视图用的角色：session 优先，开发态回退旧头（不影响写接口的强校验）
+function viewRole(req) {
+  if (req.session && req.session.role === 'admin') return 'admin';
+  if (process.env.NODE_ENV !== 'production') {
+    return String(req.headers['x-user-role'] || 'admin').toLowerCase();
+  }
+  return (req.session && req.session.role) || 'member';
 }
 
-// GET /api/admin/works —— 全部作品（含待审核）
+// GET /api/admin/works —— 作品列表（admin 看全部；member 只看已发布）
 router.get('/works', async (req, res) => {
-  const role = roleOf(req);
+  const role = viewRole(req);
   try {
     let rows;
     if (role === 'admin') {
       const r = await query(`SELECT ${FIELDS} FROM works ORDER BY id`);
       rows = r.rows;
     } else {
-      // 普通登录(会员)：只看已发布
       const r = await query(`SELECT ${FIELDS} FROM works WHERE published=true ORDER BY id`);
       rows = r.rows;
     }
@@ -36,12 +41,8 @@ router.get('/works', async (req, res) => {
   }
 });
 
-// PATCH /api/admin/works/:id —— 更新审核状态 / 发布
-router.patch('/works/:id', async (req, res) => {
-  const role = roleOf(req);
-  if (role !== 'admin') {
-    return res.status(403).json(err(ErrorCodes.PERMISSION, '仅管理员可操作'));
-  }
+// PATCH /api/admin/works/:id —— 更新审核状态 / 发布（仅管理员）
+router.patch('/works/:id', adminRequired, async (req, res) => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) return res.status(400).json(err(ErrorCodes.VALIDATION, 'id 非法'));
 
@@ -74,9 +75,9 @@ router.patch('/works/:id', async (req, res) => {
 
 // ===== 报名管理 =====
 
-// GET /api/admin/registrations —— 报名列表（管理员看全部；普通登录看自己的，mock 下全看）
+// GET /api/admin/registrations —— 报名列表
 router.get('/registrations', async (req, res) => {
-  const role = roleOf(req);
+  const role = viewRole(req);
   try {
     const r = await query(`SELECT id, name, department, contact, activity, will_share, share_topic, remark, status, created_at
       FROM registrations ORDER BY created_at DESC`);
@@ -87,10 +88,8 @@ router.get('/registrations', async (req, res) => {
   }
 });
 
-// PATCH /api/admin/registrations/:id —— 报名审核状态
-router.patch('/registrations/:id', async (req, res) => {
-  const role = roleOf(req);
-  if (role !== 'admin') return res.status(403).json(err(ErrorCodes.PERMISSION, '仅管理员可操作'));
+// PATCH /api/admin/registrations/:id —— 报名审核状态（仅管理员）
+router.patch('/registrations/:id', adminRequired, async (req, res) => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) return res.status(400).json(err(ErrorCodes.VALIDATION, 'id 非法'));
   const { status } = req.body || {};
@@ -106,5 +105,13 @@ router.patch('/registrations/:id', async (req, res) => {
     res.status(500).json(err(ErrorCodes.INTERNAL));
   }
 });
+
+// ===== 社区管理（契约：posts-api.md）=====
+
+// POST /api/admin/community/posts/:id/pin —— 置顶/取消 + 归类（复用 community 处理器）
+router.post('/community/posts/:id/pin', adminRequired, community.pinHandler);
+
+// PUT /api/admin/community/config —— 公告/轮播/分区运营
+router.put('/community/config', adminRequired, community.configPutHandler);
 
 module.exports = router;

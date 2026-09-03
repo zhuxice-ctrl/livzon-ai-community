@@ -81,6 +81,10 @@
 校验：content 去空格非空 ≤2000 字。未登录 401（`err("UNAUTHORIZED", …)`，code 以现有 ErrorCodes 为准）。
 成功：`{ "ok": true, "data": { "post": { …同上单条结构, "commentCount": 0 } } }`。
 
+### GET /api/community/posts/:id（新增 v10）
+
+单帖详情（详情页深链/刷新用）。无鉴权（`liked` 按登录态）。响应 `{ "ok": true, "data": { "post": { …与列表单条结构完全一致 } } }`；帖子不存在/已删返回 404。
+
 ### GET /api/community/posts/:id/comments
 
 拉某帖评论（扁平列表，含全部层级，前端自行组树），展开评论区时前端调用。无鉴权。query：`limit` / `cursor`。
@@ -156,6 +160,35 @@
 - **搜索（v7）**：信息流顶部搜索框按内容/作者实时过滤，当前为前端本地过滤（对已加载帖子）；预留服务端参数 `GET /api/community/posts?q=<关键词>`，后端支持后可替代本地过滤实现全量搜索，前端无需改结构。
 - 管理员置顶帖在任何分区视图里都排在最前（前端已实现；服务端排序时 pinned 优先）。
 - 分区列表可由 `GET /api/community/config` 的 `sections` 字段下发（`[{key,label,desc}]`），未下发时前端用内置默认枚举。
+
+## 详情页与评论体验（v10 落地）
+
+前端 `CommunitySection` 新增/修订的交互（接口层无新契约，行为在前端实现）：
+
+- **整页详情视图**：`window.comOpenPost(pid)` 进入——点帖子正文区或「详情 ›」按钮 → 切到 `#com-detail` 容器渲染 `postDetailHtml(p)`：全文 + 内嵌作品 + 九宫格媒体 + 展开的完整评论区；顶部「← 返回信息流」(`comClosePost`)。`detailPid` 为页内状态，发布新帖/切分区自动回落信息流。详情页懒加载评论（`_commentsLoaded` 标记，首次进详情拉一次）。
+- **图片自适应**：单图 `max-width:520px`、`height:auto;max-height:560px;object-fit:contain` 不裁切；2/3 图网格每格 `aspect-ratio:4/3;object-fit:cover`；多图（≥4）保持 3 列网格裁切。大图查看器 `window.comViewer` 不变。
+- **「回复 @某人」引用**：组树时子评论记 `_replyTo=父.author`；`cmtHtml` 在正文前渲染 `回复 @X` 蓝色小徽标（`.com-cmt-quote`）。
+- **正确的层级缩进**：回复渲染在父评论**之下**且 `margin-left` 按深度递增（每层 20px，封顶 6 层≈120px）——回复谁的视觉上就挂在谁下面（此前 `.com-cmt-reply` 固定缩进导致"全归一层"的观感问题已修复；数据 `parent_id` 一直是对的，纯渲染 bug）。
+- **就地回复框**：点「回复」→ `replyState[pid].cid=cid` 命中 → 在该条评论**正下方**内联渲染输入框（`.com-inline-reply`，id `cmt-input-PID-CID`），不再滚动到帖子底部统一框。顶层评论框保留在帖子底部（id `cmt-input-PID`）。
+- **发完评论自动收起+清空**：`comSendComment(pid, replyCid)` 成功后 `rerender(snapshotDrafts(inputId))`——快照其它输入框草稿但**跳过刚发送的那一个**，故已发文本不被回填、内联回复框随 replyState 清除而收起。
+- **搜索 bug 修复**：内容过滤字段 `p.content` → `p.text`（原字段名错误导致按内容搜索恒空）。
+
+## 作品评论区（v10 新增，独立契约挂 `/api/work-comments`）
+
+作品（首页巨幕详情 WorkDetail）的评论**不复用社区 posts**，独立建表 `work_comments`（结构对齐 comments：`id` TEXT PK `wc-…`、`work_id` INT REFERENCES works ON DELETE CASCADE、`parent_id` 自引用 SET NULL、`user_id`、`author`/`dept` 快照、`text` ≤500、`likes`、`deleted`、`created_at`；点赞表 `work_comment_likes` UNIQUE(comment_id,user_id)）。建表见 `server/sql/006_work_comments.sql`。
+
+- `GET /api/work-comments?work_id=N` —— 扁平全层级列表 `{id,work_id,parent_id,author,dept,text,time,likes,liked}`。无鉴权。
+- `POST /api/work-comments`（登录）—— body `{work_id, content≤500, parent_id?}`；作品须已发布、父评论须同作品未删。返回 201 `{comment:{…}}`。
+- `POST /api/work-comments/:id/like`（登录）—— toggle，返回 `{likes,liked}`。
+- `DELETE /api/work-comments/:id`（登录）—— 软删，本人或管理员。
+- 前端 `WorkComments`（React 组件，挂 WorkDetail 底部）：组树/楼中楼/点赞/就地回复，与社区帖子评论体验一致（实现独立于 CommunitySection 闭包，样式自包含内联）。
+- 依赖真实作品 id：`/api/works` 合并进 `WORKS_INFO[i].id`（无 id 的演示条目隐藏投票/评论区）。
+
+## 作品投票（v10，VoteButton 组件）
+
+- `GET /api/vote/status?work_id=N` —— 返回 `{workId,count,voted}`（登录看本人，未登录 voted=false）。无鉴权。
+- `POST /api/vote`（已有）—— body `{workId}`；一人一票去重；未登录 401、重复投 409。
+- 前端 `VoteButton`（WorkDetail 右栏侧）：进页拉 status 显示票数+已投态，点击 POST；未登录提示去登录。
 
 ## 前端调用点（合并时定位用）
 

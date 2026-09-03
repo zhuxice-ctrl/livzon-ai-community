@@ -24,6 +24,8 @@ const voteRouter = require('./routes/vote');
 const artifactRouter = require('./routes/artifact');
 const authRouter = require('./routes/auth');
 const myRouter = require('./routes/my');
+const communityRouter = require('./routes/community');
+const workCommentsRouter = require('./routes/work-comments');
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -118,6 +120,17 @@ app.get('/api/works', async (req, res) => {
 
 // 作品上传（真写库，走契约信封）
 app.use('/api/works', worksRouter);
+
+// 社团社区（帖子流/评论/点赞/上传/config，契约见 docs/api/posts-api.md）
+app.use('/api/community', communityRouter);
+
+// 作品评论（独立于社区帖子，挂在 /api/work-comments 避免与 /api/works 冲突）
+app.use('/api/work-comments', workCommentsRouter);
+
+// 契约路径别名：DELETE /api/comments/:id（社区评论软删，复用同一处理器）
+const commentsAlias = express.Router();
+commentsAlias.delete('/:id', ...communityRouter.deleteComment);
+app.use('/api/comments', commentsAlias);
 
 // 飞书 SSO 登录
 app.use('/api/auth', authRouter);
