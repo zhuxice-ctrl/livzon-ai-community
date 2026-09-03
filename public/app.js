@@ -683,7 +683,7 @@ var ActivitiesSection = () => {
       var past = data.past || [];
       var types = data.types || [];
       var h = "";
-      h += "<div class='act-hero'><div class='act-eyebrow'>ACTIVITIES · 活动大厅</div><div class='act-title-wrap'><h1 class='act-title-lg' id='actPhysicsTitle' aria-label='玩出来的 AI'><!-- 字符由物理引擎注入 --></h1></div><p class='act-sub'>" + esc(data.motto || "") + "</p><div class='hero-hint' id='actHeroHint'><span><span class='hint-dot'></span>点击字符 · 让它掉下去</span><span><span class='hint-dot'></span>掉的过程中可以滚动页面 · 惯性不会被打断</span></div><button class='reset-btn' id='actResetBtn' type='button'>重置标题</button></div>";
+      h += "<div class='act-hero'><span class='act-hero-wm' aria-hidden='true'>玩</span><div class='act-eyebrow act-hero-in hi-1'>ACTIVITIES · 活动大厅</div><div class='act-title-wrap act-hero-in hi-2'><h1 class='act-title-lg' id='actPhysicsTitle' aria-label='玩出来的 AI'><!-- 字符由物理引擎注入 --></h1></div><p class='act-sub act-hero-in hi-3'>" + esc(data.motto || "") + "</p><div class='hero-hint act-hero-in hi-4' id='actHeroHint'><span><span class='hint-dot'></span>点击字符 · 让它掉下去</span><span><span class='hint-dot'></span>掉的过程中可以滚动页面 · 惯性不会被打断</span></div><button class='reset-btn act-hero-in hi-5' id='actResetBtn' type='button'>重置标题</button><div class='act-start act-hero-in hi-6' aria-hidden='true'>START<span class='act-start-cursor'></span></div></div>";
       var focusSignup = focus && focus.signup ? focus.signup : "";
       var signupBtnHtml = function (url, cls, label) {
         return url
@@ -715,7 +715,7 @@ var ActivitiesSection = () => {
         "<a href='#act-sec-join' data-target='act-sec-join' class='rail-link'><span class='rail-no'>尾厅</span><span>参与方式</span></a>" +
         "</nav>";
       // 01 本月特展（浅色自动轮播：首页 + 亮点页）
-      h += "<div class='act-sechead' id='act-sec-feature'><span class='act-sectitle'>本月特展</span><span class='act-secen'>SPOTLIGHT</span></div>";
+      h += "<div class='act-sechead' id='act-sec-feature'><span class='act-secno'>01</span><span class='act-sectitle'>本月特展</span><span class='act-secen'>SPOTLIGHT</span></div>";
       if (focus) {
         var fc = focus.color || "#1a2b4a";
         var slides = [{ t: focus.tag || "本月特展", n: focus.name, m: "◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location), d: focus.desc, big: true }];
@@ -733,7 +733,7 @@ var ActivitiesSection = () => {
         h += "<div class='act-carousel'><div class='act-slide on'><span class='act-tagx'>敬请期待</span><div class='act-slide-name big'>下一场活动筹备中</div><p class='act-slide-desc'>我们正在策划下一场深度活动。</p></div></div>";
       }
       // 02 即将开展（编辑式日程表：大日期 + 活动名 + 类型 + 细箭头）
-      h += "<div class='act-sechead' id='act-sec-upcoming'><span class='act-sectitle'>即将开展</span><span class='act-secen'>UPCOMING</span></div>";
+      h += "<div class='act-sechead' id='act-sec-upcoming'><span class='act-secno'>02</span><span class='act-sectitle'>即将开展</span><span class='act-secen'>UPCOMING</span></div>";
       h += "<div class='act-sched' id='actSched'>" + upcoming.map(function (a, ai) {
         var su = a.signup || focusSignup;
         var no = ai + 1 < 10 ? "0" + (ai + 1) : String(ai + 1);
@@ -744,11 +744,14 @@ var ActivitiesSection = () => {
           "</div>";
       }).join("") + "</div>";
       // 03 回顾展区（惯性拖拽展墙 + 聚光 + 类型筛选）
-      h += "<div class='act-sechead' id='act-sec-archive'><span class='act-sectitle'>回顾展区</span><span class='act-secen'>ARCHIVE · 按住拖拽 · 点击查看回顾</span></div>";
+      h += "<div class='act-sechead' id='act-sec-archive'><span class='act-secno'>03</span><span class='act-sectitle'>回顾展区</span><span class='act-secen'>ARCHIVE · 按住拖拽 · 点击查看回顾</span></div>";
       var typeNames = types.map(function (t) { return t.name; });
-      h += "<div class='arch-chips' id='archChips'><button class='chip on' data-f='全部'>全部</button>" + typeNames.map(function (n) { return "<button class='chip' data-f='" + esc(n) + "'>" + esc(n) + "</button>"; }).join("") + "</div>";
+      var typeCnt = {}; past.forEach(function (a) { var t = typeOfPast(a); typeCnt[t] = (typeCnt[t] || 0) + 1; });
+      h += "<div class='arch-chips' id='archChips'><button class='chip on' data-f='全部'>全部(" + past.length + ")</button>" + typeNames.map(function (n) { return "<button class='chip' data-f='" + esc(n) + "'>" + esc(n) + "(" + (typeCnt[n] || 0) + ")</button>"; }).join("") + "<span class='arch-hint'>← 拖拽浏览 · 聚光查看 →</span></div>";
       h += "<div class='arch-wall' id='archWall'><div class='arch-spot' id='archSpot'></div><div class='arch-track' id='archTrack'>" + past.map(function (a) {
         return "<div class='arch-item' data-type='" + esc(typeOfPast(a)) + "' onclick=\"window.actPanel&&window.actPanel('past','" + a.id + "')\">" +
+          "<span class='arch-top' style='background:" + (a.color || "#1a2b4a") + "' aria-hidden='true'></span>" +
+          "<span class='arch-badge' style='color:" + (a.color || "#1a2b4a") + "'>" + esc(a.tag || "已结束") + "</span>" +
           "<span class='past-date'>" + esc(a.dateLabel) + "</span>" +
           "<div class='arch-name'>" + esc(a.name) + "</div>" +
           "<p class='arch-summary'>" + esc(a.summary) + "</p>" +
@@ -757,7 +760,7 @@ var ActivitiesSection = () => {
       }).join("") + "</div></div>";
       h += "<div class='arch-progress'><span id='archProgBar'></span></div>";
       // 04 展馆地图（极简类型索引：大序号 + 类型名 + 细线；点击筛选回顾展墙）
-      h += "<div class='act-sechead' id='act-sec-types'><span class='act-sectitle'>展馆地图</span><span class='act-secen'>OUR TYPES · 点击筛选回顾展区</span></div>";
+      h += "<div class='act-sechead' id='act-sec-types'><span class='act-secno'>04</span><span class='act-sectitle'>展馆地图</span><span class='act-secen'>OUR TYPES · 点击筛选回顾展区</span></div>";
       h += "<div class='act-types' id='actTypes'>" + types.map(function (t, ti) {
         return "<div class='type-item' data-f='" + esc(t.name) + "' tabindex='0'>" +
           "<div class='type-no'>" + (ti + 1 < 10 ? "0" + (ti + 1) : String(ti + 1)) + "</div>" +
@@ -1013,15 +1016,42 @@ var ActivitiesSection = () => {
           setWallX(0);
         }
         // 渐显入场
+        // 渐显入场（v12：同容器内交错 stagger）
         if (!prefersReduced && "IntersectionObserver" in window && ref.current) {
           var fuEls = ref.current.querySelectorAll(".act-sechead,.act-carousel,.sk-row,.arch-item,.type-item,.act-join");
           Array.prototype.forEach.call(fuEls, function (el) { el.classList.add("fadeup"); });
           var fuIO = new IntersectionObserver(function (ents) {
-            ents.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); fuIO.unobserve(en.target); } });
+            ents.forEach(function (en) {
+              if (!en.isIntersecting) return;
+              var el = en.target;
+              var sibs = el.parentElement ? Array.prototype.indexOf.call(el.parentElement.children, el) : 0;
+              el.style.transitionDelay = (Math.min(sibs, 6) * 70) + "ms";
+              el.classList.add("in");
+              fuIO.unobserve(en.target);
+              setTimeout(function () { el.style.transitionDelay = ""; }, 1400);
+            });
           }, { threshold: 0.12 });
           Array.prototype.forEach.call(fuEls, function (el) { fuIO.observe(el); });
           uiCleanups.push(function () { fuIO.disconnect(); });
         }
+        // 展线进度条（v12）：导航底部细线随滚动填充
+        var railProg = document.createElement("div");
+        railProg.className = "act-scroll-progress";
+        document.body.appendChild(railProg);
+        var setRailProg = function () {
+          var d = document.documentElement;
+          var max = d.scrollHeight - window.innerHeight;
+          var y = window.scrollY || d.scrollTop || 0;
+          railProg.style.width = (max > 0 ? Math.min(1, Math.max(0, y / max)) : 0) * 100 + "%";
+        };
+        window.addEventListener("scroll", setRailProg, { passive: true });
+        window.addEventListener("resize", setRailProg);
+        setRailProg();
+        uiCleanups.push(function () {
+          window.removeEventListener("scroll", setRailProg);
+          window.removeEventListener("resize", setRailProg);
+          railProg.remove();
+        });
       } catch (uiErr) { /* 交互层异常不阻断内容渲染与物理引擎 */ }
       // ===== v3 物理引擎（恢复版）：视口跟随地面 + 页脚上限 + 字符互撞 + 抓取投掷 + 回正 =====
       var titleContainerOuter = document.getElementById('actPhysicsTitle');
@@ -1888,7 +1918,7 @@ var ActivitiesSection = () => {
     .arch-wall{position:relative;overflow:hidden;border:1px solid rgba(0,0,0,0.08);background:#fff;cursor:grab;touch-action:pan-y;user-select:none;}
     .arch-wall:active{cursor:grabbing;}
     .arch-track{display:flex;will-change:transform;}
-    .arch-item{flex:0 0 min(560px,86vw);padding:52px 48px;border-right:1px solid rgba(0,0,0,0.06);cursor:pointer;transition:background .6s cubic-bezier(.22,1,.36,1);}
+    .arch-item{position:relative;flex:0 0 min(560px,86vw);padding:52px 48px;border-right:1px solid rgba(0,0,0,0.06);cursor:pointer;transition:background .6s cubic-bezier(.22,1,.36,1);}
     .arch-item:hover{background:rgba(26,43,74,0.03);}
     .arch-name{font-family:'Noto Serif SC',serif;font-size:24px;font-weight:400;letter-spacing:1px;color:#111;margin:12px 0 14px;}
     .arch-summary{font-size:13px;color:#666;line-height:1.9;max-width:440px;}
@@ -1896,6 +1926,11 @@ var ActivitiesSection = () => {
     .arch-spot{position:absolute;width:480px;height:480px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .6s;background:radial-gradient(circle,rgba(26,43,74,0.06) 0%,rgba(26,43,74,0.02) 40%,transparent 70%);z-index:2;}
     .arch-progress{height:1px;background:rgba(0,0,0,0.08);margin-top:18px;}
     .arch-progress span{display:block;height:1px;width:0;background:#1a2b4a;transition:width .2s;}
+    /* v13 对齐 mock v5b：卡片彩色顶边 + 状态徽标 + 拖拽提示 */
+    .arch-top{position:absolute;left:0;top:0;width:100%;height:6px;}
+    .arch-badge{position:absolute;right:48px;top:34px;font-size:11px;letter-spacing:2px;font-weight:400;}
+    .arch-hint{margin-left:auto;align-self:center;font-size:11px;color:#bbb;letter-spacing:2px;white-space:nowrap;}
+    @media(max-width:600px){.arch-badge{right:24px;top:26px;}.arch-hint{display:none;}}
     .past-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:#aaa;letter-spacing:2px;}
     .past-stats{display:flex;gap:22px;margin-top:14px;}
     .past-stat .n{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#1a1a1f;line-height:1;}
@@ -1965,6 +2000,22 @@ var ActivitiesSection = () => {
     @keyframes actPDone{from{opacity:0;transform:scale(0.92);}to{opacity:1;transform:scale(1);}}
     @media (prefers-reduced-motion: reduce){.act-panel,.act-p-mask{transition:none;}.act-p-done{animation:none;}.act-p-close{transition:none;}}
     @media(max-width:600px){.act-p-body{padding:56px 24px 40px;}.act-p-title{font-size:24px;}}
+    /* ===== v12 视觉增强：hero 细格纹/水印/START/入场序列 + 展线进度条 + 展厅编号 ===== */
+    .act-hero{background-image:linear-gradient(rgba(0,0,0,0.026) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.026) 1px,transparent 1px);background-size:60px 60px;}
+    .act-hero-wm{position:absolute;right:-1%;top:50%;transform:translateY(-52%);font-family:'Noto Serif SC',serif;font-size:clamp(260px,34vw,520px);font-weight:500;line-height:1;color:rgba(0,0,0,0.035);pointer-events:none;user-select:none;z-index:0;}
+    .act-hero .act-eyebrow,.act-hero .act-sub,.act-hero .hero-hint,.act-hero .reset-btn{position:relative;z-index:1;}
+    .act-start{position:absolute;left:0;bottom:26px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:5px;color:#c9c9c4;z-index:1;display:flex;align-items:center;gap:10px;}
+    .act-start-cursor{display:inline-block;width:1px;height:14px;background:#c9c9c4;animation:actCursorBlink 1.2s steps(1) infinite;}
+    @keyframes actCursorBlink{0%,50%{opacity:1;}51%,100%{opacity:0;}}
+    .act-hero-in{opacity:0;transform:translateY(18px);animation:actHeroIn .8s cubic-bezier(.22,1,.36,1) backwards;}
+    .hi-1{animation-delay:.1s;}.hi-2{animation-delay:.28s;}.hi-3{animation-delay:.46s;}.hi-4{animation-delay:.64s;}.hi-5{animation-delay:.8s;}.hi-6{animation-delay:1.15s;}
+    @keyframes actHeroIn{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+    .act-scroll-progress{position:fixed;top:68px;left:0;height:2px;width:0;background:#1a2b4a;z-index:60;pointer-events:none;}
+    .act-secno{font-family:'JetBrains Mono',monospace;font-size:44px;font-weight:300;color:#e4e4df;line-height:1;letter-spacing:2px;opacity:0;transform:scale(1.3);transform-origin:left bottom;transition:opacity .7s cubic-bezier(.22,1,.36,1) .35s,transform .7s cubic-bezier(.22,1,.36,1) .35s,color .6s ease 0s;}
+    .act-sechead:hover .act-secno{color:#1a2b4a;}
+    .act-sechead.in .act-secno{opacity:1;transform:scale(1);}
+    @media (prefers-reduced-motion: reduce){.act-hero-in{animation:none;opacity:1;transform:none;}.act-start-cursor{animation:none;}.act-secno{opacity:1;transform:none;transition:color .6s;}}
+    @media(max-width:768px){.act-hero-wm{font-size:64vw;right:-10%;}.act-secno{font-size:32px;}}
     @media (prefers-reduced-motion: reduce){.fadeup{opacity:1;transform:none;transition:none;}.act-slide{transition:none;transform:none;}.sk-detail{transition:none;}.arch-progress span{transition:none;}}
     @media(max-width:768px){.act-title-wrap{min-height:88px}.act-title-lg{font-size:clamp(32px,10vw,52px);letter-spacing:3px}.act-title-bubble{left:58%;top:-26px;transform:translateX(-50%) scale(.78);transform-origin:center bottom;font-size:14px}}
     /* ===== 物理标题（v3 恢复版） ===== */
