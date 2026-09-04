@@ -730,7 +730,7 @@ var ActivitiesSection = () => {
             (s.m ? "<div class='act-slide-meta'>" + s.m + "</div>" : "") +
             (s.d ? "<p class='act-slide-desc'>" + esc(s.d) + "</p>" : "") +
             "</div>" + ph + "</div>";
-        }).join("") + "<div class='act-dots' id='actDots'>" + slides.map(function (s, si) { return "<span class='dot" + (si === 0 ? " on" : "") + "' data-i='" + si + "'></span>"; }).join("") + "</div></div>";
+        }).join("") + "<div class='act-dots' id='actDots'>" + slides.map(function (s, si) { return "<span class='dot" + (si === 0 ? " on" : "") + "' data-i='" + si + "'></span>"; }).join("") + "</div><div class='act-nav' id='actNav'><button type='button' class='act-nav-btn' data-dir='-1' aria-label='上一页'>‹</button><button type='button' class='act-nav-btn' data-dir='1' aria-label='下一页'>›</button></div></div>";
       } else {
         h += "<div class='act-carousel'><div class='act-slide on'><span class='act-tagx'>敬请期待</span><div class='act-slide-name big'>下一场活动筹备中</div><p class='act-slide-desc'>我们正在策划下一场深度活动。</p></div></div>";
       }
@@ -882,6 +882,14 @@ var ActivitiesSection = () => {
           if (dotsEl) dotsEl.addEventListener("click", function (e) {
             var t = e.target && e.target.closest ? e.target.closest(".dot") : null;
             if (t) goSlide(parseInt(t.getAttribute("data-i"), 10) || 0);
+          });
+          // v21: right-side breathing prev/next buttons switch carousel slides
+          var navEl = document.getElementById("actNav");
+          if (navEl) navEl.addEventListener("click", function (e) {
+            var b = e.target && e.target.closest ? e.target.closest(".act-nav-btn") : null;
+            if (!b) return;
+            e.stopPropagation();
+            goSlide(curSlide + (parseInt(b.getAttribute("data-dir"), 10) || 1));
           });
           // v16: 拖拽滑动切换 + 左右方向键切换（仅当轮播大部分在视口内时接管按键）
           if (slideEls.length > 1) {
@@ -1976,6 +1984,11 @@ var ActivitiesSection = () => {
     .act-dots{position:absolute;right:28px;bottom:22px;display:flex;gap:8px;}
     .act-dots .dot{width:22px;height:2px;background:#ddd;cursor:pointer;transition:background .4s;}
     .act-dots .dot.on{background:#1a2b4a;}
+    /* v21: carousel prev/next breathing nav buttons */
+    .act-nav{position:absolute;right:26px;top:50%;transform:translateY(-50%);z-index:5;display:flex;flex-direction:column;gap:10px;}
+    .act-nav-btn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,0,0,0.13);background:rgba(255,255,255,0.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;color:#8a6470;cursor:pointer;padding:0;font-size:20px;line-height:1;font-family:Georgia,serif;opacity:.5;animation:actNavBreath 3s ease-in-out infinite;transition:box-shadow .25s,transform .25s,opacity .25s;}
+    .act-nav-btn:hover,.act-nav-btn:focus-visible{animation:none;opacity:1;transform:scale(1.12);box-shadow:0 6px 20px rgba(0,0,0,0.16);outline:none;}
+    @keyframes actNavBreath{0%,100%{opacity:.35}50%{opacity:.78}}
     /* v14: 本月特展图片占位块 */
     .act-slide.has-ph{flex-direction:row;align-items:center;gap:56px;}
     .act-slide.has-ph .act-slide-main{flex:1;min-width:0;}
