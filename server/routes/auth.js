@@ -4,6 +4,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { query } = require('../db');
 const { ok, err, ErrorCodes } = require('../contract');
+const { roleAfterLogin } = require('../lib/admins');
 
 const router = express.Router();
 
@@ -140,17 +141,19 @@ async function upsertUser(info, token) {
   const exist = await query(`SELECT id, role FROM users WHERE open_id=$1`, [openId]);
   let user;
   if (exist.rows.length) {
+    // 登录即刷新角色（只升不降：命中白名单→admin，否则维持原角色）
+    const newRole = roleAfterLogin(openId, exist.rows[0].role);
     const r = await query(
-      `UPDATE users SET name=$1, email=$2, department=$3, avatar=$4, union_id=$5, access_token=$6, token_expire=$7, last_login_at=$8
-       WHERE open_id=$9 RETURNING id, name, role, department`,
-      [name, email, dept, avatar, unionId, '', null, now, openId]
+      `UPDATE users SET name=$1, email=$2, department=$3, avatar=$4, union_id=$5, access_token=$6, token_expire=$7, last_login_at=$8, role=$9
+       WHERE open_id=$10 RETURNING id, name, role, department`,
+      [name, email, dept, avatar, unionId, '', null, now, newRole, openId]
     );
     user = r.rows[0];
   } else {
     const r = await query(
       `INSERT INTO users (open_id, name, email, department, avatar, union_id, role, last_login_at)
-       VALUES ($1,$2,$3,$4,$5,$6,'member',$7) RETURNING id, name, role, department`,
-      [openId, name, email, dept, avatar, unionId, now]
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, name, role, department`,
+      [openId, name, email, dept, avatar, unionId, roleAfterLogin(openId, 'member'), now]
     );
     user = r.rows[0];
   }
