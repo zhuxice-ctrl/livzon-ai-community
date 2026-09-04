@@ -8,8 +8,11 @@ const { query } = require('../db');
 const { ok, err, ErrorCodes } = require('../contract');
 const { adminRequired } = require('../middleware/auth');
 const community = require('./community');
+const { LarkClient } = require('../lark-client');
+const { runReminders } = require('../lib/reminders');
 
 const router = express.Router();
+const lark = new LarkClient(process.env);
 
 const FIELDS = `id, kind, title, author, category, description, cover, source, session, status, published, created_at`;
 
@@ -127,6 +130,20 @@ router.get('/activities/reservations', adminRequired, async (req, res) => {
     res.json(ok({ activities: [...groups.values()] }));
   } catch (e) {
     console.error('[admin.reservations]', e);
+    res.status(500).json(err(ErrorCodes.INTERNAL));
+  }
+});
+
+// POST /api/admin/activities/scan-reminders —— 手动跑一轮提醒扫描（测试/应急）
+// body: { aheadHours? }（默认读 REMIND_AHEAD_HOURS=24；测试时可放大窗口验证逻辑，重复预约已被去重表拦截）
+router.post('/activities/scan-reminders', adminRequired, async (req, res) => {
+  const ahead = Number((req.body || {}).aheadHours) || parseInt(process.env.REMIND_AHEAD_HOURS || '24', 10);
+  try {
+    const events = [];
+    const r = await runReminders(lark, { aheadHours: ahead, notify: (tag, msg) => events.push(tag + ': ' + msg) });
+    res.json(ok({ ...r, aheadHours: ahead, events }));
+  } catch (e) {
+    console.error('[admin.scan-reminders]', e);
     res.status(500).json(err(ErrorCodes.INTERNAL));
   }
 });

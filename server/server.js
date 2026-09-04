@@ -325,7 +325,27 @@ app.use((err, req, res, next) => {
 
 const lark = new LarkClient(process.env);
 
+// ===== 活动开始提醒定时任务（node-cron；REMINDERS_ENABLED=0 关闭）=====
+function startReminderScheduler() {
+  if (process.env.REMINDERS_ENABLED === '0') { console.log('[reminders] 已禁用 (REMINDERS_ENABLED=0)'); return; }
+  let cron;
+  try { cron = require('node-cron'); }
+  catch (_) { console.log('[reminders] node-cron 未安装，提醒任务未启用（npm i node-cron 后重启）'); return; }
+  const { runReminders } = require('./lib/reminders');
+  const expr = process.env.REMINDER_CRON || '0 * * * *';       // 默认每小时整点扫一次
+  const ahead = parseInt(process.env.REMIND_AHEAD_HOURS || '24', 10);
+  cron.schedule(expr, async () => {
+    const notify = (tag, msg) => console.log(`[reminders:${tag}]`, msg);
+    try {
+      const r = await runReminders(lark, { aheadHours: ahead, notify });
+      if (r.scanned) notify('run', JSON.stringify(r));
+    } catch (e) { notify('error', e.message); }
+  });
+  console.log(`[reminders] 已启用：cron='${expr}' 提前 ${ahead}h`);
+}
+
 app.listen(PORT, '0.0.0.0', () => {
+  startReminderScheduler();
   const nets = os.networkInterfaces();
   const ips = [];
   for (const name of Object.keys(nets)) {

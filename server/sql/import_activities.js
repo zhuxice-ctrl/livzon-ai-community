@@ -31,12 +31,14 @@ const DATA_PATH = path.join(__dirname, '..', '..', 'public', 'data', 'activities
       for (let i = 0; i < list.length; i++) {
         const a = list[i];
         if (!a || !a.id) continue;
+        // start_at：JSON 里的 ISO 时间（+08:00）→ TIMESTAMPTZ；缺失/非法为 null（不参与提醒）
+        const startAt = a.start_at && !isNaN(Date.parse(a.start_at)) ? new Date(a.start_at) : null;
         await client.query(
-          `INSERT INTO activities (id, kind, title, date_label, location, tag, sort, data, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
+          `INSERT INTO activities (id, kind, title, date_label, location, tag, sort, start_at, data, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
            ON CONFLICT (id) DO UPDATE SET
-             kind=$2, title=$3, date_label=$4, location=$5, tag=$6, sort=$7, data=$8, updated_at=now()`,
-          [String(a.id), kind, a.name || '', a.dateLabel || '', a.location || '', a.tag || '', i, JSON.stringify(a)]
+             kind=$2, title=$3, date_label=$4, location=$5, tag=$6, sort=$7, start_at=$8, data=$9, updated_at=now()`,
+          [String(a.id), kind, a.name || '', a.dateLabel || '', a.location || '', a.tag || '', i, startAt, JSON.stringify(a)]
         );
         n++;
       }

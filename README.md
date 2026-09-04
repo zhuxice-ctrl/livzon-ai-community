@@ -59,6 +59,7 @@ F:\pingce\
 | GET | `/api/my/messages` | 我的站内消息 + 未读数 |
 | POST | `/api/my/messages/read` | 标记已读（`{id}` 单条 / `{}` 全部） |
 | GET | `/api/admin/activities/reservations` | 预约名单（仅管理员，按活动分组） |
+| POST | `/api/admin/activities/scan-reminders` | 手动跑一轮开始提醒扫描（仅管理员，测试/应急） |
 | GET | `/api/schedule` | 进度 |
 | POST | `/api/register` | 报名提交 |
 
@@ -69,8 +70,16 @@ F:\pingce\
 - **身份**：需飞书登录态（`authRequired`）；姓名/部门从 session+users 快照落库，请求体只收 `{note}`（参与期待，选填 ≤500 字）
 - **幂等**：`UNIQUE(user_id, activity_id)`——重复提交返回 200 `{reserved:true, repeated:true, message:"您已预约过该活动"}`，不报错不累积
 - **约束**：仅 `upcoming` 活动可约；past/current 返回 400；活动不存在 404；未登录 401（前端引导去登录）
-- **成功副作用**：写一条站内通知（消息中心/顶栏铃铛）；「开始前飞书通知」的推送待 Phase 2 凭证打通后接入（见飞书清单）
+- **成功副作用**：写一条站内通知（消息中心/顶栏铃铛）；开始前提醒见下节
 - **数据维护**：活动以 `public/data/activities.json` 为编辑源，改完跑 `node server/sql/import_activities.js` 幂等刷新入库
+
+### 活动开始提醒（飞书单聊 + 站内）
+
+- **触发**：`activities.start_at`（来自 json 的 `upcoming[].start_at`，ISO `+08:00`）落在 `[now, now+REMIND_AHEAD_HOURS]` 窗口内即提醒；`start_at` 为空（如"每季度未定档"）自动跳过
+- **送达**：真实飞书 `open_id`（`ou_` 开头）→ 机器人单聊 `im:message:send_as_bot`；非 ou_（如 dev 测试号）→ 优雅降级，仅站内通知
+- **去重**：`activity_reminders(reservation_id, kind='pre_start')` 唯一约束，一条预约只提醒一次；发送失败不落记录、下轮重试
+- **调度**：`node-cron` 每 `REMINDER_CRON`（默认每小时）跑一次 `lib/reminders.runReminders`；`REMINDERS_ENABLED=0` 关闭；管理员也可 `POST /api/admin/activities/scan-reminders {aheadHours?}` 手动触发
+- **提醒文案占位**：当前 `start_at` 为月中/月末占位值，排期确定后请改成真实时间并重新导入
 
 ### POST /api/register
 
@@ -162,7 +171,7 @@ cd F:\pingce
 node server/sql/run_migrate.js
 ```
 
-迁移脚本按文件名顺序执行 `server/sql/*.sql`：`schema.sql`（基线）→ `004_*` → `005_community.sql`（社区帖子/评论/点赞/配置）→ `006_work_comments.sql`（作品评论）→ `007_activities.sql`（活动落库/预约/站内消息）。升级时拉取新 SQL 后重跑一次 `run_migrate.js` 即可；活动数据变更后另跑 `node server/sql/import_activities.js` 刷新入库。
+迁移脚本按文件名顺序执行 `server/sql/*.sql`：`schema.sql`（基线）→ `004_*` → `005_community.sql`（社区帖子/评论/点赞/配置）→ `006_work_comments.sql`（作品评论）→ `007_activities.sql`（活动落库/预约/站内消息）→ `008_activity_reminders.sql`（start_at 列 + 提醒去重记录）。升级时拉取新 SQL 后重跑一次 `run_migrate.js` 即可；活动数据变更后另跑 `node server/sql/import_activities.js` 刷新入库。
 
 ## 每期更新作品
 

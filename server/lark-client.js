@@ -1,8 +1,8 @@
 // server/lark-client.js
-// 飞书多维表格 API 客户端
+// 飞书开放平台 API 客户端
 // - 缓存 tenant_access_token（有效期 2h）
-// - 写报名记录到 Bitable
-// - 失败时降级到本地 JSON
+// - 写报名记录到 Bitable（失败时降级到本地 JSON）
+// - 机器人单聊发消息 sendTextToUser（活动提醒等；仅需 app 凭证，不依赖 Bitable 配置）
 
 const fs = require('fs');
 const path = require('path');
@@ -99,6 +99,34 @@ class LarkClient {
       mode: 'lark',
       recordId: data.data?.record?.record_id,
     };
+  }
+
+  /**
+   * 机器人给单个用户发飞书私聊文本消息（im:message:send_as_bot）
+   * @param {string} openId 用户 open_id（ou_ 开头）
+   * @param {string} text 消息正文
+   * @returns {Promise<{ok: boolean, messageId?: string, error?: string}>}
+   */
+  async sendTextToUser(openId, text) {
+    if (!(this.appId && this.appSecret)) return { ok: false, error: 'app_credentials_missing' };
+    if (!/^ou_/.test(String(openId || ''))) return { ok: false, error: 'invalid_open_id' };
+    try {
+      const token = await this.getTenantAccessToken();
+      const resp = await fetch(`${LARK_HOST}/open-apis/im/v1/messages?receive_id_type=open_id`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          receive_id: openId,
+          msg_type: 'text',
+          content: JSON.stringify({ text: String(text || '') }),
+        }),
+      });
+      const data = await resp.json();
+      if (data.code !== 0) return { ok: false, error: `im_error: code=${data.code} msg=${data.msg || data.error_description || ''}` };
+      return { ok: true, messageId: data.data && data.data.message_id };
+    } catch (e) {
+      return { ok: false, error: 'network_error: ' + e.message };
+    }
   }
 
   _fallback(formData, reason) {
