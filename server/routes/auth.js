@@ -12,12 +12,16 @@ const FEISHU_HOST = 'https://open.feishu.cn';
 const APP_ID = process.env.LARK_APP_ID;
 const APP_SECRET = process.env.LARK_APP_SECRET;
 const REDIRECT = process.env.LARK_LOGIN_REDIRECT_URI || 'http://127.0.0.1:8787/api/auth/callback';
-const SCOPE = process.env.LARK_LOGIN_SCOPE || 'authen:user.id:read';
+// 新版「网页应用」登录流程：authorize 不传 scope（scope 概念已取消，20043 即旧调用报错）。
+// 仅当显式配置 LARK_LOGIN_SCOPE 才附加（兼容老式 scope 授权应用）。
+const SCOPE = process.env.LARK_LOGIN_SCOPE || '';
 
-// GET /api/auth/feishu —— 登录入口：跳转到飞书授权
+// GET /api/auth/feishu —— 登录入口：跳转到飞书授权（state 存 session 防 CSRF）
 router.get('/feishu', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  const url = `${FEISHU_HOST}/open-apis/authen/v1/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(SCOPE)}&state=${state}`;
+  req.session.authState = state;
+  let url = `${FEISHU_HOST}/open-apis/authen/v1/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT)}&state=${state}`;
+  if (SCOPE) url += `&scope=${encodeURIComponent(SCOPE)}`;
   res.redirect(url);
 });
 
@@ -27,6 +31,11 @@ router.get('/callback', async (req, res) => {
   if (!code) {
     return res.redirect('/#login-error=no-code');
   }
+  // CSRF：回调 state 必须与发起时一致（一次有效，验后即清）
+  if (!state || !req.session.authState || state !== req.session.authState) {
+    return res.redirect('/#login-error=state-mismatch');
+  }
+  delete req.session.authState;
   try {
     const token = await exchangeToken(code);
     const accessToken = token.access_token;
@@ -93,11 +102,14 @@ async function exchangeToken(code) {
       client_id: APP_ID,
       client_secret: APP_SECRET,
       code,
+      // 飞书 v2 要求：换 token 必须回传与授权时一致的 redirect_uri，缺失报 20063
+      redirect_uri: REDIRECT,
     }),
   });
   const data = await resp.json();
   if (data.code !== 0) {
-    throw new Error(`换取 access_token 失败: ${data.code} ${data.msg}`);
+    // 飞书 v2 token 错误明细在 error_description（如 20003/invalid_grant）；一并带出便于闭环排查
+    throw new Error(`换取 access_token 失败: ${data.code} ${data.error_description || data.msg || JSON.stringify(data).slice(0, 160)}`);
   }
   return data.data || data;
 }
