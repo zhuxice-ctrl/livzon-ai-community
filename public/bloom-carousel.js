@@ -4815,6 +4815,8 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     var dead = false, active = false, wantActive = false, ready = false, rafId = 0;
     var state = { scatter: 0 };
     var et = 0;
+    /* v20: mouse-drag rotation targets (smoothed in renderFrame) */
+    var rotTgtX = 0, rotTgtY = 0, rotCurX = 0, rotCurY = 0;
     var scene, camera, renderer, group, groundMesh, groundMat, shadowMat, shadowMesh;
     var vaseMesh = null, vaseTopRadius = 3;
     var instancers = [], ee = null, butterflies = [], wingL, wingR;
@@ -4836,8 +4838,69 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     renderer.domElement.style.display = 'block';
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
-    canvasHost.style.cursor = 'pointer';
-    canvasHost.title = '点击切换花束与散开';
+    canvasHost.style.cursor = 'grab';
+    canvasHost.title = '按住左键拖动旋转花束';
+
+    /* v20: right-side breathing toggle button (replaces canvas tap toggle) */
+    if (!document.getElementById('bloom-toggle-style')) {
+      var btStyle = document.createElement('style');
+      btStyle.id = 'bloom-toggle-style';
+      btStyle.textContent = ''
+        + '.bloom-toggle-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:3;width:34px;height:56px;'
+        + 'border-radius:17px;border:1px solid rgba(0,0,0,0.13);background:rgba(255,255,255,0.72);backdrop-filter:blur(3px);'
+        + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#8a6470;cursor:pointer;'
+        + 'padding:0;opacity:.45;animation:bloomBreath 3s ease-in-out infinite;'
+        + 'transition:box-shadow .25s,transform .25s;}'
+        + '.bloom-toggle-btn svg{transition:transform .55s cubic-bezier(.22,1,.36,1);display:block}'
+        + '.bloom-toggle-btn.on svg{transform:rotate(180deg)}'
+        + '.bloom-toggle-btn:hover,.bloom-toggle-btn:focus-visible{animation:none;opacity:1;'
+        + 'transform:translateY(-50%) scale(1.12);box-shadow:0 6px 20px rgba(0,0,0,0.16);outline:none}'
+        + '@keyframes bloomBreath{0%,100%{opacity:.35}50%{opacity:.75}}';
+      (document.head || document.documentElement).appendChild(btStyle);
+    }
+    var toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'bloom-toggle-btn';
+    toggleBtn.setAttribute('aria-label', '切换花束形态');
+    toggleBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">'
+      + '<g fill="currentColor">'
+      + '<circle cx="12" cy="12" r="2.1"/>'
+      + '<ellipse cx="12" cy="5.9" rx="1.9" ry="2.7"/>'
+      + '<ellipse cx="12" cy="18.1" rx="1.9" ry="2.7"/>'
+      + '<ellipse cx="5.9" cy="12" rx="2.7" ry="1.9"/>'
+      + '<ellipse cx="18.1" cy="12" rx="2.7" ry="1.9"/>'
+      + '<ellipse cx="7.7" cy="7.7" rx="2.2" ry="2.2"/>'
+      + '<ellipse cx="16.3" cy="7.7" rx="2.2" ry="2.2"/>'
+      + '<ellipse cx="7.7" cy="16.3" rx="2.2" ry="2.2"/>'
+      + '<ellipse cx="16.3" cy="16.3" rx="2.2" ry="2.2"/>'
+      + '</g></svg>';
+    hostEl.appendChild(toggleBtn);
+
+    /* v20: mouse left-button drag rotates the bouquet */
+    var dragging = false, lastPX = 0, lastPY = 0;
+    canvasHost.addEventListener('pointerdown', function (e) {
+      if (e.pointerType !== 'mouse' || (e.button !== undefined && e.button !== 0)) return;
+      dragging = true; lastPX = e.clientX; lastPY = e.clientY;
+      canvasHost.style.cursor = 'grabbing';
+      try { canvasHost.setPointerCapture(e.pointerId); } catch (err) {}
+      ensureRaf();
+    });
+    canvasHost.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - lastPX, dy = e.clientY - lastPY;
+      lastPX = e.clientX; lastPY = e.clientY;
+      rotTgtY += dx * 0.0062;
+      rotTgtX = Math.max(-0.55, Math.min(0.55, rotTgtX + dy * 0.0042));
+      ensureRaf();
+    });
+    var endDrag = function () {
+      if (!dragging) return;
+      dragging = false;
+      canvasHost.style.cursor = 'grab';
+      ensureRaf();
+    };
+    canvasHost.addEventListener('pointerup', endDrag);
+    canvasHost.addEventListener('pointercancel', endDrag);
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(34, 1, 0.5, 400);
@@ -4890,8 +4953,8 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     var wingTex = new THREE.CanvasTexture(wingCanvas);
     wingTex.colorSpace = THREE.SRGBColorSpace;
     var wingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, map: wingTex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-    wingL = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.8, 0.8), wingMat, 12);
-    wingR = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.8, 0.8), wingMat, 12);
+    wingL = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.8, 0.8), wingMat, 36);
+    wingR = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.8, 0.8), wingMat, 36);
     wingL.frustumCulled = false; wingR.frustumCulled = false;
     group.add(wingL); group.add(wingR);
 
@@ -4908,7 +4971,7 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
         pale: brandB() < 0.5
       };
     }
-    for (var bi = 0; bi < 12; bi++) butterflies.push(mkBfly(bi));
+    for (var bi = 0; bi < 36; bi++) butterflies.push(mkBfly(bi));
     var bflyAccent = new THREE.Color(ACCENT), bflyPale = new THREE.Color(PALE);
     for (var bci = 0; bci < butterflies.length; bci++) {
       var bcol = butterflies[bci].pale ? bflyPale : bflyAccent;
@@ -4919,7 +4982,14 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     if (wingR.instanceColor) wingR.instanceColor.needsUpdate = true;
 
     function resize() {
-      var w = hostEl.clientWidth || 1, h = hostEl.clientHeight || 1;
+      var w = hostEl.clientWidth || 1, bh = hostEl.clientHeight || 1;
+      /* v20: extend the canvas beyond the host box top/bottom so the bouquet is fully visible */
+      var ext = Math.max(12, Math.min(56, Math.round(bh * 0.13)));
+      canvasHost.style.left = '0';
+      canvasHost.style.right = '0';
+      canvasHost.style.top = (-ext) + 'px';
+      canvasHost.style.bottom = (-ext) + 'px';
+      var h = bh + 2 * ext;
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
@@ -4969,6 +5039,10 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
       if (Math.abs(s - et) < 5e-4) et = s;
       var u = 1 - smoothstep(2.2 * et);
 
+      /* v20: smooth mouse-drag rotation (camera orbit) */
+      rotCurX += (rotTgtX - rotCurX) * (1 - Math.exp(-9 * dt));
+      rotCurY += (rotTgtY - rotCurY) * (1 - Math.exp(-9 * dt));
+
       /* flowers */
       for (var oi = 0; oi < instancers.length; oi++) {
         var inst = instancers[oi];
@@ -5002,41 +5076,39 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
         vaseMesh.visible = ve < 0.995;
       }
 
-      /* shadow + butterflies */
+      /* shadow + butterflies (v20: 36, visible in both states, spread over the QR board in scatter) */
       shadowMat.opacity = u;
       shadowMesh.visible = u > 0.01;
-      if (u > 0.002) {
-        wingL.visible = true; wingR.visible = true;
-        var br = ee.ballRadius;
-        for (var bj = 0; bj < 12; bj++) {
-          var bf = butterflies[bj];
-          var n0 = now * bf.speed[0] + bf.phase[0], n1 = now * bf.speed[1] + bf.phase[1], n2 = now * bf.speed[2] + bf.phase[2];
-          tmpV.set(
-            Math.sin(n0) * br * bf.radius[0],
-            ee.ballCenterY + bf.heightBias * br + Math.sin(n1) * br * bf.radius[1],
-            Math.cos(n2) * br * bf.radius[2]
-          );
-          tmpV2.set(
-            Math.cos(n0) * bf.speed[0] * bf.radius[0],
-            Math.cos(n1) * bf.speed[1] * bf.radius[1],
-            -Math.sin(n2) * bf.speed[2] * bf.radius[2]
-          ).normalize();
-          tmpQ.setFromUnitVectors(AXIS_Z, tmpV2);
-          var flap = 1.05 * Math.sin(now * bf.flapSpeed + bf.flapPhase);
-          var bs = 0.75 * bf.scale * u;
-          tmpS.set(bs, bs, bs);
-          tmpQ3.setFromAxisAngle(AXIS_Z, flap);
-          tmpM.compose(tmpV, tmpQ2.copy(tmpQ).multiply(tmpQ3), tmpS);
-          wingL.setMatrixAt(bj, tmpM);
-          tmpQ3.setFromAxisAngle(AXIS_Z, -flap);
-          tmpM.compose(tmpV, tmpQ2.copy(tmpQ).multiply(tmpQ3), tmpS);
-          wingR.setMatrixAt(bj, tmpM);
-        }
-        wingL.instanceMatrix.needsUpdate = true;
-        wingR.instanceMatrix.needsUpdate = true;
-      } else {
-        wingL.visible = false; wingR.visible = false;
+      var bSc = smoothstep(Math.min(1, 1.8 * et));
+      var br = THREE.MathUtils.lerp(ee.ballRadius, ee.boardRadius * 0.92, bSc);
+      var bsMul = 1 + 1.3 * bSc;
+      wingL.visible = true; wingR.visible = true;
+      for (var bj = 0; bj < 36; bj++) {
+        var bf = butterflies[bj];
+        var n0 = now * bf.speed[0] + bf.phase[0], n1 = now * bf.speed[1] + bf.phase[1], n2 = now * bf.speed[2] + bf.phase[2];
+        tmpV.set(
+          Math.sin(n0) * br * bf.radius[0],
+          ee.ballCenterY + bf.heightBias * br + Math.sin(n1) * br * bf.radius[1],
+          Math.cos(n2) * br * bf.radius[2]
+        );
+        tmpV2.set(
+          Math.cos(n0) * bf.speed[0] * bf.radius[0],
+          Math.cos(n1) * bf.speed[1] * bf.radius[1],
+          -Math.sin(n2) * bf.speed[2] * bf.radius[2]
+        ).normalize();
+        tmpQ.setFromUnitVectors(AXIS_Z, tmpV2);
+        var flap = 1.05 * Math.sin(now * bf.flapSpeed + bf.flapPhase);
+        var bs = 0.75 * bf.scale * bsMul;
+        tmpS.set(bs, bs, bs);
+        tmpQ3.setFromAxisAngle(AXIS_Z, flap);
+        tmpM.compose(tmpV, tmpQ2.copy(tmpQ).multiply(tmpQ3), tmpS);
+        wingL.setMatrixAt(bj, tmpM);
+        tmpQ3.setFromAxisAngle(AXIS_Z, -flap);
+        tmpM.compose(tmpV, tmpQ2.copy(tmpQ).multiply(tmpQ3), tmpS);
+        wingR.setMatrixAt(bj, tmpM);
       }
+      wingL.instanceMatrix.needsUpdate = true;
+      wingR.instanceMatrix.needsUpdate = true;
 
       /* ground board scale lerp 0.46 -> 1 */
       var boardScale = THREE.MathUtils.lerp(0.46, 1, smoothstep(Math.min(1, 1.7 * et)));
@@ -5046,8 +5118,10 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
       /* camera: fov 34->16, elev 21->89.3, azimuth ->0, y bouquetRadius->boardRadius, lookY->0 */
       var smEt = smoothstep(et);
       var fov = THREE.MathUtils.lerp(34, 16, smEt);
-      var elev = THREE.MathUtils.lerp(THREE.MathUtils.degToRad(21), THREE.MathUtils.degToRad(89.3), smEt);
-      var azimuth = THREE.MathUtils.lerp(-0.42, 0, smEt) + 0.05 * Math.sin(0.11 * now) * u;
+      var elev = THREE.MathUtils.lerp(THREE.MathUtils.degToRad(21), THREE.MathUtils.degToRad(89.3), smEt) + rotCurX * u;
+      if (elev < 0.12) elev = 0.12;
+      else if (elev > 1.42) elev = 1.42;
+      var azimuth = THREE.MathUtils.lerp(-0.42, 0, smEt) + 0.05 * Math.sin(0.11 * now) * u + rotCurY * u;
       var y = THREE.MathUtils.lerp(ee.bouquetRadius, ee.boardRadius, smEt);
       var zm = THREE.MathUtils.lerp(zoom, 1, smEt);
       var C = fitDist(y, fov, camera.aspect, 1) * zm;
@@ -5067,7 +5141,8 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
       var dt = Math.min(0.1, (nowMs - lastNow) / 1000);
       lastNow = nowMs;
       renderFrame((nowMs - elapsedBase) / 1000, dt);
-      var settled = Math.abs(state.scatter - et) < 1e-3;
+      var settled = Math.abs(state.scatter - et) < 1e-3
+        && Math.abs(rotTgtX - rotCurX) < 1e-3 && Math.abs(rotTgtY - rotCurY) < 1e-3;
       if (wantActive) {
         rafId = requestAnimationFrame(frame);
       } else if (!settled) {
@@ -5086,6 +5161,7 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     function tap() {
       if (dead || !ready) return;
       state.scatter = state.scatter ? 0 : 1;
+      toggleBtn.classList.toggle('on', !!state.scatter);
       if (reduced) {
         et = state.scatter;
         renderFrame(0.001, 0);
@@ -5094,7 +5170,8 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
       }
     }
 
-    canvasHost.addEventListener('click', tap);
+    /* v20: toggle via the right-side breathing button (canvas click no longer toggles) */
+    toggleBtn.addEventListener('click', tap);
 
     loadModels().then(function (models) {
       if (dead) return;
@@ -5123,10 +5200,11 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
       dead = true;
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
-      try { canvasHost.removeEventListener('click', tap); } catch (e) {}
+      try { toggleBtn.removeEventListener('click', tap); } catch (e) {}
       ro.disconnect();
       try { renderer.dispose(); } catch (e) {}
       instancers.forEach(function (inst) { try { inst.mesh.dispose(); } catch (e) {} });
+      if (toggleBtn.parentNode) toggleBtn.parentNode.removeChild(toggleBtn);
       if (canvasHost.parentNode) canvasHost.parentNode.removeChild(canvasHost);
       hostEl.classList.remove('bloom-ready');
     }
