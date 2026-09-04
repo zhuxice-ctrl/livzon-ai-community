@@ -17,6 +17,7 @@ const path = require('path');
 const os = require('os');
 const { LarkClient } = require('./lark-client');
 const session = require('express-session');
+const { PgSessionStore } = require('./lib/pg-session-store');
 const worksRouter = require('./routes/works');
 const adminRouter = require('./routes/admin');
 const registerRouter = require('./routes/register');
@@ -35,12 +36,14 @@ const DATA_DIR = path.join(PUBLIC_DIR, 'data');
 const app = express();
 app.use(express.json({ limit: '64kb' }));
 
-// Session（登录态）
+// Session（登录态）——存 PG，重启不掉线、OAuth 回调跨重启可校验 state
 app.use(session({
+  name: 'pz.sid',
+  store: new PgSessionStore({ ttlMs: 1000 * 60 * 60 * 24 * 7 }),
   secret: process.env.SESSION_SECRET || 'pingce-dev-secret-' + (process.env.LARK_APP_ID || ''),
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 }, // 7 天
+  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 1000 * 60 * 60 * 24 * 7 }, // 7 天
 }));
 
 // CORS（允许同 LAN 内任意来源）

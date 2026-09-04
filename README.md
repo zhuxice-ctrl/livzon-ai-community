@@ -171,7 +171,8 @@ cd F:\pingce
 node server/sql/run_migrate.js
 ```
 
-迁移脚本按文件名顺序执行 `server/sql/*.sql`：`schema.sql`（基线）→ `004_*` → `005_community.sql`（社区帖子/评论/点赞/配置）→ `006_work_comments.sql`（作品评论）→ `007_activities.sql`（活动落库/预约/站内消息）→ `008_activity_reminders.sql`（start_at 列 + 提醒去重记录）。升级时拉取新 SQL 后重跑一次 `run_migrate.js` 即可；活动数据变更后另跑 `node server/sql/import_activities.js` 刷新入库。
+迁移脚本按文件名顺序执行 `server/sql/*.sql`：`schema.sql`（基线）→ `004_*` → `005_community.sql`（社区帖子/评论/点赞/配置）→ `006_work_comments.sql`（作品评论）→ `007_activities.sql`（活动落库/预约/站内消息）→ `008_activity_reminders.sql`（start_at 列 + 提醒去重记录）→ `009_sessions.sql`（session 落 PG）。升级时拉取新 SQL 后重跑一次 `run_migrate.js` 即可；活动数据变更后另跑 `node server/sql/import_activities.js` 刷新入库。
+> 登录态持久化：session 存 PostgreSQL（`lib/pg-session-store.js`），修复此前 memory store「服务重启全员掉线 / OAuth 回调中途重启即 state-mismatch」——现在重启不清登录态，7 天免登录。
 
 ## 每期更新作品
 
