@@ -929,7 +929,7 @@ var ActivitiesSection = () => {
           if (slideEls.length > 1) {
             var carDragging = false, carStartX = 0, carDx = 0, carMoved = false;
             carEl.addEventListener("pointerdown", function (e) {
-              if (e.button !== undefined && e.button !== 0) return;
+              if (e.button !== undefined && e.button !== 0) return; if (e.target && e.target.closest && e.target.closest(".act-feat-ph")) return;
               carDragging = true; carMoved = false; carStartX = e.clientX; carDx = 0;
             });
             carEl.addEventListener("pointermove", function (e) {
@@ -2006,7 +2006,7 @@ var ActivitiesSection = () => {
     .act-signup-btn:hover{background:#0f1c33;}
     .act-signup-btn:disabled{background:transparent;color:#aaa;border:1px solid #ddd;cursor:not-allowed;letter-spacing:1px;}
     /* 01 本月特展 · 轮播 */
-    .act-carousel{position:relative;overflow:hidden;border:1px solid rgba(0,0,0,0.08);background:#fff;min-height:384px;touch-action:pan-y;user-select:none;cursor:grab;}
+    .act-carousel{position:relative;overflow:hidden;background:#fff;min-height:384px;touch-action:pan-y;user-select:none;cursor:grab;}
     .act-carousel:active{cursor:grabbing;}
     .act-slide{position:absolute;inset:0;padding:56px 64px;opacity:0;transform:translateX(28px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1);pointer-events:none;display:flex;flex-direction:column;justify-content:center;}
     .act-slide.on{position:relative;opacity:1;transform:none;pointer-events:auto;}
