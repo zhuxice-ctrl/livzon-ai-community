@@ -975,7 +975,7 @@ var ActivitiesSection = () => {
             loadBloom(function () {
               if (!window.BloomCarousel || !carEl.parentNode) return;
               bloomHosts.forEach(function (bh, bi) {
-                var inst = window.BloomCarousel.mount(bh, bh.getAttribute("data-bloom"), { count: 380, seed: 1201 + bi * 977 });
+                var inst = window.BloomCarousel.mount(bh, bh.getAttribute("data-bloom"), { count: 380, seed: 1201 + bi * 977, zoom: 0.72 });
                 if (inst) bloomInsts.push({ inst: inst, host: bh });
               });
               bloomIdx = curSlide; syncBloom();
@@ -2021,7 +2021,7 @@ var ActivitiesSection = () => {
     /* v14: 本月特展图片占位块 */
     .act-slide.has-ph{flex-direction:row;align-items:center;gap:56px;}
     .act-slide.has-ph .act-slide-main{flex:1;min-width:0;}
-    .act-feat-ph{position:relative;flex:0 0 320px;max-width:36%;aspect-ratio:4/3;border:1px solid rgba(0,0,0,0.12);background:#fafaf9;background-image:linear-gradient(rgba(0,0,0,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.022) 1px,transparent 1px);background-size:24px 24px;display:flex;align-items:center;justify-content:center;}
+    .act-feat-ph{position:relative;flex:0 0 420px;max-width:46%;aspect-ratio:1/1;background:#fafaf9;background-image:linear-gradient(rgba(0,0,0,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.022) 1px,transparent 1px);background-size:24px 24px;display:flex;align-items:center;justify-content:center;}
     .act-feat-ph .ph-t{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:4px;color:#c2c2bc;}
     .act-feat-ph .bloom-canvas-host{position:absolute;inset:0;background:#fff;}
     .act-feat-ph .bloom-canvas-host canvas{width:100%;height:100%;display:block;}
