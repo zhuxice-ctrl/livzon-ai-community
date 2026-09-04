@@ -9,7 +9,7 @@ const { query } = require('../db');
 const { ok, err, ErrorCodes } = require('../contract');
 const { checkRules } = require('../validate');
 const { authRequired } = require('../middleware/auth');
-const { genId, fmtTime, userSnapshot, likeToggleSQL } = require('../lib/community-core');
+const { genId, fmtTime, userSnapshot, likeToggleSQL, utf8Field } = require('../lib/community-core');
 
 const router = express.Router();
 
@@ -343,7 +343,7 @@ router.post('/upload', authRequired, (req, res) => {
     if (e) return res.status(400).json(err(ErrorCodes.VALIDATION, e.message));
     const f = req.file;
     if (!f) return res.status(400).json(err(ErrorCodes.VALIDATION, '缺少文件字段 file'));
-    const orig = String(f.originalname || '').slice(0, 255);
+    const orig = utf8Field(String(f.originalname || '')).slice(0, 255);
     const ext = (path.extname(orig).toLowerCase().replace(/^\./, '')) || '';
     const isImg = IMG_EXT.has(ext);
     const isDoc = DOC_EXT.has(ext);

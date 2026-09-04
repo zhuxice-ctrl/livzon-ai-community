@@ -115,6 +115,12 @@
             <textarea name="theme" maxlength="4000" placeholder="主题 / 团队 / 开发流程说明（后续随制品一起管理）"></textarea>
           </div>
 
+          <div class="field">
+            <label>资源文件（可空 · 登录后可传）</label>
+            <input type="file" name="artifact" id="artifactFile">
+            <div class="hint">上传源码包 / 视频 / Skill 等制品，作品详情页可下载；需登录（上传归属本人，管理员可代任意作品）。也可提交后在作品页追加。</div>
+          </div>
+
           <button class="btn primary" type="submit" id="submitBtn" style="width:100%;">提交作品</button>
           <div class="msg" id="msg"></div>
         </form>
@@ -193,7 +199,22 @@
       var resp = await fetch('/api/works', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       var data = await resp.json();
       if (resp.ok && data.ok) {
-        showMsg('提交成功！作品已进入待审核队列，管理员通过后将对外展示。', 'ok');
+        var newId = (data.data && (data.data.id != null ? data.data.id : data.data.work && data.data.work.id)) || null;
+        var fileInput = document.getElementById('artifactFile');
+        var aFile = fileInput && fileInput.files && fileInput.files[0];
+        if (newId && aFile) {
+          var afd = new FormData();
+          afd.append('file', aFile); afd.append('workId', newId); afd.append('kind', payload.kind || 'source'); afd.append('version', 'v1'); afd.append('guide', payload.description || ''); afd.append('origname', aFile.name);
+          try {
+            var aresp = await fetch('/api/artifacts/upload', { method: 'POST', body: afd });
+            var adata = await aresp.json();
+            if (aresp.ok && adata.ok) { showMsg('提交成功！作品与资源文件均已上传，进入待审核队列。', 'ok'); }
+            else if (aresp.status === 401) { showMsg('作品已提交，但资源需登录后才能上传（可在作品详情页补传）。', 'err'); }
+            else { showMsg('作品已提交，但资源上传失败：' + ((adata.error && adata.error.message) || '未知错误'), 'err'); }
+          } catch (ae) { showMsg('作品已提交，资源上传网络异常（可在作品详情页补传）。', 'err'); }
+        } else {
+          showMsg('提交成功！作品已进入待审核队列，管理员通过后将对外展示。', 'ok');
+        }
         form.reset();
         document.querySelectorAll('#kindSeg .kind-opt').forEach(function (o) { o.classList.remove('active'); });
         document.getElementById('pvThumb').innerHTML = '<span class="ph">NO COVER</span>';

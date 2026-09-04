@@ -9,6 +9,18 @@ function genId(prefix) {
   return prefix + '-' + Date.now().toString(36) + '-' + crypto.randomBytes(3).toString('hex');
 }
 
+// 修复 multipart/busboy 把 UTF-8 字段值/文件名按 latin1 解码导致的中文乱码：
+// 每个字符其实是 1 个原始字节，按 latin1 回取字节再 UTF-8 解出。ASCII 幂等无损。
+function utf8Field(s) {
+  if (s == null) return s;
+  try {
+    const fixed = Buffer.from(String(s), 'latin1').toString('utf8');
+    return fixed.indexOf('\uFFFD') === -1 ? fixed : String(s);
+  } catch (_) {
+    return String(s);
+  }
+}
+
 // created_at → 前端 time 格式（MM-DD HH:mm；1 分钟内为「刚刚」）
 function fmtTime(d) {
   const t = new Date(d);
@@ -40,4 +52,4 @@ function likeToggleSQL(table, subjectCol, fkTable) {
     SELECT u.likes, (SELECT count(*) FROM was) = 0 AS liked FROM upd u`;
 }
 
-module.exports = { genId, fmtTime, userSnapshot, likeToggleSQL };
+module.exports = { genId, fmtTime, userSnapshot, likeToggleSQL, utf8Field };
