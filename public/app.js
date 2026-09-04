@@ -2291,6 +2291,85 @@ var MySection = () => {
     const statusLabel = function (s) { return { pending: "待审核", approved: "已通过", rejected: "已驳回" }[s] || s; };
     const kindLabel = function (k) { return { image: "AI 图像", video: "AI 视频", "3d": "3D 生成", app: "小程序/产品", tool: "工具/插件", skill: "Skill", mcp: "MCP 工具", source: "源码包" }[k] || k; };
     const fmt = function (s) { return s ? String(s).slice(0, 16).replace("T", " ") : "—"; };
+
+    // ===== 管理控制台交互（admin）=====
+    function initAdmin() {
+      loadWorks();
+      window.myAdminTab = function (t) {
+        ["works", "regs", "resv", "sys"].forEach(function (k) {
+          var el = document.getElementById("adm-" + k);
+          if (el) el.style.display = k === t ? "" : "none";
+        });
+        document.querySelectorAll(".adm-tab").forEach(function (b) { b.classList.toggle("on", /'/.test(b.getAttribute("onclick") || "") ? (b.getAttribute("onclick").indexOf("'" + t + "'") > -1) : false); });
+        if (t === "regs" && !document.getElementById("adm-regs").dataset.loaded) loadRegs();
+        if (t === "resv" && !document.getElementById("adm-resv").dataset.loaded) loadResv();
+      };
+      window.myAdminWork = function (id, status) { patchJson("/api/admin/works/" + id, { status: status }).then(function () { loadWorks(); }); };
+      window.myAdminPub = function (id, published) { patchJson("/api/admin/works/" + id, { published: published }).then(function () { loadWorks(); }); };
+      window.myAdminReg = function (id, status) { patchJson("/api/admin/registrations/" + id, { status: status }).then(function () { loadRegs(); }); };
+      window.myAdminScan = function () {
+        var out = document.getElementById("adm-sys-out");
+        var ahead = parseInt((document.getElementById("adm-ahead") || {}).value || "24", 10);
+        if (out) out.innerHTML = "<span class='adm-loading'>扫描中…</span>";
+        fetch("/api/admin/activities/scan-reminders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aheadHours: ahead }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!out) return;
+            if (j.ok) { var d = j.data; out.innerHTML = "<div class='adm-scan-ok'>完成：命中 " + d.scanned + " 条 · 已发送 " + d.sent + " · 跳过 " + d.skipped + "（窗口 " + d.aheadHours + "h）。每条预约仅提醒一次。</div>"; }
+            else out.innerHTML = "<div class='adm-scan-err'>失败：" + esc((j.error && j.error.message) || "未知错误") + "</div>";
+          }).catch(function () { if (out) out.innerHTML = "<div class='adm-scan-err'>网络异常</div>"; });
+      };
+    }
+    function patchJson(url, body) {
+      return fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+    }
+    function loadWorks() {
+      fetch("/api/admin/works").then(function (r) { return r.json(); }).then(function (j) {
+        var el = document.getElementById("adm-works"); if (!el || !j.ok) return;
+        var rows = (j.data && j.data.works) || [];
+        var pend = rows.filter(function (x) { return x.status === "pending"; }).length;
+        if (!rows.length) { el.innerHTML = "<div class='my-empty'>暂无作品</div>"; return; }
+        el.innerHTML = "<div class='adm-note'>共 " + rows.length + " 件，待审核 " + pend + " 件</div>" +
+          "<table class='my-table adm-table'><thead><tr><th>作品</th><th>作者</th><th>状态</th><th>发布</th><th>操作</th></tr></thead><tbody>" +
+          rows.map(function (x) {
+            var acts = "";
+            if (x.status === "pending") acts += "<button class='adm-btn ok' onclick=\"window.myAdminWork(" + x.id + ",'approved')\">通过</button><button class='adm-btn no' onclick=\"window.myAdminWork(" + x.id + ",'rejected')\">驳回</button>";
+            if (x.status === "approved") acts += "<button class='adm-btn' onclick=\"window.myAdminPub(" + x.id + "," + (!x.published) + ")\">" + (x.published ? "下架" : "上架") + "</button>";
+            return "<tr><td>" + esc(x.title) + "<span class='adm-kind'>" + esc(x.kind || "") + "</span></td><td>" + esc(x.author || "—") + "</td><td><span class='my-status " + x.status + "'>" + statusLabel(x.status) + "</span></td><td>" + (x.published ? "已发布" : "未发布") + "</td><td class='adm-ops'>" + (acts || "—") + "</td></tr>";
+          }).join("") + "</tbody></table>";
+      }).catch(function () {});
+    }
+    function loadRegs() {
+      fetch("/api/admin/registrations").then(function (r) { return r.json(); }).then(function (j) {
+        var el = document.getElementById("adm-regs"); if (!el || !j.ok) return;
+        el.dataset.loaded = "1";
+        var rows = (j.data && j.data.registrations) || [];
+        if (!rows.length) { el.innerHTML = "<div class='my-empty'>暂无报名</div>"; return; }
+        el.innerHTML = "<div class='adm-note'>共 " + rows.length + " 条报名</div>" +
+          "<table class='my-table adm-table'><thead><tr><th>姓名</th><th>部门</th><th>联系方式</th><th>活动</th><th>状态</th><th>操作</th></tr></thead><tbody>" +
+          rows.map(function (x) {
+            var acts = x.status === "pending"
+              ? "<button class='adm-btn ok' onclick=\"window.myAdminReg(" + x.id + ",'approved')\">通过</button><button class='adm-btn no' onclick=\"window.myAdminReg(" + x.id + ",'rejected')\">驳回</button>"
+              : "<span class='adm-done'>已处理</span>";
+            return "<tr><td>" + esc(x.name) + "</td><td>" + esc(x.department || "—") + "</td><td class='mono'>" + esc(x.contact || "—") + "</td><td>" + esc(x.activity || "—") + "</td><td><span class='my-status " + x.status + "'>" + statusLabel(x.status) + "</span></td><td class='adm-ops'>" + acts + "</td></tr>";
+          }).join("") + "</tbody></table>";
+      }).catch(function () {});
+    }
+    function loadResv() {
+      fetch("/api/admin/activities/reservations").then(function (r) { return r.json(); }).then(function (j) {
+        var el = document.getElementById("adm-resv"); if (!el || !j.ok) return;
+        el.dataset.loaded = "1";
+        var acts = (j.data && j.data.activities) || [];
+        if (!acts.length) { el.innerHTML = "<div class='my-empty'>暂无预约</div>"; return; }
+        el.innerHTML = acts.map(function (g) {
+          return "<div class='adm-resv-grp'><div class='adm-resv-h'>" + esc(g.title) + " <span class='adm-resv-c'>" + g.total + " 人</span></div>" +
+            "<table class='my-table adm-table'><thead><tr><th>姓名</th><th>部门</th><th>参与期待</th><th>预约时间</th></tr></thead><tbody>" +
+            g.reservations.map(function (x) { return "<tr><td>" + esc(x.name) + "</td><td>" + esc(x.dept || "—") + "</td><td>" + esc(x.note || "—") + "</td><td class='mono'>" + fmt(x.createdAt) + "</td></tr>"; }).join("") +
+            "</tbody></table></div>";
+        }).join("");
+      }).catch(function () {});
+    }
+
     Promise.all([
       fetch("/api/my/profile").then(function (r) { return r.json(); }),
       fetch("/api/my/registrations").then(function (r) { return r.json(); }),
@@ -2353,9 +2432,35 @@ var MySection = () => {
           }).join("") + "</tbody></table>";
       }
       h += "</div>";
+      // ===== 管理控制台（仅 admin）=====
+      var isAdmin = u.role === "admin";
+      if (isAdmin) {
+        h += "<div class='my-sec my-admin'>" +
+          "<div class='my-sechead'><span class='t'>管理控制台</span><span class='e'>ADMIN CONSOLE · 仅管理员可见</span></div>" +
+          "<div class='adm-tabs'>" +
+            "<button class='adm-tab on' onclick=\"window.myAdminTab&&window.myAdminTab('works')\">作品审核</button>" +
+            "<button class='adm-tab' onclick=\"window.myAdminTab&&window.myAdminTab('regs')\">报名审核</button>" +
+            "<button class='adm-tab' onclick=\"window.myAdminTab&&window.myAdminTab('resv')\">预约名单</button>" +
+            "<button class='adm-tab' onclick=\"window.myAdminTab&&window.myAdminTab('sys')\">提醒 / 系统</button>" +
+          "</div>" +
+          "<div id='adm-works' class='adm-panel'><div class='adm-loading'>加载中…</div></div>" +
+          "<div id='adm-regs' class='adm-panel' style='display:none'></div>" +
+          "<div id='adm-resv' class='adm-panel' style='display:none'></div>" +
+          "<div id='adm-sys' class='adm-panel' style='display:none'>" +
+            "<div class='adm-sys-row'><div><div class='adm-sys-t'>手动触发活动开始提醒扫描</div>" +
+            "<div class='adm-sys-d'>扫描「即将开始且未提醒」的预约并向预约人推送飞书 + 站内通知；正常情况每小时自动跑，这里用于测试/应急。</div></div>" +
+            "<div style='display:flex;gap:8px;align-items:center;flex:0 0 auto'><input id='adm-ahead' class='adm-input' type='number' min='1' max='720' value='24' title='提前小时数'><button class='adm-btn primary' onclick=\"window.myAdminScan&&window.myAdminScan()\">立即扫描</button></div></div>" +
+            "<div id='adm-sys-out' class='adm-sys-out'></div>" +
+          "</div>" +
+        "</div>";
+      }
       ref.current.innerHTML = h;
+      if (isAdmin) initAdmin();
     }).catch(function () {});
-    return function () { cancelled = true; };
+    return function () {
+      cancelled = true;
+      ["myAdminTab", "myAdminWork", "myAdminPub", "myAdminReg", "myAdminScan"].forEach(function (k) { try { delete window[k]; } catch (_) { window[k] = undefined; } });
+    };
   }, []);
   return React.createElement("section", { className: "page-section", style: { background: "#f8f8f6", color: "#1a1a1f", padding: "140px 64px 100px", minHeight: "100vh" } }, React.createElement("style", null, `
     .my-head{display:flex;align-items:center;gap:18px;margin-bottom:32px;}
@@ -2408,6 +2513,34 @@ var MySection = () => {
     .my-login-btn{display:inline-block;font-size:14px;letter-spacing:2px;padding:12px 34px;border-radius:999px;background:linear-gradient(135deg,#2568d8,#173f8f);color:#fff;font-weight:600;text-decoration:none;transition:all .2s;}
     .my-login-btn:hover{filter:brightness(1.12);}
     .my-empty{color:#999;font-size:13px;padding:30px;text-align:center;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:10px;}
+    .my-admin{border:1px solid rgba(37,104,216,0.25);background:#fff;border-radius:12px;padding:0 0 20px;}
+    .my-admin .my-sechead{border-bottom:1px solid rgba(0,0,0,0.06);}
+    .my-admin .my-sechead .e{color:#c98a1b;}
+    .adm-tabs{display:flex;gap:4px;flex-wrap:wrap;padding:14px 20px 0;}
+    .adm-tab{font-family:inherit;font-size:13px;letter-spacing:1px;border:1px solid rgba(0,0,0,0.1);background:#f6f7f9;color:#666;padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;transition:all .18s;}
+    .adm-tab:hover{color:#1a1a1f;}
+    .adm-tab.on{background:#1a1a1f;color:#fff;border-color:#1a1a1f;}
+    .adm-panel{padding:18px 20px 4px;}
+    .adm-loading{color:#999;font-size:13px;padding:16px 0;}
+    .adm-note{font-size:12px;color:#999;margin-bottom:12px;letter-spacing:1px;}
+    .adm-table td{vertical-align:middle;}
+    .adm-kind{font-size:10px;color:#2568d8;background:rgba(37,104,216,0.08);border-radius:4px;padding:1px 6px;margin-left:8px;font-family:'JetBrains Mono',monospace;}
+    .adm-ops{white-space:nowrap;}
+    .adm-btn{font-family:inherit;font-size:12px;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#1a1a1f;border-radius:6px;padding:4px 12px;margin-right:6px;cursor:pointer;transition:all .15s;}
+    .adm-btn:hover{border-color:#1a1a1f;}
+    .adm-btn.ok{border-color:#2a9d63;color:#2a9d63;} .adm-btn.ok:hover{background:#2a9d63;color:#fff;}
+    .adm-btn.no{border-color:#c94b4b;color:#c94b4b;} .adm-btn.no:hover{background:#c94b4b;color:#fff;}
+    .adm-btn.primary{background:#1a1a1f;color:#fff;border-color:#1a1a1f;} .adm-btn.primary:hover{background:#000;}
+    .adm-done{font-size:12px;color:#bbb;}
+    .adm-input{width:64px;font-family:'JetBrains Mono',monospace;font-size:13px;border:1px solid rgba(0,0,0,0.15);border-radius:6px;padding:6px 8px;text-align:center;}
+    .adm-sys-row{display:flex;justify-content:space-between;align-items:center;gap:16px;background:#fafbfc;border:1px solid rgba(0,0,0,0.06);border-radius:10px;padding:16px 18px;}
+    .adm-sys-t{font-size:14px;font-weight:600;color:#1a1a1f;} .adm-sys-d{font-size:12px;color:#999;margin-top:4px;line-height:1.6;}
+    .adm-sys-out{margin-top:14px;font-size:13px;}
+    .adm-scan-ok{color:#2a9d63;background:rgba(90,200,140,0.1);border-radius:8px;padding:10px 14px;}
+    .adm-scan-err{color:#c94b4b;background:rgba(255,90,90,0.1);border-radius:8px;padding:10px 14px;}
+    .adm-resv-grp{margin-bottom:22px;}
+    .adm-resv-h{font-size:14px;font-weight:600;color:#1a1a1f;margin-bottom:8px;} .adm-resv-c{font-size:12px;color:#2568d8;font-family:'JetBrains Mono',monospace;margin-left:6px;}
+    @media(max-width:820px){.adm-sys-row{flex-direction:column;align-items:flex-start;}}
   `), React.createElement("div", { ref: ref }));
 };
 
