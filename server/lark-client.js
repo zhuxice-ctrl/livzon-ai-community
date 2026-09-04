@@ -108,6 +108,20 @@ class LarkClient {
    * @returns {Promise<{ok: boolean, messageId?: string, error?: string}>}
    */
   async sendTextToUser(openId, text) {
+    return this._imSend(openId, 'text', JSON.stringify({ text: String(text || '') }));
+  }
+
+  /**
+   * 机器人给单个用户发飞书交互卡片（im:message:send_as_bot）
+   * @param {string} openId ou_ 开头的用户 open_id
+   * @param {object} card 飞书卡片 JSON（header + elements）
+   * @returns {Promise<{ok, messageId?, error?}>}
+   */
+  async sendCardToUser(openId, card) {
+    return this._imSend(openId, 'interactive', JSON.stringify(card));
+  }
+
+  async _imSend(openId, msgType, content) {
     if (!(this.appId && this.appSecret)) return { ok: false, error: 'app_credentials_missing' };
     if (!/^ou_/.test(String(openId || ''))) return { ok: false, error: 'invalid_open_id' };
     try {
@@ -115,11 +129,7 @@ class LarkClient {
       const resp = await fetch(`${LARK_HOST}/open-apis/im/v1/messages?receive_id_type=open_id`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          receive_id: openId,
-          msg_type: 'text',
-          content: JSON.stringify({ text: String(text || '') }),
-        }),
+        body: JSON.stringify({ receive_id: openId, msg_type: msgType, content }),
       });
       const data = await resp.json();
       if (data.code !== 0) return { ok: false, error: `im_error: code=${data.code} msg=${data.msg || data.error_description || ''}` };

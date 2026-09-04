@@ -55,6 +55,7 @@ F:\pingce\
 | GET | `/api/works` | 作品列表 |
 | GET | `/api/activities` | 活动列表（DB 聚合，与原 json 同构；DB 不可用回落 json） |
 | GET | `/api/activities/:id` | 单活动详情 |
+| GET | `/api/activities/:id/ics` | 活动 .ics 日历（提醒卡片「加入日程」用，公开） |
 | POST | `/api/activities/:id/reserve` | 活动预约（需登录，见下文） |
 | GET | `/api/my/messages` | 我的站内消息 + 未读数 |
 | POST | `/api/my/messages/read` | 标记已读（`{id}` 单条 / `{}` 全部） |
@@ -76,7 +77,7 @@ F:\pingce\
 ### 活动开始提醒（飞书单聊 + 站内）
 
 - **触发**：`activities.start_at`（来自 json 的 `upcoming[].start_at`，ISO `+08:00`）落在 `[now, now+REMIND_AHEAD_HOURS]` 窗口内即提醒；`start_at` 为空（如"每季度未定档"）自动跳过
-- **送达**：真实飞书 `open_id`（`ou_` 开头）→ 机器人单聊 `im:message:send_as_bot`；非 ou_（如 dev 测试号）→ 优雅降级，仅站内通知
+- **送达**：真实飞书 `open_id`（`ou_` 开头）→ 机器人单聊**交互卡片**（`im:message:send_as_bot`，含「查看详情 / 加入日程」按钮，链接需配 `SITE_INTRANET_URL`；卡片失败自动回退纯文本）；非 ou_（如 dev 测试号）→ 优雅降级，仅站内通知
 - **去重**：`activity_reminders(reservation_id, kind='pre_start')` 唯一约束，一条预约只提醒一次；发送失败不落记录、下轮重试
 - **调度**：`node-cron` 每 `REMINDER_CRON`（默认每小时）跑一次 `lib/reminders.runReminders`；`REMINDERS_ENABLED=0` 关闭；管理员也可 `POST /api/admin/activities/scan-reminders {aheadHours?}` 手动触发
 - **提醒文案占位**：当前 `start_at` 为月中/月末占位值，排期确定后请改成真实时间并重新导入

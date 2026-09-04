@@ -32,6 +32,29 @@ function fmtStart(d) {
   return `${t.getMonth() + 1}月${t.getDate()}日 ${p(t.getHours())}:${p(t.getMinutes())}`;
 }
 
+// 飞书交互卡片：头部蓝标 + markdown 正文；site 非空时加「查看详情」「加入日程」两个按钮。
+// 返回 null → 调用方回退纯文本。
+function buildReminderCard(row, when, site) {
+  let md = `**「${row.title}」**\n时间：${when}\n`;
+  if (row.location) md += `地点：${row.location}\n`;
+  md += `\n你已预约，记得准时参加。`;
+  const elements = [{ tag: 'div', text: { tag: 'lark_md', content: md } }];
+  if (site) {
+    elements.push({
+      tag: 'action',
+      actions: [
+        { tag: 'button', text: { tag: 'plain_text', content: '查看详情' }, type: 'default', url: site + '/#activities' },
+        { tag: 'button', text: { tag: 'plain_text', content: '加入日程' }, type: 'primary', url: `${site}/api/activities/${encodeURIComponent(row.activity_id)}/ics` },
+      ],
+    });
+  }
+  return {
+    config: { wide_screen_mode: true },
+    header: { title: { tag: 'plain_text', content: '活动即将开始提醒' }, template: 'blue' },
+    elements,
+  };
+}
+
 // 执行一轮提醒扫描。lark=LarkClient 实例；aheadHours=提前多久提醒；notify=日志回调。
 async function runReminders(lark, { aheadHours = 24, notify = () => {} } = {}) {
   let due;
@@ -42,6 +65,7 @@ async function runReminders(lark, { aheadHours = 24, notify = () => {} } = {}) {
     return { scanned: 0, sent: 0, skipped: 0, error: e.message };
   }
   let sent = 0, skipped = 0;
+  const site = String(process.env.SITE_INTRANET_URL || '').replace(/\/+$/, '');
   for (const row of due) {
     const when = fmtStart(row.start_at);
     const text =
@@ -53,7 +77,10 @@ async function runReminders(lark, { aheadHours = 24, notify = () => {} } = {}) {
     let msgId = '';
     const realOpenId = /^ou_/.test(String(row.open_id || ''));
     if (realOpenId) {
-      const res = await lark.sendTextToUser(row.open_id, text);
+      const card = buildReminderCard(row, when, site);
+      let res = card ? await lark.sendCardToUser(row.open_id, card) : { ok: false, error: 'no-card' };
+      if (!res.ok && card) notify('reminder-card-fail', row.activity_id + ' ' + res.error + ' → 回退文本');
+      if (!res.ok) res = await lark.sendTextToUser(row.open_id, text); // 卡片失败回退纯文本
       if (res.ok) { channel = 'feishu'; msgId = res.messageId || ''; }
       else { notify('reminder-send-fail', row.activity_id + ' ' + row.user_id + ' ' + res.error); skipped++; continue; }
     }
@@ -75,4 +102,4 @@ async function runReminders(lark, { aheadHours = 24, notify = () => {} } = {}) {
   return { scanned: due.length, sent, skipped };
 }
 
-module.exports = { runReminders, findDueReminders };
+module.exports = { runReminders, findDueReminders, buildReminderCard };

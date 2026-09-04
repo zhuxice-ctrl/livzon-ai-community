@@ -70,6 +70,44 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /api/activities/:id/ics —— 生成 .ics 日历文件（飞书提醒卡片「加入日程」按钮指向它，公开无需登录）
+// 依赖 activities.start_at；无 start_at 或活动不存在 → 404。
+function icsEsc(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+function icsDate(d) {
+  return new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+router.get('/:id/ics', async (req, res) => {
+  try {
+    const r = await query(`SELECT id, title, date_label, location, data, start_at FROM activities WHERE id=$1`, [String(req.params.id || '').slice(0, 64)]);
+    const a = r.rows[0];
+    if (!a || !a.start_at) return res.status(404).send('not found');
+    const start = new Date(a.start_at);
+    const end = new Date(start.getTime() + 2 * 3600 * 1000); // 默认 2 小时
+    const desc = (a.data && a.data.desc) || a.date_label || '';
+    const ics = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Livzon AI Club//Activities//CN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      'UID:activity-' + a.id + '@livzon-ai',
+      'DTSTAMP:' + icsDate(new Date()),
+      'DTSTART:' + icsDate(start),
+      'DTEND:' + icsDate(end),
+      'SUMMARY:' + icsEsc('【丽珠 AI 社团】' + a.title),
+      'LOCATION:' + icsEsc(a.location || ''),
+      'DESCRIPTION:' + icsEsc(desc),
+      'BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(a.title), 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR',
+    ].join('\r\n');
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="activity-${a.id}.ics"`);
+    res.send(ics);
+  } catch (e) {
+    console.error('[activities.ics]', e);
+    res.status(500).send('error');
+  }
+});
+
 // POST /api/activities/:id/reserve —— 预约（authRequired；身份=登录态，姓名/部门快照落库）
 // body: { note? }  ≤500；UNIQUE(user_id,activity_id) 幂等：重复提交 200 repeated，不报错不累积
 router.post('/:id/reserve', authRequired, async (req, res) => {
