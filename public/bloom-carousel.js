@@ -4841,46 +4841,11 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     canvasHost.style.cursor = 'grab';
     canvasHost.title = '按住左键拖动旋转花束';
 
-    /* v20: right-side breathing toggle button (replaces canvas tap toggle) */
-    if (!document.getElementById('bloom-toggle-style')) {
-      var btStyle = document.createElement('style');
-      btStyle.id = 'bloom-toggle-style';
-      btStyle.textContent = ''
-        + '.bloom-toggle-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:3;width:34px;height:56px;'
-        + 'border-radius:17px;border:1px solid rgba(0,0,0,0.13);background:rgba(255,255,255,0.72);backdrop-filter:blur(3px);'
-        + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#8a6470;cursor:pointer;'
-        + 'padding:0;opacity:.45;animation:bloomBreath 3s ease-in-out infinite;'
-        + 'transition:box-shadow .25s,transform .25s;}'
-        + '.bloom-toggle-btn svg{transition:transform .55s cubic-bezier(.22,1,.36,1);display:block}'
-        + '.bloom-toggle-btn.on svg{transform:rotate(180deg)}'
-        + '.bloom-toggle-btn:hover,.bloom-toggle-btn:focus-visible{animation:none;opacity:1;'
-        + 'transform:translateY(-50%) scale(1.12);box-shadow:0 6px 20px rgba(0,0,0,0.16);outline:none}'
-        + '@keyframes bloomBreath{0%,100%{opacity:.35}50%{opacity:.75}}';
-      (document.head || document.documentElement).appendChild(btStyle);
-    }
-    var toggleBtn = document.createElement('button');
-    toggleBtn.type = 'button';
-    toggleBtn.className = 'bloom-toggle-btn';
-    toggleBtn.setAttribute('aria-label', '切换花束形态');
-    toggleBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">'
-      + '<g fill="currentColor">'
-      + '<circle cx="12" cy="12" r="2.1"/>'
-      + '<ellipse cx="12" cy="5.9" rx="1.9" ry="2.7"/>'
-      + '<ellipse cx="12" cy="18.1" rx="1.9" ry="2.7"/>'
-      + '<ellipse cx="5.9" cy="12" rx="2.7" ry="1.9"/>'
-      + '<ellipse cx="18.1" cy="12" rx="2.7" ry="1.9"/>'
-      + '<ellipse cx="7.7" cy="7.7" rx="2.2" ry="2.2"/>'
-      + '<ellipse cx="16.3" cy="7.7" rx="2.2" ry="2.2"/>'
-      + '<ellipse cx="7.7" cy="16.3" rx="2.2" ry="2.2"/>'
-      + '<ellipse cx="16.3" cy="16.3" rx="2.2" ry="2.2"/>'
-      + '</g></svg>';
-    hostEl.appendChild(toggleBtn);
-
-    /* v20: mouse left-button drag rotates the bouquet */
-    var dragging = false, lastPX = 0, lastPY = 0;
+    /* v21: mouse left-button drag rotates the bouquet; plain click (mouse or touch) toggles bouquet/QR */
+    var dragging = false, lastPX = 0, lastPY = 0, downX = 0, downY = 0, dragMoved = false, lastDragEnd = 0, lastDragMoved = false;
     canvasHost.addEventListener('pointerdown', function (e) {
       if (e.pointerType !== 'mouse' || (e.button !== undefined && e.button !== 0)) return;
-      dragging = true; lastPX = e.clientX; lastPY = e.clientY;
+      dragging = true; dragMoved = false; lastPX = e.clientX; lastPY = e.clientY; downX = e.clientX; downY = e.clientY;
       canvasHost.style.cursor = 'grabbing';
       try { canvasHost.setPointerCapture(e.pointerId); } catch (err) {}
       ensureRaf();
@@ -4888,6 +4853,7 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     canvasHost.addEventListener('pointermove', function (e) {
       if (!dragging) return;
       var dx = e.clientX - lastPX, dy = e.clientY - lastPY;
+      if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > 6) dragMoved = true;
       lastPX = e.clientX; lastPY = e.clientY;
       rotTgtY += dx * 0.0062;
       rotTgtX = Math.max(-0.55, Math.min(0.55, rotTgtX + dy * 0.0042));
@@ -4896,6 +4862,8 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     var endDrag = function () {
       if (!dragging) return;
       dragging = false;
+      lastDragEnd = Date.now();
+      lastDragMoved = dragMoved;
       canvasHost.style.cursor = 'grab';
       ensureRaf();
     };
@@ -5161,7 +5129,6 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
     function tap() {
       if (dead || !ready) return;
       state.scatter = state.scatter ? 0 : 1;
-      toggleBtn.classList.toggle('on', !!state.scatter);
       if (reduced) {
         et = state.scatter;
         renderFrame(0.001, 0);
@@ -5170,8 +5137,12 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
       }
     }
 
-    /* v20: toggle via the right-side breathing button (canvas click no longer toggles) */
-    toggleBtn.addEventListener('click', tap);
+    /* v21: flower click toggles bouquet/QR (skip the click that ends a drag-rotate) */
+    var onHostClick = function () {
+      if (lastDragMoved && Date.now() - lastDragEnd < 600) return;
+      tap();
+    };
+    canvasHost.addEventListener('click', onHostClick);
 
     loadModels().then(function (models) {
       if (dead) return;
@@ -5200,11 +5171,10 @@ window.MODELS_B64={"leaves": "Z2xURgIAAACQ0AMAQAcAAEpTT057ImFzc2V0Ijp7InZlcnNpb2
       dead = true;
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
-      try { toggleBtn.removeEventListener('click', tap); } catch (e) {}
+      try { canvasHost.removeEventListener('click', onHostClick); } catch (e) {}
       ro.disconnect();
       try { renderer.dispose(); } catch (e) {}
       instancers.forEach(function (inst) { try { inst.mesh.dispose(); } catch (e) {} });
-      if (toggleBtn.parentNode) toggleBtn.parentNode.removeChild(toggleBtn);
       if (canvasHost.parentNode) canvasHost.parentNode.removeChild(canvasHost);
       hostEl.classList.remove('bloom-ready');
     }
