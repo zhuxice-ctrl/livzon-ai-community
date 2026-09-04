@@ -721,7 +721,8 @@ var ActivitiesSection = () => {
         var slides = [{ t: focus.tag || "本月特展", n: focus.name, m: "◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location), d: focus.desc, big: true }];
         (focus.highlights || []).forEach(function (x, xi) { slides.push({ t: "亮点 · 0" + (xi + 1), n: x, m: "", d: "", big: false }); });
         h += "<div class='act-carousel' id='actCarousel'>" + slides.map(function (s, si) {
-          var ph = "<div class='act-feat-ph' aria-hidden='true'><i class='c1'></i><i class='c2'></i><i class='c3'></i><i class='c4'></i><span class='ph-t'>IMAGE · 图片占位</span></div>";
+          var bloomSp = ["peony", "rose", "lily", "lotus", "peony"][si % 5] || "peony";
+          var ph = "<div class='act-feat-ph' data-bloom='" + bloomSp + "' aria-hidden='true'><i class='c1'></i><i class='c2'></i><i class='c3'></i><i class='c4'></i><span class='ph-t'>FLOWER · 加载中</span></div>";
           return "<div class='act-slide has-ph" + (si === 0 ? " on" : "") + "'>" +
             "<div class='act-slide-main'>" +
             "<span class='act-tagx' style='color:" + fc + "'>" + esc(s.t) + "</span>" +
@@ -872,6 +873,7 @@ var ActivitiesSection = () => {
             curSlide = (i + slideEls.length) % slideEls.length;
             slideEls.forEach(function (s, si) { s.classList.toggle("on", si === curSlide); });
             if (dotsEl) Array.prototype.forEach.call(dotsEl.children, function (d, di) { d.classList.toggle("on", di === curSlide); });
+            if (window.__bloomGoSlide) window.__bloomGoSlide(curSlide);
           };
           if (!prefersReduced && slideEls.length > 1) {
             var carTimer = setInterval(function () { if (!cancelled) goSlide(curSlide + 1); }, 5000);
@@ -910,6 +912,38 @@ var ActivitiesSection = () => {
             };
             window.addEventListener("keydown", onCarKey);
             uiCleanups.push(function () { window.removeEventListener("keydown", onCarKey); });
+          }
+          // v17: Bloom 花束占位场景（1:1 复刻 bloom 设计：牡丹/玫瑰/百合/莲花）
+          var bloomHosts = Array.prototype.slice.call(carEl.querySelectorAll(".act-feat-ph[data-bloom]"));
+          if (bloomHosts.length) {
+            var bloomInsts = [], bloomVisible = false, bloomIdx = 0;
+            var syncBloom = function () {
+              bloomInsts.forEach(function (b, bi) { b.inst.setActive(bloomVisible && bi === bloomIdx); });
+            };
+            var loadBloom = function (cb) {
+              if (window.BloomCarousel) return cb();
+              if (window.__bloomQueue) { window.__bloomQueue.push(cb); return; }
+              window.__bloomQueue = [cb];
+              var sc = document.createElement("script");
+              sc.src = "/bloom-carousel.js";
+              sc.onload = function () { var q = window.__bloomQueue || []; window.__bloomQueue = null; q.forEach(function (f) { f(); }); };
+              sc.onerror = function () { window.__bloomQueue = null; };
+              document.head.appendChild(sc);
+            };
+            loadBloom(function () {
+              if (!window.BloomCarousel || !carEl.parentNode) return;
+              bloomHosts.forEach(function (bh, bi) {
+                var inst = window.BloomCarousel.mount(bh, bh.getAttribute("data-bloom"), { count: 380, seed: 1201 + bi * 977 });
+                if (inst) bloomInsts.push({ inst: inst, host: bh });
+              });
+              bloomIdx = curSlide; syncBloom();
+            });
+            window.__bloomGoSlide = function (i) { bloomIdx = i; syncBloom(); };
+            var bio = new IntersectionObserver(function (ents) {
+              ents.forEach(function (en) { bloomVisible = en.isIntersecting; syncBloom(); });
+            }, { threshold: 0.05 });
+            bio.observe(carEl);
+            uiCleanups.push(function () { bio.disconnect(); window.__bloomGoSlide = null; bloomInsts.forEach(function (b) { b.inst.dispose(); }); });
           }
         }
         // 展线导航：点击平滑滚动 + 滚动高亮当前展厅
@@ -1947,6 +1981,9 @@ var ActivitiesSection = () => {
     .act-slide.has-ph .act-slide-main{flex:1;min-width:0;}
     .act-feat-ph{position:relative;flex:0 0 320px;max-width:36%;aspect-ratio:4/3;border:1px solid rgba(0,0,0,0.12);background:#fafaf9;background-image:linear-gradient(rgba(0,0,0,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.022) 1px,transparent 1px);background-size:24px 24px;display:flex;align-items:center;justify-content:center;}
     .act-feat-ph .ph-t{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:4px;color:#c2c2bc;}
+    .act-feat-ph .bloom-canvas-host{position:absolute;inset:0;background:#fff;}
+    .act-feat-ph .bloom-canvas-host canvas{width:100%;height:100%;display:block;}
+    .act-feat-ph.bloom-ready i.c1,.act-feat-ph.bloom-ready i.c2,.act-feat-ph.bloom-ready i.c3,.act-feat-ph.bloom-ready i.c4,.act-feat-ph.bloom-ready .ph-t{display:none;}
     .act-feat-ph i{position:absolute;width:16px;height:16px;border:1px solid rgba(0,0,0,0.25);}
     .act-feat-ph i.c1{left:12px;top:12px;border-right:none;border-bottom:none;}
     .act-feat-ph i.c2{right:12px;top:12px;border-left:none;border-bottom:none;}
