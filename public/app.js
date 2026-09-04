@@ -4374,6 +4374,77 @@ var WorkComments = ({ workId }) => {
     roots.length ? el("div", null, roots.map(function (c) { return renderCmt(c, 0); }))
       : el("div", { style: { fontSize: 13, color: "#bbb", padding: "8px 0" } }, "还没有评论，来抢占第一个沙发吧。"));
 };
+var ART_KIND_LABEL = { video: "视频", miniprogram: "小程序", skill: "Skill", mcp: "MCP", source: "源码包", file: "文件" };
+var Artifacts = ({ workId }) => {
+  var el = React.createElement;
+  var st = React.useState, ef = React.useEffect;
+  var [list, setList] = st([]);
+  var [me, setMe] = st(null);
+  var [showForm, setShowForm] = st(false);
+  var [busy, setBusy] = st(false);
+  var [hint, setHint] = st("");
+  var fmtSize = function (n) { n = +n || 0; return n > 1048576 ? (n / 1048576).toFixed(1) + "MB" : n > 1024 ? Math.round(n / 1024) + "KB" : n + "B"; };
+  function load() {
+    if (workId == null) return;
+    fetch("/api/artifacts?work_id=" + encodeURIComponent(workId)).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.ok && j.data) setList(j.data.artifacts || []); }).catch(function () {});
+  }
+  ef(function () {
+    load();
+    fetch("/api/auth/me").then(function (r) { return r.json(); }).then(function (j) { if (j && j.authenticated && j.data) setMe(j.data); }).catch(function () {});
+  }, [workId]);
+  function download(id) {
+    if (!me) { window.location.href = "/login.html"; return; }
+    window.location.href = "/api/artifacts/" + encodeURIComponent(id) + "/download";
+  }
+  function upload(e) {
+    e.preventDefault();
+    var form = e.target;
+    var f = form.fileInput.files[0];
+    if (!f) { setHint("请先选择文件"); return; }
+    setBusy(true); setHint("");
+    var fd = new FormData();
+    fd.append("file", f); fd.append("workId", workId); fd.append("kind", form.kind.value);
+    fd.append("version", (form.version.value || "v1").trim()); fd.append("guide", (form.guide.value || "").trim());
+    fd.append("origname", f.name); // 文件名走文本字段，避免 multipart header 有损解码
+    fetch("/api/artifacts/upload", { method: "POST", body: fd })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (res) {
+        setBusy(false);
+        if (res.s === 401) { setHint("请先登录后再上传"); return; }
+        if (res.j && res.j.ok) { setHint(""); form.reset(); setShowForm(false); load(); }
+        else setHint("上传失败：" + ((res.j && res.j.error && res.j.error.message) || "未知错误"));
+      })
+      .catch(function () { setBusy(false); setHint("网络异常，请稍后再试"); });
+  }
+  var rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "14px 0", borderBottom: "1px solid #f0f0ec" };
+  var kindBadge = { fontSize: 11, color: "#2568d8", background: "rgba(37,104,216,0.08)", borderRadius: 4, padding: "2px 8px", flex: "0 0 auto" };
+  var dlBtn = { flex: "0 0 auto", background: "#1a1a1f", color: "#fff", border: "none", borderRadius: 999, padding: "7px 18px", fontSize: 13, cursor: "pointer" };
+  var inpStyle = { width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1px solid #e0e0dc", borderRadius: 6, fontSize: 13, fontFamily: "inherit" };
+  return el("div", { style: { marginTop: 56, padding: "24px 0 0", borderTop: "1px solid #eee" } },
+    el("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 } },
+      el("div", { style: { fontSize: 11, color: "#aaa", letterSpacing: 3, fontFamily: "'JetBrains Mono', monospace" } }, "RESOURCES · 作品资源 (" + list.length + ")"),
+      me ? el("button", { onClick: function () { setShowForm(!showForm); }, style: { background: "none", border: "1px solid #d0d0ca", color: "#666", borderRadius: 999, padding: "4px 14px", fontSize: 12, cursor: "pointer" } }, showForm ? "收起" : "＋ 上传资源") : null),
+    showForm && me ? el("form", { onSubmit: upload, style: { background: "#fafaf8", border: "1px solid #eee", borderRadius: 10, padding: 16, margin: "10px 0 4px", display: "grid", gap: 10 } },
+      el("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
+        el("select", { name: "kind", style: Object.assign({}, inpStyle, { flex: "1 1 120px" }), defaultValue: "source" }, ["source", "video", "skill", "mcp", "miniprogram", "file"].map(function (k) { return el("option", { key: k, value: k }, ART_KIND_LABEL[k] || k); })),
+        el("input", { name: "version", placeholder: "版本 v1", style: Object.assign({}, inpStyle, { flex: "0 1 120px" }) })),
+      el("input", { name: "guide", placeholder: "使用说明 / 本地调用指引（选填）", style: inpStyle }),
+      el("input", { type: "file", name: "fileInput", style: { fontSize: 13 } }),
+      hint ? el("div", { style: { fontSize: 12, color: "#c0392b" } }, hint) : null,
+      el("div", { style: { textAlign: "right" } }, el("button", { type: "submit", disabled: busy, style: { background: "#1a1a1f", color: "#fff", border: "none", borderRadius: 999, padding: "8px 22px", fontSize: 13, cursor: busy ? "default" : "pointer" } }, busy ? "上传中…" : "上传"))) : null,
+    !list.length && !showForm ? el("div", { style: { fontSize: 13, color: "#bbb", padding: "10px 0" } }, me ? "暂无可下载资源——点右上「上传资源」添加。" : "该作品暂无可下载资源。") : null,
+    list.map(function (a) {
+      return el("div", { key: a.id, style: rowStyle },
+        el("span", { style: kindBadge }, ART_KIND_LABEL[a.kind] || a.kind),
+        el("div", { style: { flex: 1, minWidth: 0 } },
+          el("div", { style: { fontSize: 14, color: "#1a1a1f", fontWeight: 500, wordBreak: "break-all" } }, a.filename || ("资源-" + a.id)),
+          el("div", { style: { fontSize: 12, color: "#999", marginTop: 3 } }, (a.version || "v1") + " · " + fmtSize(a.size) + (a.downloads ? " · 已下载 " + a.downloads + " 次" : "")),
+          a.guide ? el("div", { style: { fontSize: 12, color: "#888", marginTop: 4, lineHeight: 1.6 } }, a.guide) : null),
+        el("button", { style: dlBtn, onClick: function () { download(a.id); } }, "下载"));
+    })
+  );
+};
 var WorkDetail = ({ workIdx, onBack }) => {
   var el = React.createElement;
   const work = WORKS_INFO[workIdx % 28];
@@ -4646,6 +4717,7 @@ var WorkDetail = ({ workIdx, onBack }) => {
     className: "page-container",
     style: { maxWidth: 1100, margin: "0 auto" }
   }, backLink, heroImg, ctaStrip, grid,
+    workId != null ? el(Artifacts, { workId: workId }) : null,
     workId != null ? el(WorkComments, { workId: workId }) : null,
     /* @__PURE__ */ React.createElement("div", {
     style: { marginTop: 100 }
