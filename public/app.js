@@ -719,7 +719,19 @@ var ActivitiesSection = () => {
       if (focus) {
         var fc = focus.color || "#1a2b4a";
         var slides = [{ t: focus.tag || "本月特展", n: focus.name, m: "◷ " + esc(focus.dateLabel) + "　⌂ " + esc(focus.location), d: focus.desc, big: true }];
-        (focus.highlights || []).forEach(function (x, xi) { slides.push({ t: "亮点 · 0" + (xi + 1), n: x, m: "", d: "", big: false }); });
+        // v23: 亮点页左侧文案增强——按亮点名匹配内置文案库，未命中走通用兜底
+        var HL_COPY = {
+          "办公场景自动化": "从重复劳动里解放双手：workflow 串联、prompt 模板沉淀、报表自动生成，现场演示一条真实办公链路的自动化改造全过程。",
+          "生活实用小工具": "AI 不只服务工位：记账、菜谱、出行规划、家庭知识库，一起把模型能力装进日常生活的小角落。",
+          "数据玩法与可视化": "让数据开口说话：快速取数、图表叙事、可交互看板，拆解「一图讲清一件事」的实操套路。",
+          "效率工具开发": "从想法到可用工具的最短路径：低代码拼装、脚本速成、API 串联，现场把一个点子做成能跑的 demo。"
+        };
+        var HL_FALLBACK = "围绕这个方向的实战经验与踩坑复盘，现场投屏演示真实案例，欢迎带着自己的场景来交流。";
+        var HL_META = "现场 demo · 投屏演示 · 圆桌讨论";
+        (focus.highlights || []).forEach(function (x, xi) {
+          var hit = Object.keys(HL_COPY).filter(function (k) { return String(x).indexOf(k) >= 0; })[0];
+          slides.push({ t: "亮点 · 0" + (xi + 1), n: x, m: HL_META, d: hit ? HL_COPY[hit] : HL_FALLBACK, big: false });
+        });
         h += "<div class='act-carousel' id='actCarousel'>" + slides.map(function (s, si) {
           var bloomSp = ["peony", "rose", "lily", "lotus", "peony"][si % 5] || "peony";
           var ph = "<div class='act-feat-ph' data-bloom='" + bloomSp + "' aria-hidden='true'><i class='c1'></i><i class='c2'></i><i class='c3'></i><i class='c4'></i><span class='ph-t'>FLOWER · 加载中</span></div>";
@@ -2012,7 +2024,7 @@ var ActivitiesSection = () => {
     .act-feat-ph i.c2{right:12px;top:12px;border-left:none;border-bottom:none;}
     .act-feat-ph i.c3{left:12px;bottom:12px;border-right:none;border-top:none;}
     .act-feat-ph i.c4{right:12px;bottom:12px;border-left:none;border-top:none;}
-    @media(max-width:1120px){.act-carousel{min-height:0;}.act-slide{padding:44px 38px;}.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:100%;}}@media(max-width:600px){.act-slide{padding:30px 20px;}}
+    @media(max-width:1120px){.act-carousel{min-height:0;}.act-slide{padding:44px 38px;}.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:100%;margin-top:56px;}}@media(max-width:600px){.act-slide{padding:30px 20px;}}
     /* 02 预约消息通知 · 编辑式日程表 */
     .act-sched{border-top:1px solid rgba(0,0,0,0.08);}
     .sk-row{border-bottom:1px solid rgba(0,0,0,0.08);}
