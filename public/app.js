@@ -2024,7 +2024,7 @@ var ActivitiesSection = () => {
     .act-feat-ph i.c2{right:12px;top:12px;border-left:none;border-bottom:none;}
     .act-feat-ph i.c3{left:12px;bottom:12px;border-right:none;border-top:none;}
     .act-feat-ph i.c4{right:12px;bottom:12px;border-left:none;border-top:none;}
-    @media(max-width:1120px){.act-carousel{min-height:0;}.act-slide{padding:44px 38px;}.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:100%;margin-top:56px;}}@media(max-width:600px){.act-slide{padding:30px 20px;}}
+    @media(max-width:1120px){.act-carousel{min-height:0;}.act-slide{padding:44px 38px;}.act-slide.has-ph{flex-direction:column;align-items:stretch;gap:28px;}.act-feat-ph{flex:none;max-width:none;width:min(700px,78%);margin-left:auto;margin-right:auto;margin-top:56px;}}@media(max-width:600px){.act-slide{padding:30px 20px;}.act-feat-ph{width:100%;}}
     /* 02 预约消息通知 · 编辑式日程表 */
     .act-sched{border-top:1px solid rgba(0,0,0,0.08);}
     .sk-row{border-bottom:1px solid rgba(0,0,0,0.08);}
